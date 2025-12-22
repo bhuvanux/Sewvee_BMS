@@ -9,10 +9,11 @@ import {
     Dimensions
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Plus, Search, ChevronRight, User, Phone, ShoppingBag } from 'lucide-react-native';
+import { Plus, Search, ChevronRight, User, Phone, ShoppingBag, ListFilter, ChevronLeft, Calendar } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent } from '../config/firebase';
+import { parseDate } from '../utils/dateUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -20,11 +21,26 @@ const CustomersScreen = ({ navigation }: any) => {
     const { customers } = useData();
     const insets = useSafeAreaInsets();
     const [search, setSearch] = useState('');
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const monthName = currentDate.toLocaleString('default', { month: 'short', year: '2-digit' });
 
-    const filteredCustomers = customers.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.mobile.includes(search)
-    ).sort((a, b) => a.name.localeCompare(b.name));
+    const changeMonth = (increment: number) => {
+        const newDate = new Date(currentDate);
+        newDate.setMonth(newDate.getMonth() + increment);
+        setCurrentDate(newDate);
+    };
+
+    const filteredCustomers = customers.filter(c => {
+        // Filter by Month (Created At)
+        if (c.createdAt) {
+            const cDate = parseDate(c.createdAt);
+            const isSameMonth = cDate.getMonth() === currentDate.getMonth() && cDate.getFullYear() === currentDate.getFullYear();
+            if (!isSameMonth) return false;
+        }
+
+        return c.name.toLowerCase().includes(search.toLowerCase()) ||
+            c.mobile.includes(search);
+    }).sort((a, b) => a.name.localeCompare(b.name));
 
     const renderItem = ({ item }: any) => (
         <TouchableOpacity
@@ -59,7 +75,20 @@ const CustomersScreen = ({ navigation }: any) => {
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={styles.headerTop}>
                     <Text style={styles.screenTitle}>Clients</Text>
-                    <Text style={styles.headerSub}>{customers.length} total customers</Text>
+
+                    <View style={styles.monthSelector}>
+                        <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+                            <ChevronLeft size={20} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                        <Text style={styles.monthText}>{monthName}</Text>
+                        <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
+                            <ChevronRight size={20} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity style={styles.filterBtn}>
+                        <ListFilter size={20} color={Colors.textPrimary} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.searchBar}>
@@ -76,6 +105,19 @@ const CustomersScreen = ({ navigation }: any) => {
                             }
                         }}
                     />
+                </View>
+
+                {/* Stats Row */}
+                <View style={styles.statsRow}>
+                    <Text style={styles.statText}>
+                        <Text style={{ color: Colors.textSecondary }}>Total: </Text>
+                        {customers.length}
+                    </Text>
+                    <View style={styles.statDivider} />
+                    <Text style={styles.statText}>
+                        <Text style={{ color: Colors.textSecondary }}>New: </Text>
+                        <Text style={{ color: Colors.primary }}>{filteredCustomers.length}</Text>
+                    </Text>
                 </View>
             </View>
 
@@ -129,11 +171,6 @@ const styles = StyleSheet.create({
         fontSize: 24,
         color: Colors.textPrimary,
     },
-    headerSub: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -143,6 +180,54 @@ const styles = StyleSheet.create({
         height: 50,
         borderWidth: 1,
         borderColor: Colors.border,
+        marginTop: 12,
+    },
+    monthSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        gap: 8,
+    },
+    monthArrow: {
+        padding: 4,
+    },
+    monthText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textPrimary,
+        minWidth: 80,
+        textAlign: 'center',
+    },
+    filterBtn: {
+        padding: 8,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+        marginLeft: 8,
+    },
+    statsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginTop: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    statText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 13,
+        color: Colors.textPrimary,
+    },
+    statDivider: {
+        width: 1,
+        height: 16,
+        backgroundColor: '#CBD5E1',
     },
     searchInput: {
         flex: 1,

@@ -17,12 +17,15 @@ import { auth, firestore, COLLECTIONS } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
 
 const VerifyOtpScreen = ({ route, navigation }: any) => {
-    const { phone, verificationId, type } = route.params; // type: 'signup' or 'forgot_pin'
-    const { confirmOtp, sendOtp } = useAuth();
+    const { phone: paramPhone, verificationId, type } = route.params; // type: 'signup' or 'forgot_pin'
+    const { confirmOtp, sendOtp, user } = useAuth();
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [timer, setTimer] = useState(30);
     const inputs = useRef<any[]>([]);
+
+    // Use phone from params OR from user context (fixes race condition on signup)
+    const targetPhone = paramPhone || user?.phone;
 
     // Modal state
     const [modalConfig, setModalConfig] = useState<{
@@ -52,17 +55,23 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
         });
     };
 
+    // Effect to send OTP once we have the phone number
     useEffect(() => {
-        // Send OTP on mount
-        if (phone) {
-            sendOtp(phone);
+        if (targetPhone) {
+            // Only send if we haven't just sent one (timer check is rough proxy, but good for mount)
+            // Actually, we should just send it. logic in functionality handles rate limiting usually,
+            // but here we just want to ensure we trigger it if it wasn't triggered before.
+            // Since this component mounts once, this is fine.
+            sendOtp(targetPhone).catch(err => {
+                console.log('Auto-send OTP failed (possibly already sent or invalid):', err);
+            });
         }
 
         const interval = setInterval(() => {
             setTimer((prev) => (prev > 0 ? prev - 1 : 0));
         }, 1000);
         return () => clearInterval(interval);
-    }, []);
+    }, [targetPhone]); // Depend on targetPhone so if it arrives late, we trigger sendOtp
 
     const handleChange = (text: string, index: number) => {
         const newOtp = [...otp];
@@ -94,7 +103,7 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
             if (type === 'signup') {
                 showAlert('Success', 'Phone number verified successfully!', 'success');
             } else if (type === 'forgot_pin') {
-                navigation.navigate('ResetPin', { phone });
+                navigation.navigate('ResetPin', { phone: targetPhone });
             }
         } catch (error: any) {
             showAlert('Failed', error.message || 'Invalid code', 'error');
@@ -105,9 +114,15 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
 
     const handleResend = async () => {
         if (timer > 0) return;
+
+        if (!targetPhone) {
+            showAlert('Error', 'Phone number is missing. Please restart the app or try logging in again.', 'error');
+            return;
+        }
+
         setLoading(true);
         try {
-            await sendOtp(phone);
+            await sendOtp(targetPhone);
             setTimer(30);
             showAlert('Sent', 'A new code has been sent to your WhatsApp', 'success');
         } catch (error: any) {
@@ -125,21 +140,6 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
                 await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).set({
                     isPhoneVerified: true
                 }, { merge: true });
-                // Force a check if possible, or usually context listener will pick it up.
-                // But context might not re-fetch immediately on local update unless we reload app.
-                // However, AuthContext listener for onAuthStateChanged is usually triggered by sign in/out,
-                // not database changes unless we implement a snapshot listener on the user Doc.
-                // The current AuthContext only fetches ONCE on load/login.
-                // So we might need to rely on the app reload or logic.
-                // Let's just alert and ask to restart or hope dashboard re-renders.
-                // ACTUALLY: AuthContext doesn't expose a 'refreshUser' method.
-                // But we can trigger confirmOtp's logic which does setUser.
-                // Let's just manually update local state via a hack or navigation?
-                // Wait, confirmOtp does setUser. I'll just skip the context update and assume
-                // RootNavigator will re-render if I update the context?
-                // I can't update context state from here.
-                // I'll show an Alert saying "Skipped. Please restart app if not redirected."
-                // But wait, if I update firestore, and then reload app, it works.
                 showAlert('Skipped', 'Verification skipped. App may need restart.', 'success');
             }
         } catch (error: any) {
@@ -148,6 +148,28 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
             setLoading(false);
         }
     };
+
+    // Render Error State if Data is Missing
+    if (!targetPhone || targetPhone.trim() === '') {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <View style={[styles.iconContainer, { backgroundColor: Colors.danger }]}>
+                    <ShieldCheck size={40} color={Colors.white} />
+                </View>
+                <Text style={styles.title}>Session Error</Text>
+                <Text style={styles.subtitle}>
+                    We couldn't retrieve your phone number. This can happen if the network is slow or the session is invalid.
+                </Text>
+
+                <TouchableOpacity
+                    style={[styles.verifyBtn, { marginTop: 30, width: '100%' }]}
+                    onPress={() => navigation.navigate('Login')}
+                >
+                    <Text style={styles.verifyBtnText}>Back to Login</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
@@ -162,7 +184,7 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
                     <Text style={styles.title}>Verify Phone</Text>
                     <Text style={styles.subtitle}>
                         We have sent a 6-digit verification code to {'\n'}
-                        <Text style={styles.phoneText}>+91 {phone}</Text>
+                        <Text style={styles.phoneText}>+91 {targetPhone}</Text>
                     </Text>
                 </View>
 

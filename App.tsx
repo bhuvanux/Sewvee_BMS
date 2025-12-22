@@ -17,41 +17,31 @@ LogBox.ignoreAllLogs();
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, error] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
 
-
   const navigationRef = React.useRef<any>(null);
   const routeNameRef = React.useRef<string | undefined>(undefined);
 
-  useEffect(() => {
-    async function prepare() {
-      try {
-        // Artificially wait for a bit to ensure resources are loaded
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        if (fontsLoaded) {
-          await SplashScreen.hideAsync();
-        }
-      }
-    }
-
-    prepare();
-  }, [fontsLoaded]);
-
   const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded) {
-      await SplashScreen.hideAsync();
+    if (fontsLoaded || error) {
+      await SplashScreen.hideAsync().catch(console.warn);
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, error]);
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    // Failsafe: Hide splash screen if error occurs or meaningful render happens
+    if (error) {
+      console.error("Font loading failed:", error);
+      SplashScreen.hideAsync().catch(console.warn);
+    }
+  }, [error]);
+
+  if (!fontsLoaded && !error) {
     return null;
   }
 

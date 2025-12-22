@@ -17,7 +17,7 @@ import {
     Easing
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, ArrowRight, Save, Check, Plus, Trash2, Mic, Image as ImageIcon, ChevronDown, User, Search, MapPin, Phone, X, ChevronRight, Upload, PenTool, Highlighter } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Save, Check, Plus, Trash2, Mic, Image as ImageIcon, ChevronDown, User, Search, MapPin, Phone, X, ChevronRight, Upload, PenTool, Highlighter, Edit2 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Order, OutfitItem, MeasurementProfile } from '../types';
@@ -29,6 +29,7 @@ import * as FileSystem from 'expo-file-system';
 import SignatureScreen from 'react-native-signature-canvas';
 
 import CustomerSelectionModal from '../components/CustomerSelectionModal';
+import OrderSuccessModal from '../components/OrderSuccessModal';
 
 // Liquid Progress Component
 const LiquidProgress = ({ current, total }: { current: number, total: number }) => {
@@ -657,7 +658,7 @@ const Step3Media = ({ state, onChange }: any) => {
         if (!selectedImage) return;
         try {
             // Read file as Base64 for Canvas Background
-            const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: FileSystem.EncodingType.Base64 });
+            const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: 'base64' });
             // Prefix needed for webview
             setEditImageBase64(`data:image/jpeg;base64,${base64}`);
             setEditorVisible(true);
@@ -669,14 +670,14 @@ const Step3Media = ({ state, onChange }: any) => {
     };
 
     const handleEditSave = async (signature: string) => {
-        // signature is the base64 string of the result (hopefully composite if configured right, else overlay)
+        // signature is the base64 string of the result
         try {
             // Save to temp file
-            const filename = FileSystem.documentDirectory + `edited_${Date.now()}.jpg`;
+            const filename = `${(FileSystem as any).documentDirectory}edited_${Date.now()}.jpg`;
             const base64Data = signature.replace('data:image/png;base64,', '').replace('data:image/jpeg;base64,', '');
 
             await FileSystem.writeAsStringAsync(filename, base64Data, {
-                encoding: FileSystem.EncodingType.Base64,
+                encoding: 'base64',
             });
 
             // Replace the currently selected image in the list
@@ -835,9 +836,9 @@ const Step3Media = ({ state, onChange }: any) => {
         </View>
     );
 };
-const Step4Billing = ({ state, onChange, onAddAnother }: any) => {
-    // Combine cart + current item for display
-    const allItems = [...state.cart, { ...state.currentOutfit, id: 'current' }];
+const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem }: any) => {
+    const cartItems = state.cart;
+    const currentItem = { ...state.currentOutfit, id: 'current' };
 
     const calculateTotal = () => {
         const cartTotal = state.cart.reduce((sum: number, item: any) => sum + (item.totalCost || 0), 0);
@@ -850,26 +851,56 @@ const Step4Billing = ({ state, onChange, onAddAnother }: any) => {
 
     return (
         <View style={styles.stepContainer}>
-            {/* Title removed for unified header */}
-
-            {/* Order Summary */}
+            {/* Order Items Card */}
             <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Customer</Text>
-                    <Text style={styles.summaryValue}>{state.customerName}</Text>
+                <View style={styles.cardHeaderRow}>
+                    <Text style={styles.cardTitle}>Order Items ({cartItems.length + 1})</Text>
                 </View>
 
-                <View style={[styles.divider, { marginVertical: 12 }]} />
+                {/* Cart Items (Completed) */}
+                {cartItems.map((item: any, index: number) => (
+                    <View key={index}>
+                        <View style={styles.itemRow}>
+                            {/* Item Details */}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.itemNameText}>{item.type}</Text>
+                                <Text style={styles.itemQtyText}>Qty: {item.qty}  •  Status: Ready</Text>
+                            </View>
 
-                <Text style={[styles.summaryLabel, { marginBottom: 8 }]}>Items ({allItems.length})</Text>
-                {allItems.map((item: any, index: number) => (
-                    <View key={index} style={[styles.summaryRow, { marginBottom: 6 }]}>
-                        <Text style={[styles.summaryValue, { fontFamily: 'Inter-Regular' }]}>
-                            {item.qty} x {item.type}
-                        </Text>
-                        <Text style={styles.summaryValue}>₹{item.totalCost || 0}</Text>
+                            {/* Price & Actions */}
+                            <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                                <Text style={styles.itemPriceText}>₹{item.totalCost}</Text>
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <TouchableOpacity onPress={() => onEditItem(index)} style={styles.actionIconBtn}>
+                                        <Edit2 size={16} color={Colors.primary} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => onDeleteItem(index)} style={styles.actionIconBtn}>
+                                        <Trash2 size={16} color={Colors.danger} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                        {/* Divider between items */}
+                        <View style={styles.itemDivider} />
                     </View>
                 ))}
+
+                {/* Current Item (Draft) */}
+                <View style={styles.itemRow}>
+                    <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={styles.itemNameText}>{currentItem.type}</Text>
+                            <View style={styles.draftBadge}>
+                                <Text style={styles.draftBadgeText}>Current</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.itemQtyText}>Qty: {currentItem.qty}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.itemPriceText}>₹{currentItem.totalCost || 0}</Text>
+                        {/* No direct delete for current, it's just 'in progress' */}
+                    </View>
+                </View>
             </View>
 
             {/* Add Another Outfit Button */}
@@ -880,7 +911,7 @@ const Step4Billing = ({ state, onChange, onAddAnother }: any) => {
 
             {/* Payment Details Card */}
             <View style={[styles.summaryCard, { backgroundColor: Colors.white }]}>
-                <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Payment Details</Text>
+                <Text style={[styles.cardTitle, { marginBottom: 16 }]}>Payment Details</Text>
 
                 {/* Total Input */}
                 <View style={{ marginBottom: 16 }}>
@@ -1064,6 +1095,78 @@ const CreateOrderFlowScreen = ({ navigation }: any) => {
         Alert.alert("Added", "Outfit added to cart. Add details for the next item.");
     };
 
+    const handleDeleteCartItem = (index: number) => {
+        Alert.alert(
+            "Delete Item",
+            "Are you sure you want to remove this item?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => {
+                        const newCart = [...orderState.cart];
+                        newCart.splice(index, 1);
+                        setOrderState(prev => ({ ...prev, cart: newCart }));
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEditCartItem = (index: number) => {
+        Alert.alert(
+            "Edit Item",
+            "This will move the item back to the form for editing. The current pending item (if any) will be saved to cart to avoid loss.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Edit",
+                    onPress: () => {
+                        // 1. If current item has meaningful data, push it to cart first?
+                        // For simplicity: Just swap them. Or push current to cart.
+                        // Let's assume user wants to pause current and edit that one.
+                        // Pushing current to cart might be annoying if it's empty.
+
+                        // Better logic: Move 'item to edit' into 'currentOutfit'.
+                        // If 'currentOutfit' is not empty/default, push it to 'cart' end.
+
+                        setOrderState(prev => {
+                            const itemToEdit = prev.cart[index];
+                            const newCart = [...prev.cart];
+                            newCart.splice(index, 1); // Remove from cart
+
+                            let updatedCart = newCart;
+                            // Check if current outfit has changes (simple check: totalCost > 0 or has images)
+                            const isCurrentDirty = prev.currentOutfit.totalCost || (prev.currentOutfit.images && prev.currentOutfit.images.length > 0);
+
+                            if (isCurrentDirty) {
+                                // Save current pending work to cart
+                                // We need to cast it properly
+                                updatedCart.push({
+                                    ...prev.currentOutfit,
+                                    id: Date.now().toString(),
+                                    qty: prev.currentOutfit.qty || 1,
+                                    totalCost: prev.currentOutfit.totalCost || 0,
+                                    // Ensure other fields
+                                } as OutfitItem);
+                            }
+
+                            return {
+                                ...prev,
+                                cart: updatedCart,
+                                currentOutfit: itemToEdit // Load into edit
+                            };
+                        });
+
+                        // Go to step 1
+                        setCurrentStep(0);
+                    }
+                }
+            ]
+        );
+    };
+
     const handleSave = async () => {
         try {
             // Validation
@@ -1183,6 +1286,8 @@ const CreateOrderFlowScreen = ({ navigation }: any) => {
                     outfits={outfits}
                     openCustomerModal={() => setCustomerModalVisible(true)}
                     onAddAnother={handleAddAnotherOutfit}
+                    onEditItem={handleEditCartItem}
+                    onDeleteItem={handleDeleteCartItem}
                 />
             </ScrollView>
 
@@ -1478,9 +1583,150 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 15,
-        color: Colors.textPrimary,
-        marginBottom: 12,
+        color: Colors.textPrimary
     },
+    // New Billing UI Styles
+    summaryCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: Spacing.md,
+        ...Shadow.subtle,
+        borderWidth: 1,
+        borderColor: Colors.border
+    },
+    cardHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12
+    },
+
+    itemRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        alignItems: 'flex-start'
+    },
+    itemNameText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
+        color: Colors.textPrimary,
+        marginBottom: 4
+    },
+    itemQtyText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 13,
+        color: Colors.textSecondary
+    },
+    itemPriceText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 15,
+        color: Colors.textPrimary,
+        marginBottom: 8
+    },
+    actionIconBtn: {
+        padding: 4
+    },
+    itemDivider: {
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginVertical: 8
+    },
+    draftBadge: {
+        backgroundColor: '#FEF3C7',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4
+    },
+    draftBadgeText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 10,
+        color: '#D97706'
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    summaryLabel: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 14,
+        color: Colors.textSecondary,
+    },
+    summaryValue: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
+        color: Colors.textPrimary,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: Colors.border,
+        marginVertical: Spacing.sm,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 12,
+        paddingHorizontal: Spacing.md,
+        height: 48,
+        backgroundColor: '#F9FAFB',
+    },
+    currencyPrefix: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
+        color: Colors.textSecondary,
+        marginRight: 8,
+    },
+    currencyInput: {
+        flex: 1,
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+    },
+    advanceRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    modeToggle: {
+        flexDirection: 'row',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        padding: 4,
+        width: 110,
+    },
+    modeBtn: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 8,
+    },
+    modeBtnActive: {
+        backgroundColor: Colors.white,
+        ...Shadow.subtle,
+    },
+    modeBtnText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    modeBtnTextActive: {
+        color: Colors.primary,
+        fontFamily: 'Inter-SemiBold',
+    },
+    totalLabel: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+    },
+    totalValue: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.primary,
+    },
+
     imageGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -1518,6 +1764,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
     },
+    emptyUploadBox: {
+        height: 160,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderStyle: 'dashed',
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F9FAFB',
+        marginBottom: 16
+    },
     addImageText: {
         fontFamily: 'Inter-Medium',
         fontSize: 12,
@@ -1551,99 +1808,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Regular',
         fontSize: 13,
         color: Colors.textSecondary,
-    },
-    // Billing Styles
-    summaryCard: {
-        backgroundColor: '#F8FAFC',
-        padding: Spacing.md,
-        borderRadius: 16,
-        marginBottom: Spacing.xl,
-        borderWidth: 1,
-        borderColor: Colors.border,
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    summaryLabel: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
-    summaryValue: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.textPrimary,
-    },
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 12,
-        paddingHorizontal: Spacing.md,
-        height: 50,
-        flex: 1,
-    },
-    currencyPrefix: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.textSecondary,
-        marginRight: 4,
-    },
-    currencyInput: {
-        flex: 1,
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    advanceRow: {
-        flexDirection: 'row',
-        gap: 12,
-        marginTop: 8,
-    },
-    modeToggle: {
-        flexDirection: 'row',
-        backgroundColor: '#F3F4F6',
-        borderRadius: 12,
-        padding: 4,
-        height: 50,
-        alignItems: 'center',
-    },
-    modeBtn: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 8,
-    },
-    modeBtnActive: {
-        backgroundColor: Colors.white,
-        ...Shadow.subtle,
-    },
-    modeBtnText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textSecondary,
-    },
-    modeBtnTextActive: {
-        fontFamily: 'Inter-SemiBold',
-        color: Colors.primary,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: Colors.border,
-        marginVertical: Spacing.lg,
-    },
-    totalLabel: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    totalValue: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.primary,
     },
     // New Styles for Step 1 Refactor
     typeToggle: {
@@ -1863,7 +2027,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
-        ...Shadow.sm
+        ...Shadow.small
     },
     cardTitle: {
         fontFamily: 'Inter-Bold',
@@ -1907,7 +2071,7 @@ const styles = StyleSheet.create({
         padding: 24,
         width: '90%',
         maxHeight: '80%',
-        ...Shadow.lg,
+        ...Shadow.large,
     },
     tableHeader: {
         flexDirection: 'row',
@@ -2040,7 +2204,7 @@ const styles = StyleSheet.create({
         margin: 20,
         borderRadius: 20,
         padding: 20,
-        ...Shadow.lg,
+        ...Shadow.large,
         width: '90%',
         maxWidth: 360
     },
@@ -2117,7 +2281,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        ...Shadow.lg
+        ...Shadow.large
     },
     bottomSheetHeader: {
         flexDirection: 'row',
@@ -2152,6 +2316,28 @@ const styles = StyleSheet.create({
     outfitOptionTextSelected: {
         color: Colors.primary,
         fontFamily: 'Inter-SemiBold'
+    },
+    editorBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        gap: 8,
+        ...Shadow.subtle
+    },
+    editorBtnText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 14,
+        color: Colors.textPrimary
+    },
+    valueText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textPrimary
     }
 });
 

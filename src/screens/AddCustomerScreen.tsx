@@ -93,8 +93,6 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <TextInput
                                 style={styles.input}
                                 placeholderTextColor={Colors.textSecondary}
-                                placeholder="Ex: Shwetha"
-                                placeholderTextColor={Colors.textSecondary}
                                 value={name}
                                 onChangeText={setName}
                             />
@@ -107,8 +105,6 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <Phone size={18} color={Colors.textSecondary} />
                             <TextInput
                                 style={styles.input}
-                                placeholderTextColor={Colors.textSecondary}
-                                placeholder="10 digit mobile"
                                 placeholderTextColor={Colors.textSecondary}
                                 value={mobile}
                                 onChangeText={(val) => setMobile(val.replace(/[^0-9]/g, '').slice(0, 10))}
@@ -124,8 +120,6 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <MapPin size={18} color={Colors.textSecondary} />
                             <TextInput
                                 style={styles.input}
-                                placeholderTextColor={Colors.textSecondary}
-                                placeholder="Ex: Coimbatore"
                                 placeholderTextColor={Colors.textSecondary}
                                 value={location}
                                 onChangeText={setLocation}

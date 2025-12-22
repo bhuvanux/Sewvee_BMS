@@ -189,6 +189,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 isPhoneVerified: false,
                 createdAt: new Date().toISOString()
             });
+
+            // Manually set user state to avoid race condition with onAuthStateChanged
+            // The listener might fire before Firestore write completes or before we fetch it back
+            setUser({
+                uid: newUser.uid,
+                email,
+                name,
+                phone,
+                isPhoneVerified: false
+            });
         }
     };
 
@@ -200,6 +210,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('[MOCK OTP] code:', otpCode);
             setActiveOtp('123456'); // Keep 123456 for manual testing if mock is on
             return "MOCK_VERIFICATION_ID";
+        }
+
+        if (!phone) {
+            throw new Error("Phone number is invalid or missing.");
         }
 
         try {

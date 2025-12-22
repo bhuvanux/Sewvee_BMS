@@ -23,9 +23,10 @@ import {
     Smartphone,
     Trash2,
     Edit2,
-    Edit2,
+
     LogOut,
-    ListFilter
+    ListFilter,
+    Search
 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useNavigation } from '@react-navigation/native';
@@ -63,6 +64,7 @@ const PaymentsScreen = () => {
     const [selectedOrderId, setSelectedOrderId] = useState('');
     const [amount, setAmount] = useState('');
     const [mode, setMode] = useState('Cash');
+    const [search, setSearch] = useState('');
 
     const changeMonth = (increment: number) => {
         const newDate = new Date(currentDate);
@@ -75,9 +77,19 @@ const PaymentsScreen = () => {
     const displayPayments = useMemo(() => {
         return payments.filter(p => {
             const pDate = parseDate(p.date);
-            return pDate.getMonth() === currentDate.getMonth() && pDate.getFullYear() === currentDate.getFullYear();
+            const isSameMonth = pDate.getMonth() === currentDate.getMonth() && pDate.getFullYear() === currentDate.getFullYear();
+            if (!isSameMonth) return false;
+
+            if (!search) return true;
+            const order = orders.find(o => o.id === p.orderId);
+            const query = search.toLowerCase();
+            return (
+                (order?.customerName || '').toLowerCase().includes(query) ||
+                (order?.billNo || '').toLowerCase().includes(query) ||
+                p.amount.toString().includes(query)
+            );
         }).sort((a, b) => b.id.localeCompare(a.id));
-    }, [payments, currentDate]);
+    }, [payments, currentDate, search, orders]);
 
     const filteredOrders = useMemo(() => {
         return orders.filter(o => {
@@ -303,6 +315,18 @@ const PaymentsScreen = () => {
                     </TouchableOpacity>
                 </View>
 
+                {/* Search Row */}
+                <View style={styles.searchContainer}>
+                    <Search size={18} color={Colors.textSecondary} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholderTextColor={Colors.textSecondary}
+                        placeholder="Search Payments..."
+                        value={search}
+                        onChangeText={setSearch}
+                    />
+                </View>
+
                 {/* Compact Stats Row */}
                 <View style={styles.statsRow}>
                     <Text style={styles.statText}>
@@ -521,6 +545,24 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
         minWidth: 80,
         textAlign: 'center',
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.background,
+        borderRadius: 12,
+        paddingHorizontal: Spacing.md,
+        height: 50,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        marginTop: 12,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: Spacing.sm,
+        fontFamily: 'Inter-Regular',
+        fontSize: 15,
+        color: Colors.textPrimary,
     },
     filterBtn: {
         padding: 8,

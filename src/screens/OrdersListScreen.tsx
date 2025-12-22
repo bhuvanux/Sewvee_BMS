@@ -11,7 +11,7 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Search, Filter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus } from 'lucide-react-native';
+import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -128,7 +128,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                         style={[styles.filterBtn, isFilterVisible && styles.filterBtnActive]}
                         onPress={() => setIsFilterVisible(true)}
                     >
-                        <Filter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
+                        <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
 
