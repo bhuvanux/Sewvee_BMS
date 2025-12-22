@@ -10,7 +10,7 @@ interface OrderSuccessModalProps {
     onClose: () => void;
     onPrint: () => void;
     onWhatsapp: () => void;
-    orderData: any;
+    order: any; // Ideally Order type, but using any to avoid import issues for now, or importing Order
 }
 
 const OrderSuccessModal = ({
@@ -18,10 +18,10 @@ const OrderSuccessModal = ({
     onClose,
     onPrint,
     onWhatsapp,
-    orderData
+    order
 }: OrderSuccessModalProps) => {
 
-    if (!orderData) return null;
+    if (!order) return null;
 
     return (
         <Modal
@@ -47,34 +47,33 @@ const OrderSuccessModal = ({
                     <ScrollView style={styles.detailsContainer}>
                         <View style={styles.row}>
                             <Text style={styles.label}>Order ID:</Text>
-                            <Text style={styles.value}>{orderData.billNo}</Text>
+                            <Text style={styles.value}>{order.billNo || order.id || '-'}</Text>
                         </View>
                         <View style={styles.divider} />
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Order Date & Time:</Text>
-                            <Text style={styles.value}>{orderData.date} - {orderData.time}</Text>
+                            <Text style={styles.value}>
+                                {order.date && typeof order.date === 'string'
+                                    ? order.date.split('T')[0]
+                                    : (order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '-')}
+                                {order.time ? ` - ${order.time}` : ''}
+                            </Text>
                         </View>
                         <View style={styles.divider} />
 
                         <View style={styles.row}>
                             <Text style={styles.label}>Customer Name:</Text>
-                            <Text style={styles.value}>{orderData.customerName}</Text>
+                            <Text style={styles.value}>{order.customerName}</Text>
                         </View>
                         <View style={styles.divider} />
 
                         {/* Use the first item's dates if available, or general dates */}
-                        {orderData.outfits && orderData.outfits[0] && (
+                        {order.deliveryDate && (
                             <>
                                 <View style={styles.row}>
-                                    <Text style={styles.label}>Trial Date:</Text>
-                                    <Text style={styles.value}>{orderData.outfits[0].trialDate || '-'}</Text>
-                                </View>
-                                <View style={styles.divider} />
-
-                                <View style={styles.row}>
                                     <Text style={styles.label}>Delivery Date:</Text>
-                                    <Text style={styles.value}>{orderData.outfits[0].deliveryDate || '-'}</Text>
+                                    <Text style={styles.value}>{order.deliveryDate}</Text>
                                 </View>
                                 <View style={styles.divider} />
                             </>
@@ -83,7 +82,7 @@ const OrderSuccessModal = ({
                         <View style={styles.row}>
                             <Text style={styles.label}>Total Amount :</Text>
                             <Text style={[styles.value, { fontFamily: 'Inter-Bold', color: '#111827' }]}>
-                                ₹{orderData.total?.toLocaleString('en-IN')}
+                                ₹{order.total?.toLocaleString('en-IN')}
                             </Text>
                         </View>
                         <View style={styles.divider} />
@@ -91,7 +90,7 @@ const OrderSuccessModal = ({
                         <View style={styles.row}>
                             <Text style={styles.label}>Advance Paid:</Text>
                             <Text style={[styles.value, { color: Colors.textSecondary }]}>
-                                ₹{orderData.advance?.toLocaleString('en-IN')}
+                                ₹{order.advance?.toLocaleString('en-IN')}
                             </Text>
                         </View>
                         <View style={styles.divider} />
@@ -99,7 +98,7 @@ const OrderSuccessModal = ({
                         <View style={styles.row}>
                             <Text style={styles.label}>Pending Amount:</Text>
                             <Text style={[styles.value, { color: Colors.textSecondary }]}>
-                                ₹{orderData.balance?.toLocaleString('en-IN')}
+                                ₹{order.balance?.toLocaleString('en-IN')}
                             </Text>
                         </View>
                         <View style={styles.divider} />
@@ -108,7 +107,6 @@ const OrderSuccessModal = ({
                     {/* Actions */}
                     <View style={styles.footer}>
                         <TouchableOpacity style={[styles.btn, styles.whatsappBtn]} onPress={onWhatsapp}>
-                            {/* Assuming Whatsapp is primary, using orange as per design image if possible, else standard brand color */}
                             <Text style={styles.whatsappBtnText}>Whatsapp</Text>
                         </TouchableOpacity>
 

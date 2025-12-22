@@ -4,6 +4,7 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -14,10 +15,31 @@ import {
     StatusBar,
     SafeAreaView,
     Animated,
-    Easing
+    Easing,
+    LayoutAnimation
 } from 'react-native';
+import {
+    ChevronLeft,
+    ArrowLeft,
+    Check,
+    ArrowRight,
+    Camera,
+    Image as ImageIcon,
+    Mic,
+    X,
+    Plus,
+    Edit2,
+    Trash2,
+    Play,
+    Pause,
+    ChevronDown,
+    ChevronRight,
+    SquarePen,
+    User,
+    Upload,
+    PenTool
+} from 'lucide-react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, ArrowRight, Save, Check, Plus, Trash2, Mic, Image as ImageIcon, ChevronDown, User, Search, MapPin, Phone, X, ChevronRight, Upload, PenTool, Highlighter, Edit2 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { Order, OutfitItem, MeasurementProfile } from '../types';
@@ -836,8 +858,12 @@ const Step3Media = ({ state, onChange }: any) => {
         </View>
     );
 };
-const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem }: any) => {
+const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem }: any) => {
+    // expandedIndex is used for accordion logic
+    const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
     const cartItems = state.cart;
+    // Current draft item is also just an item, but mutable in state.currentOutfit
     const currentItem = { ...state.currentOutfit, id: 'current' };
 
     const calculateTotal = () => {
@@ -849,58 +875,111 @@ const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem 
     const total = calculateTotal();
     const balance = total - (parseFloat(state.advance) || 0);
 
+    const updateCartItemCost = (index: number, newCost: string) => {
+        const cost = parseFloat(newCost) || 0;
+        const newCart = [...state.cart];
+        newCart[index] = { ...newCart[index], totalCost: cost };
+        onChange({ cart: newCart });
+    };
+
+    const toggleAccordion = (index: number) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setExpandedIndex(expandedIndex === index ? null : index);
+    };
+
     return (
-        <View style={styles.stepContainer}>
-            {/* Order Items Card */}
+        <ScrollView style={styles.stepContainer} contentContainerStyle={{ paddingBottom: 100 }}>
+            {/* Order Items List (Accordion) */}
             <View style={styles.summaryCard}>
                 <View style={styles.cardHeaderRow}>
                     <Text style={styles.cardTitle}>Order Items ({cartItems.length + 1})</Text>
                 </View>
 
-                {/* Cart Items (Completed) */}
-                {cartItems.map((item: any, index: number) => (
-                    <View key={index}>
-                        <View style={styles.itemRow}>
-                            {/* Item Details */}
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.itemNameText}>{item.type}</Text>
-                                <Text style={styles.itemQtyText}>Qty: {item.qty}  •  Status: Ready</Text>
-                            </View>
-
-                            {/* Price & Actions */}
-                            <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                                <Text style={styles.itemPriceText}>₹{item.totalCost}</Text>
-                                <View style={{ flexDirection: 'row', gap: 12 }}>
-                                    <TouchableOpacity onPress={() => onEditItem(index)} style={styles.actionIconBtn}>
-                                        <Edit2 size={16} color={Colors.primary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => onDeleteItem(index)} style={styles.actionIconBtn}>
-                                        <Trash2 size={16} color={Colors.danger} />
-                                    </TouchableOpacity>
+                {/* 1. Cart Items (Completed) */}
+                {cartItems.map((item: any, index: number) => {
+                    const isExpanded = expandedIndex === index;
+                    return (
+                        <View key={index} style={{ marginBottom: 8 }}>
+                            <TouchableOpacity
+                                style={[styles.accordionHeader, isExpanded && { backgroundColor: '#F8FAFC' }]}
+                                onPress={() => toggleAccordion(index)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <Text style={styles.itemNameText}>{item.type}</Text>
+                                        <Text style={[styles.itemQtyText, { fontSize: 12, backgroundColor: '#E0E7FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, color: Colors.primary }]}>
+                                            Qty: {item.qty}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.itemQtyText}>Edit Cost Details</Text>
                                 </View>
-                            </View>
-                        </View>
-                        {/* Divider between items */}
-                        <View style={styles.itemDivider} />
-                    </View>
-                ))}
+                                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                                    <Text style={styles.itemPriceText}>₹{item.totalCost}</Text>
+                                    {isExpanded ? <ChevronDown size={16} color={Colors.primary} /> : <ChevronRight size={16} color={Colors.textSecondary} />}
+                                </View>
+                            </TouchableOpacity>
 
-                {/* Current Item (Draft) */}
-                <View style={styles.itemRow}>
+                            {isExpanded && (
+                                <View style={styles.accordionBody}>
+                                    <View style={styles.fieldRow}>
+                                        <Text style={styles.fieldLabelSmall}>Total Cost</Text>
+                                        <View style={styles.smallInputWrapper}>
+                                            <Text style={styles.currencyPrefixSmall}>₹</Text>
+                                            <TextInput
+                                                style={styles.smallCurrencyInput}
+                                                keyboardType="numeric"
+                                                value={item.totalCost?.toString()}
+                                                onChangeText={(val) => updateCartItemCost(index, val)}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+                                        <TouchableOpacity onPress={() => onDeleteItem(index)} style={styles.textDeleteBtn}>
+                                            <Trash2 size={14} color={Colors.danger} />
+                                            <Text style={styles.textDeleteBtnText}>Remove Item</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
+                            <View style={styles.itemDivider} />
+                        </View>
+                    );
+                })}
+
+                {/* 2. Current Draft Item (Always Visible or Accordion? Let's keep it visible/editable as main focus) */}
+                <View style={[styles.accordionHeader, { backgroundColor: '#F0F9FF', borderRadius: 8, marginTop: 8, borderWidth: 1, borderColor: '#BAE6FD' }]}>
                     <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.itemNameText}>{currentItem.type}</Text>
+                            <Text style={[styles.itemNameText, { color: Colors.primary }]}>{currentItem.type}</Text>
                             <View style={styles.draftBadge}>
-                                <Text style={styles.draftBadgeText}>Current</Text>
+                                <Text style={styles.draftBadgeText}>Current Adding</Text>
                             </View>
                         </View>
                         <Text style={styles.itemQtyText}>Qty: {currentItem.qty}</Text>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.itemPriceText}>₹{currentItem.totalCost || 0}</Text>
-                        {/* No direct delete for current, it's just 'in progress' */}
+                </View>
+
+                {/* Current Item Cost Input - Always visible for quick access */}
+                <View style={{ padding: 12, paddingTop: 8 }}>
+                    <View style={styles.fieldRow}>
+                        <Text style={styles.fieldLabelSmall}>Cost for Current Item</Text>
+                        <View style={styles.smallInputWrapper}>
+                            <Text style={styles.currencyPrefixSmall}>₹</Text>
+                            <TextInput
+                                style={styles.smallCurrencyInput}
+                                keyboardType="numeric"
+                                placeholder="0.00"
+                                value={state.currentOutfit.totalCost?.toString()}
+                                onChangeText={(val) => onChange({
+                                    currentOutfit: { ...state.currentOutfit, totalCost: parseFloat(val) || 0 }
+                                })}
+                            />
+                        </View>
                     </View>
                 </View>
+
             </View>
 
             {/* Add Another Outfit Button */}
@@ -909,28 +988,11 @@ const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem 
                 <Text style={styles.addAnotherText}>Add Another Outfit</Text>
             </TouchableOpacity>
 
-            {/* Payment Details Card */}
-            <View style={[styles.summaryCard, { backgroundColor: Colors.white }]}>
-                <Text style={[styles.cardTitle, { marginBottom: 16 }]}>Payment Details</Text>
+            {/* Global Payment Details */}
+            <View style={[styles.summaryCard, { marginTop: 0 }]}>
+                <Text style={[styles.cardTitle, { marginBottom: 16 }]}>Bill Summary</Text>
 
-                {/* Total Input */}
-                <View style={{ marginBottom: 16 }}>
-                    <Text style={styles.fieldLabel}>Cost for Current Item ({state.currentOutfit.type})</Text>
-                    <View style={styles.inputWrapper}>
-                        <Text style={styles.currencyPrefix}>₹</Text>
-                        <TextInput
-                            style={styles.currencyInput}
-                            keyboardType="numeric"
-                            placeholder="0.00"
-                            value={state.currentOutfit.totalCost?.toString()}
-                            onChangeText={(val) => onChange({
-                                currentOutfit: { ...state.currentOutfit, totalCost: parseFloat(val) || 0 }
-                            })}
-                        />
-                    </View>
-                </View>
-
-                {/* Advance Input */}
+                {/* Advance */}
                 <View style={{ marginBottom: 16 }}>
                     <Text style={styles.fieldLabel}>Advance Paid</Text>
                     <View style={styles.advanceRow}>
@@ -944,7 +1006,6 @@ const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem 
                                 onChangeText={(val) => onChange({ advance: val })}
                             />
                         </View>
-                        {/* Mode Toggle */}
                         <View style={styles.modeToggle}>
                             {['Cash', 'UPI'].map(mode => (
                                 <TouchableOpacity
@@ -963,9 +1024,8 @@ const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem 
 
                 <View style={styles.divider} />
 
-                {/* Grand Total Display */}
                 <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Total Order Value</Text>
+                    <Text style={styles.summaryLabel}>Grand Total</Text>
                     <Text style={styles.summaryValue}>₹{total}</Text>
                 </View>
                 <View style={[styles.summaryRow, { marginTop: 8 }]}>
@@ -973,352 +1033,253 @@ const Step4Billing = ({ state, onChange, onAddAnother, onEditItem, onDeleteItem 
                     <Text style={styles.totalValue}>₹{balance.toFixed(2)}</Text>
                 </View>
             </View>
-        </View>
+        </ScrollView>
     );
 };
 
-const MAX_STEPS = 4; // 0 to 3
+// ... existing code ...
+
+const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem }: any) => {
+    return <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} />;
+};
+
 
 const CreateOrderFlowScreen = ({ navigation }: any) => {
-    const { addOrder, customers, outfits } = useData();
-    const { company } = useAuth();
+    const { customers, outfits, addOrder, addCustomer } = useData();
+    const { user } = useAuth();
 
-    // UI State
+    // State
     const [currentStep, setCurrentStep] = useState(0);
-    const [customerModalVisible, setCustomerModalVisible] = useState(false);
-    const [autoSaveStatus, setAutoSaveStatus] = useState('Auto-saved');
-
-    useEffect(() => {
-        navigation.setOptions({ headerShown: false });
-    }, []);
-
-    const [orderState, setOrderState] = useState({
-        customerType: 'new' as 'new' | 'existing',
-        selectedCustomer: null as any,
+    const [state, setState] = useState<any>({
         customerName: '',
         customerMobile: '',
-        customerLocation: '',
-        cart: [] as OutfitItem[], // COMPLETED items
+        selectedCustomer: null,
+        trialDate: null,
+        deliveryDate: null,
+        urgency: 'Normal', // Normal, Urgent
+
+        // Cart and Current Item
+        cart: [],
         currentOutfit: {
             id: '1',
-            type: outfits.length > 0 ? outfits[0].name : 'Blouse',
-            qty: 1,
-            deliveryDate: formatDate(new Date(new Date().setDate(new Date().getDate() + 7))),
-            trialDate: '',
+            type: 'Blouse',
+            quantity: 1,
             measurements: {},
-            notes: '',
             images: [],
+            notes: '',
             fabricSource: 'Customer',
-            status: 'Pending',
             totalCost: 0
-        } as Partial<OutfitItem>,
+        },
+
         advance: '',
-        advanceMode: 'Cash' as 'Cash' | 'UPI'
+        advanceMode: 'Cash'
     });
 
-    // Mock Auto-save simulation
-    useEffect(() => {
-        setAutoSaveStatus('Saving...');
-        const timer = setTimeout(() => setAutoSaveStatus('Auto-saved'), 1000);
-        return () => clearTimeout(timer);
-    }, [orderState]);
+    const [alert, setAlert] = useState<{ visible: boolean, title: string, message: string, type: 'info' | 'success' | 'error' | 'warning', onConfirm?: () => void }>({ visible: false, title: '', message: '', type: 'info', onConfirm: undefined });
+    const [customerModalVisible, setCustomerModalVisible] = useState(false);
+    const [successModalVisible, setSuccessModalVisible] = useState(false);
+    const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    const handleCustomerSelect = (customer: any) => {
-        setOrderState(prev => ({
-            ...prev,
-            selectedCustomer: customer,
-            customerName: customer.name,
-            customerMobile: customer.mobile,
-            customerLocation: customer.location || '',
-            customerType: customer.isNew ? 'new' : 'existing'
-        }));
-        setCustomerModalVisible(false);
+    // Handlers
+    const updateState = (updates: any) => setState((prev: any) => ({ ...prev, ...updates }));
+
+    const showAlert = (title: string, message: string) => setAlert({ visible: true, title, message, type: 'info', onConfirm: undefined });
+
+    const validateStep = (step: number) => {
+        if (step === 0) {
+            if (!state.selectedCustomer && !state.customerName) {
+                showAlert('Missing Customer', 'Please select a customer.');
+                return false;
+            }
+            if (!state.currentOutfit.type) {
+                showAlert('Missing Outfit Type', 'Please select an outfit type.');
+                return false;
+            }
+        }
+        return true;
     };
 
     const handleNext = () => {
-        if (currentStep < MAX_STEPS - 1) {
-            setCurrentStep(curr => curr + 1);
-        } else {
-            handleSave();
+        if (validateStep(currentStep)) {
+            if (currentStep < 3) setCurrentStep(c => c + 1);
         }
     };
 
     const handleBack = () => {
-        if (currentStep > 0) {
-            setCurrentStep(curr => curr - 1);
-        } else {
-            navigation.goBack();
-        }
+        if (currentStep > 0) setCurrentStep(c => c - 1);
+        else navigation.goBack();
     };
 
-    const handleAddAnotherOutfit = () => {
-        // Validation: Verify current outfit has type
-        if (!orderState.currentOutfit.type) {
-            Alert.alert("Required", "Please select outfit type.");
-            return;
-        }
-
-        // Push current outfit to cart
-        const completedOutfit = {
+    const handleAddAnother = () => {
+        // Add to cart logic
+        const cartItem = {
+            ...state.currentOutfit,
             id: Date.now().toString(),
-            ...orderState.currentOutfit,
-            // Ensure defaults
-            qty: orderState.currentOutfit.qty || 1,
-            totalCost: orderState.currentOutfit.totalCost || 0,
-            costItems: [],
-            images: orderState.currentOutfit.images || [],
-            measurements: orderState.currentOutfit.measurements || {}
-        } as OutfitItem;
+            // ensure totalCost is set? Step4 updates it inline now.
+        };
+        // Reset current outfit
+        const newOutfit = {
+            id: (Date.now() + 1).toString(),
+            type: 'Blouse',
+            quantity: 1,
+            measurements: {},
+            images: [],
+            notes: '',
+            fabricSource: 'Customer',
+            totalCost: 0
+        };
 
-        setOrderState(prev => ({
-            ...prev,
-            cart: [...prev.cart, completedOutfit],
-            // Reset current outfit, but keep dates?
-            currentOutfit: {
-                id: (Date.now() + 1).toString(),
-                type: outfits.length > 0 ? outfits[0].name : 'Blouse',
-                qty: 1,
-                deliveryDate: prev.currentOutfit.deliveryDate, // Keep same delivery date
-                trialDate: prev.currentOutfit.trialDate,
-                measurements: {},
-                notes: '',
-                images: [],
-                fabricSource: 'Customer',
-                status: 'Pending',
-                totalCost: 0
-            }
-        }));
-
-        // Loop back to Step 1 (or Step 2?) - User requirement: "choose multioutfit option... while choosing blouse... at end... add another"
-        // Going back to Step 1 lets them choose Type again.
+        updateState({
+            cart: [...state.cart, cartItem],
+            currentOutfit: newOutfit
+        });
         setCurrentStep(0);
-        Alert.alert("Added", "Outfit added to cart. Add details for the next item.");
     };
 
-    const handleDeleteCartItem = (index: number) => {
-        Alert.alert(
-            "Delete Item",
-            "Are you sure you want to remove this item?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => {
-                        const newCart = [...orderState.cart];
-                        newCart.splice(index, 1);
-                        setOrderState(prev => ({ ...prev, cart: newCart }));
-                    }
-                }
-            ]
-        );
+    const handleDeleteItem = (index: number) => {
+        const newCart = [...state.cart];
+        newCart.splice(index, 1);
+        updateState({ cart: newCart });
     };
 
-    const handleEditCartItem = (index: number) => {
-        Alert.alert(
-            "Edit Item",
-            "This will move the item back to the form for editing. The current pending item (if any) will be saved to cart to avoid loss.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Edit",
-                    onPress: () => {
-                        // 1. If current item has meaningful data, push it to cart first?
-                        // For simplicity: Just swap them. Or push current to cart.
-                        // Let's assume user wants to pause current and edit that one.
-                        // Pushing current to cart might be annoying if it's empty.
-
-                        // Better logic: Move 'item to edit' into 'currentOutfit'.
-                        // If 'currentOutfit' is not empty/default, push it to 'cart' end.
-
-                        setOrderState(prev => {
-                            const itemToEdit = prev.cart[index];
-                            const newCart = [...prev.cart];
-                            newCart.splice(index, 1); // Remove from cart
-
-                            let updatedCart = newCart;
-                            // Check if current outfit has changes (simple check: totalCost > 0 or has images)
-                            const isCurrentDirty = prev.currentOutfit.totalCost || (prev.currentOutfit.images && prev.currentOutfit.images.length > 0);
-
-                            if (isCurrentDirty) {
-                                // Save current pending work to cart
-                                // We need to cast it properly
-                                updatedCart.push({
-                                    ...prev.currentOutfit,
-                                    id: Date.now().toString(),
-                                    qty: prev.currentOutfit.qty || 1,
-                                    totalCost: prev.currentOutfit.totalCost || 0,
-                                    // Ensure other fields
-                                } as OutfitItem);
-                            }
-
-                            return {
-                                ...prev,
-                                cart: updatedCart,
-                                currentOutfit: itemToEdit // Load into edit
-                            };
-                        });
-
-                        // Go to step 1
-                        setCurrentStep(0);
-                    }
-                }
-            ]
-        );
-    };
-
-    const handleSave = async () => {
+    const handleCreateOrder = async () => {
+        setLoading(true);
         try {
-            // Validation
-            if (!orderState.customerName || !orderState.customerMobile) {
-                Alert.alert("Required", "Please select or add a customer.");
-                setCurrentStep(0);
+            // Prepare Order Data
+            // Combine cart + currentOutfit (if valid?)
+            // Usually "Create Order" means everything is final.
+            // If currentOutfit is partially filled, should we add it?
+            // "Current Item" in accordion indicates it is part of the order.
+
+            const finalItems = [...state.cart, { ...state.currentOutfit, id: 'current_' + Date.now() }];
+
+            // Validate: check if prices are set?
+            const totalValue = finalItems.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
+            if (totalValue <= 0) {
+                showAlert('Invalid Amount', 'Total order value cannot be zero.');
+                setLoading(false);
                 return;
             }
 
-            // Combine Cart + Current
-            // NOTE: Only if current outfit has data? Or assume Step 4 implies verify current?
-            // User might be just reviewing cart. BUT Step 4 asks for cost of current.
-
-            const currentOutfitFinal = {
-                id: Date.now().toString(),
-                ...orderState.currentOutfit,
-                qty: orderState.currentOutfit.qty || 1,
-                totalCost: orderState.currentOutfit.totalCost || 0,
-                costItems: [],
-                images: orderState.currentOutfit.images || [],
-                measurements: orderState.currentOutfit.measurements || {}
-            } as OutfitItem;
-
-            const allOutfits = [...orderState.cart, currentOutfitFinal];
-
-            const total = allOutfits.reduce((sum, item) => sum + item.totalCost, 0);
-            const advance = parseFloat(orderState.advance) || 0;
-            const balance = total - advance;
-
-            // Handle Customer
-            let customerId = orderState.selectedCustomer?.id;
-            if (orderState.customerType === 'new' || !customerId) {
-                // If ID is fake 'NEW_..' or null, treat as walkin/new
-                // In a real app we would create customer first.
-                // For now using fallback
-                customerId = 'WALKIN';
-            }
-
-            const orderData: any = {
-                id: Date.now().toString(),
-                billNo: `ORD-${Date.now().toString().slice(-6)}`,
-                date: getCurrentDate(),
-                time: getCurrentTime(),
-                customerId: customerId,
-                customerName: orderState.customerName,
-                customerMobile: orderState.customerMobile,
-                companyId: company?.id || 'default',
-                items: [],
-                outfits: allOutfits,
-                subtotal: total,
-                advance: advance,
-                total: total,
-                balance: balance,
-                status: balance <= 0 ? 'Paid' : (advance > 0 ? 'Partial' : 'Due')
+            const newOrderData: Partial<Order> = {
+                customerId: state.selectedCustomer?.id,
+                customerName: state.customerName || state.selectedCustomer?.name,
+                customerMobile: state.customerMobile || state.selectedCustomer?.mobile,
+                items: finalItems,
+                status: 'Pending',
+                paymentStatus: Number(state.advance) >= totalValue ? 'Paid' : (Number(state.advance) > 0 ? 'Partial' : 'Pending'),
+                total: totalValue,
+                advance: Number(state.advance) || 0,
+                balance: totalValue - (Number(state.advance) || 0),
+                notes: state.currentOutfit.notes,
+                deliveryDate: state.deliveryDate,
+                trialDate: state.trialDate,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             };
 
-            await addOrder(orderData);
-
-            Alert.alert("Success", "Order created successfully!", [
-                { text: "OK", onPress: () => navigation.goBack() }
-            ]);
-
-        } catch (error: any) {
-            console.error("Save Error:", error);
-            Alert.alert("Error", "Failed to save order: " + error.message);
+            const result = await addOrder(newOrderData);
+            if (result && result.id) {
+                setCreatedOrder(result);
+                setSuccessModalVisible(true);
+            } else {
+                showAlert('Error', 'Failed to create order. Please try again.');
+            }
+        } catch (e) {
+            showAlert('Error', 'An unexpected error occurred.');
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const CurrentStepComponent = [
-        Step1BasicInfo,
-        Step2Measurements,
-        Step3Media,
-        Step4Billing
-    ][currentStep];
-
-    const stepTitles = [
-        "Outfit & Order Info",
-        "Stitching & Measurements",
-        "Photos & References",
-        "Billing and Overview"
-    ];
-
-    const orderIdDisplay = `ORD-${new Date().getFullYear().toString().slice(-2)}${(new Date().getMonth() + 1).toString().padStart(2, '0')}${new Date().getDate().toString().padStart(2, '0')}-001`;
-
     return (
-        <View style={styles.container}>
-            {/* Unified Header */}
+        <SafeAreaView style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
+
+            {/* Header */}
             <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={handleBack} style={{ padding: 4 }}>
-                        <ArrowLeft size={24} color={Colors.textPrimary} />
-                    </TouchableOpacity>
-                    <View>
-                        <Text style={styles.headerTitle}>{stepTitles[currentStep]}</Text>
-                        <Text style={styles.headerSubtitle}>Step {currentStep + 1} of {MAX_STEPS}</Text>
-                    </View>
+                <TouchableOpacity onPress={handleBack} style={{ padding: 4 }}>
+                    <ArrowLeft size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <LiquidProgress current={currentStep} total={4} />
                 </View>
-
-                {/* Liquid Progress */}
-                <LiquidProgress current={currentStep} total={MAX_STEPS} />
+                <View style={{ width: 32 }} />
             </View>
 
-            {/* Order Status Bar */}
-            <View style={styles.orderStatusBar}>
-                <Text style={styles.orderIdText}>{orderIdDisplay}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Check size={12} color={Colors.primary} />
-                    <Text style={styles.autoSaveText}>{autoSaveStatus}</Text>
-                </View>
+            {/* Content */}
+            <View style={{ flex: 1 }}>
+                {currentStep === 0 && <Step1BasicInfo state={state} onChange={updateState} customers={customers} outfits={outfits} openCustomerModal={() => setCustomerModalVisible(true)} />}
+                {currentStep === 1 && <Step2Measurements state={state} onChange={updateState} outfits={outfits} />}
+                {currentStep === 2 && <Step3Media state={state} onChange={updateState} />}
+                {currentStep === 3 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} />}
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
-                <CurrentStepComponent
-                    state={orderState}
-                    onChange={(updates: any) => setOrderState(prev => ({ ...prev, ...updates }))}
-                    customers={customers}
-                    outfits={outfits}
-                    openCustomerModal={() => setCustomerModalVisible(true)}
-                    onAddAnother={handleAddAnotherOutfit}
-                    onEditItem={handleEditCartItem}
-                    onDeleteItem={handleDeleteCartItem}
-                />
-            </ScrollView>
-
+            {/* Footer Buttons */}
             <View style={styles.footer}>
-                {currentStep > 0 ? (
-                    <TouchableOpacity onPress={handleBack} style={styles.backBtnFooter}>
-                        <ArrowLeft size={20} color={Colors.textPrimary} />
+                {currentStep < 3 ? (
+                    <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
+                        <Text style={styles.nextBtnText}>Next</Text>
+                        <ArrowRight size={20} color={Colors.white} />
                     </TouchableOpacity>
                 ) : (
-                    <View style={{ width: 48 }} />
+                    <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateOrder} disabled={loading}>
+                        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.primaryBtnText}>Create Order</Text>}
+                    </TouchableOpacity>
                 )}
-
-                <TouchableOpacity onPress={handleNext} style={styles.nextBtn}>
-                    <Text style={styles.nextBtnText}>
-                        {currentStep === MAX_STEPS - 1 ? 'Save Order' : 'Next'}
-                    </Text>
-                    {currentStep === MAX_STEPS - 1 ? (
-                        <Check size={20} color={Colors.white} />
-                    ) : (
-                        <ArrowRight size={20} color={Colors.white} />
-                    )}
-                </TouchableOpacity>
             </View>
 
+            {/* Modals */}
+            <AlertModal
+                visible={alert.visible}
+                title={alert.title}
+                message={alert.message}
+                onClose={() => setAlert(prev => ({ ...prev, visible: false }))}
+                onConfirm={alert.onConfirm}
+            />
             <CustomerSelectionModal
                 visible={customerModalVisible}
                 onClose={() => setCustomerModalVisible(false)}
-                onSelect={handleCustomerSelect}
+                onSelect={async (cust: any) => {
+                    if (cust.isNew) {
+                        setLoading(true);
+                        try {
+                            const newCust = await addCustomer({
+                                name: cust.name,
+                                mobile: cust.mobile,
+                                location: cust.location
+                            });
+                            updateState({ selectedCustomer: newCust, customerName: newCust.name, customerMobile: newCust.mobile });
+                        } catch (e) {
+                            console.error(e);
+                            showAlert('Error', 'Failed to save new customer. Process continued correctly but customer might not be saved in directory.');
+                            // Fallback to local state just in case
+                            updateState({ selectedCustomer: cust, customerName: cust.name, customerMobile: cust.mobile });
+                        } finally {
+                            setLoading(false);
+                        }
+                    } else {
+                        updateState({ selectedCustomer: cust, customerName: cust.name, customerMobile: cust.mobile });
+                    }
+                    setCustomerModalVisible(false);
+                }}
                 customers={customers}
             />
-        </View>
+            {successModalVisible && (
+                <OrderSuccessModal
+                    visible={successModalVisible}
+                    order={createdOrder}
+                    onPrint={() => { }}
+                    onWhatsapp={() => { }}
+                    onClose={() => {
+                        setSuccessModalVisible(false);
+                        navigation.goBack();
+                    }}
+                />
+            )}
+        </SafeAreaView>
     );
 };
 
@@ -1598,8 +1559,73 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+        marginBottom: 8
+    },
+    // Accordion Styles
+    accordionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 4
+    },
+    accordionBody: {
+        padding: 12,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 8,
         marginBottom: 12
     },
+    fieldRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8
+    },
+    fieldLabelSmall: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: Colors.textSecondary,
+    },
+    smallInputWrapper: {
+        width: 120,
+        height: 36,
+        backgroundColor: Colors.white,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8
+    },
+    currencyPrefixSmall: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginRight: 4
+    },
+    smallCurrencyInput: {
+        flex: 1,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textPrimary,
+        height: '100%',
+        padding: 0
+    },
+    textDeleteBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        padding: 4
+    },
+    textDeleteBtnText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.danger
+    },
+
 
     itemRow: {
         flexDirection: 'row',
@@ -2338,6 +2364,22 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 14,
         color: Colors.textPrimary
+    },
+    primaryBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 14,
+        borderRadius: 12,
+        width: '100%',
+        ...Shadow.medium
+    },
+    primaryBtnText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.white
     }
 });
 

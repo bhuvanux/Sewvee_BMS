@@ -249,7 +249,7 @@ export default function RootNavigator() {
                     <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} options={{ headerShown: true, title: 'Client Details' }} />
                     <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ headerShown: true, title: 'Bill Details' }} />
                     <Stack.Screen name="CreateOrder" component={CreateOrderScreen} options={{ headerShown: true, title: 'New Bill' }} />
-                    <Stack.Screen name="CreateOrderFlow" component={CreateOrderFlowScreen} options={{ headerShown: true, title: 'New Order' }} />
+                    <Stack.Screen name="CreateOrderFlow" component={CreateOrderFlowScreen} options={{ headerShown: true, title: 'Create New Order' }} />
                     <Stack.Screen name="ManageOutfits" component={ManageOutfitsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="OutfitCategories" component={OutfitCategoriesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />

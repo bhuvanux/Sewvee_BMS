@@ -28,7 +28,7 @@ export interface OrderItem {
     description?: string;
 }
 
-export type OrderStatus = 'Paid' | 'Partial' | 'Due';
+export type OrderStatus = 'Paid' | 'Partial' | 'Due' | 'Pending' | 'Active' | 'Completed' | 'Cancelled';
 
 export interface Order {
     id: string;
@@ -44,9 +44,14 @@ export interface Order {
     total: number;
     balance: number;
     status: OrderStatus;
+    paymentStatus?: string;
+    notes?: string;
+    deliveryDate?: any;
+    trialDate?: any;
     date: any;
     time?: any;
     createdAt: any;
+    updatedAt?: any;
 }
 
 export interface Payment {
