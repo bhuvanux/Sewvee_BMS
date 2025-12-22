@@ -1,0 +1,357 @@
+import React, { useState } from 'react';
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    ScrollView,
+    KeyboardAvoidingView,
+    Platform,
+    ActivityIndicator
+} from 'react-native';
+import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
+import { Building2, MapPin, Phone, Hash, Mail, ArrowLeft, Save } from 'lucide-react-native';
+import { useAuth } from '../context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { validateEmail, validatePhone } from '../utils/validation';
+import SuccessModal from '../components/SuccessModal';
+
+const EditBusinessProfileScreen = ({ navigation }: any) => {
+    const { company, saveCompany } = useAuth();
+    const insets = useSafeAreaInsets();
+    const [companyName, setCompanyName] = useState(company?.name || '');
+    const [address, setAddress] = useState(company?.address || '');
+    const [phone, setPhone] = useState(company?.phone || '');
+    const [secondaryPhone, setSecondaryPhone] = useState(company?.secondaryPhone || '');
+    const [email, setEmail] = useState(company?.email || '');
+    const [gstin, setGstin] = useState(company?.gstin || '');
+    const [successVisible, setSuccessVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    // Alert Modal state
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertTitle, setAlertTitle] = useState('');
+    const [alertDesc, setAlertDesc] = useState('');
+    const [alertType, setAlertType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
+
+    // Get initials from company name
+    const getInitials = (name: string) => {
+        return name.trim().substring(0, 2).toUpperCase() || 'BT';
+    };
+
+    const handleSave = async () => {
+        if (!companyName.trim() || !address.trim()) {
+            setAlertTitle('Error');
+            setAlertDesc('Please fill all mandatory fields marked with *');
+            setAlertType('warning');
+            setAlertVisible(true);
+            return;
+        }
+
+        if (!validatePhone(phone)) {
+            setAlertTitle('Invalid Phone');
+            setAlertDesc('Primary Phone Number must be 10 digits');
+            setAlertType('warning');
+            setAlertVisible(true);
+            return;
+        }
+
+        if (secondaryPhone && !validatePhone(secondaryPhone)) {
+            setAlertTitle('Invalid Secondary Phone');
+            setAlertDesc('Secondary Phone Number must be 10 digits.');
+            setAlertType('warning');
+            setAlertVisible(true);
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            setAlertTitle('Invalid Email');
+            setAlertDesc('Please enter a valid email address.');
+            setAlertType('warning');
+            setAlertVisible(true);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await saveCompany({
+                ...company,
+                name: companyName,
+                address,
+                phone,
+                secondaryPhone,
+                email,
+                gstin
+            });
+            setSuccessVisible(true);
+        } catch (error) {
+            setAlertTitle('Error');
+            setAlertDesc('Failed to save business details. Please try again.');
+            setAlertType('error');
+            setAlertVisible(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSuccessDone = () => {
+        setSuccessVisible(false);
+        navigation.goBack();
+    };
+
+    return (
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.container, { paddingTop: insets.top }]}
+        >
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                    <ArrowLeft size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+                <Text style={Typography.h3}>Edit Business Profile</Text>
+                <TouchableOpacity onPress={handleSave} style={styles.saveIconButton}>
+                    <Save size={24} color={Colors.primary} />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.imageSection}>
+                    <View style={styles.initialsContainer}>
+                        <Text style={styles.initialsText}>{getInitials(companyName)}</Text>
+                    </View>
+                    <Text style={styles.initialsHint}>Your business initials</Text>
+                </View>
+
+                <View style={styles.form}>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Business Name *</Text>
+                        <View style={styles.inputContainer}>
+                            <Building2 size={18} color={Colors.textSecondary} />
+                            <TextInput
+                                style={styles.input}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="Enter boutique name"
+                                value={companyName}
+                                onChangeText={setCompanyName}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Email Address *</Text>
+                        <View style={styles.inputContainer}>
+                            <Mail size={18} color={Colors.textSecondary} />
+                            <TextInput
+                                style={styles.input}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="boutique@example.com"
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Primary Phone Number *</Text>
+                        <View style={styles.inputContainer}>
+                            <Phone size={18} color={Colors.textSecondary} />
+                            <TextInput
+                                style={styles.input}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="Customer care number"
+                                value={phone}
+                                onChangeText={(val) => setPhone(val.replace(/[^0-9]/g, '').slice(0, 10))}
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Secondary Phone Number</Text>
+                        <View style={styles.inputContainer}>
+                            <Phone size={18} color={Colors.textSecondary} />
+                            <TextInput
+                                style={styles.input}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="Alternative contact (Optional)"
+                                value={secondaryPhone}
+                                onChangeText={(val) => setSecondaryPhone(val.replace(/[^0-9]/g, '').slice(0, 10))}
+                                keyboardType="phone-pad"
+                                maxLength={10}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Address *</Text>
+                        <View style={[styles.inputContainer, styles.multiLineContainer]}>
+                            <MapPin size={18} color={Colors.textSecondary} style={{ marginTop: 10 }} />
+                            <TextInput
+                                style={[styles.input, styles.multiLineInput]}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="Full address..."
+                                value={address}
+                                onChangeText={setAddress}
+                                multiline
+                                numberOfLines={3}
+                                textAlignVertical="top"
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>GSTIN (Optional)</Text>
+                        <View style={styles.inputContainer}>
+                            <Hash size={18} color={Colors.textSecondary} />
+                            <TextInput
+                                style={styles.input}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="33BKPK44338F1ZC"
+                                value={gstin}
+                                onChangeText={setGstin}
+                                autoCapitalize="characters"
+                            />
+                        </View>
+                    </View>
+                </View>
+
+                <TouchableOpacity
+                    style={[styles.saveButton, loading && { opacity: 0.8 }]}
+                    onPress={handleSave}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color={Colors.white} />
+                    ) : (
+                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                    )}
+                </TouchableOpacity>
+
+                <View style={{ height: 40 }} />
+            </ScrollView>
+
+            <SuccessModal
+                visible={successVisible}
+                onClose={handleSuccessDone}
+                title="Profile Updated"
+                description="Your business profile has been successfully updated."
+            />
+
+            <SuccessModal
+                visible={alertVisible}
+                onClose={() => setAlertVisible(false)}
+                title={alertTitle}
+                description={alertDesc}
+                type={alertType}
+            />
+        </KeyboardAvoidingView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.md,
+        backgroundColor: Colors.white,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+    },
+    backButton: {
+        padding: 4,
+    },
+    saveIconButton: {
+        padding: 4,
+    },
+    scrollContent: {
+        padding: Spacing.lg,
+    },
+    imageSection: {
+        alignItems: 'center',
+        marginBottom: Spacing.xl,
+    },
+
+    initialsContainer: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Shadow.medium,
+    },
+    initialsText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 36,
+        color: Colors.white,
+    },
+    initialsHint: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 12,
+        color: Colors.textSecondary,
+        marginTop: 8,
+    },
+    form: {
+        gap: Spacing.md,
+    },
+    inputGroup: {
+        gap: 6,
+    },
+    label: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 14,
+        color: Colors.textPrimary,
+        marginLeft: 4,
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.card,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 12,
+        paddingHorizontal: Spacing.md,
+        height: 52,
+    },
+    multiLineContainer: {
+        height: 100,
+        alignItems: 'flex-start',
+        paddingTop: 8,
+    },
+    input: {
+        flex: 1,
+        fontFamily: 'Inter-Regular',
+        fontSize: 15,
+        color: Colors.textPrimary,
+        marginLeft: Spacing.sm,
+    },
+    multiLineInput: {
+        height: '100%',
+    },
+    saveButton: {
+        backgroundColor: Colors.primary,
+        borderRadius: 12,
+        height: 54,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: Spacing.xl,
+        ...Shadow.medium,
+    },
+    saveButtonText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
+        color: Colors.white,
+    },
+});
+
+export default EditBusinessProfileScreen;
