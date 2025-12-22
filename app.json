@@ -37,11 +37,17 @@
       "expo-updates"
     ],
     "updates": {
-      "url": "https://u.expo.dev/f0b1a0e1-4d6b-4b2a-8d7c-8e4a5d6b7c8d",
+      "url": "https://u.expo.dev/049c0301-9322-4f3d-ba93-8baa65a13555",
       "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "049c0301-9322-4f3d-ba93-8baa65a13555"
+      }
+    },
+    "owner": "neemtreeapps"
   }
 }
