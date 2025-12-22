@@ -11,7 +11,7 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { CheckCircle2, ArrowRight, ShieldCheck, RefreshCw, SkipForward } from 'lucide-react-native';
+import { CheckCircle2, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { auth, firestore, COLLECTIONS } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
@@ -132,22 +132,7 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
         }
     };
 
-    const handleSkip = async () => {
-        setLoading(true);
-        try {
-            const currentUser = auth().currentUser;
-            if (currentUser) {
-                await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).set({
-                    isPhoneVerified: true
-                }, { merge: true });
-                showAlert('Skipped', 'Verification skipped. App may need restart.', 'success');
-            }
-        } catch (error: any) {
-            showAlert('Error', error.message, 'error');
-        } finally {
-            setLoading(false);
-        }
-    };
+
 
     // Render Error State if Data is Missing
     if (!targetPhone || targetPhone.trim() === '') {
@@ -228,12 +213,7 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* DEV SKIP BUTTON */}
-                <TouchableOpacity onPress={handleSkip} style={{ marginTop: 20, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: 'Inter-Medium', color: Colors.textSecondary, textDecorationLine: 'underline' }}>
-                        (Dev) Skip Verification
-                    </Text>
-                </TouchableOpacity>
+
             </ScrollView>
 
             <AlertModal
