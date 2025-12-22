@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
 // No manual initialization needed with React Native Firebase!
 
 // Environment Toggle - Update this for Production Builds
-export const IS_STAGING = true;
+export const IS_STAGING = false;
 
 // Centralized Collection Names with Staging Logic
 export const COLLECTIONS = {
