@@ -659,8 +659,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         );
 
         return (
-            <ScrollView contentContainerStyle={{ padding: 12, gap: 12 }}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                <View style={{ gap: 12 }}>
                     {options.map((opt: any) => {
                         // Check if selected value STARTS with this option name (for composite values like "Paan - Deep")
                         // OR equals the option name directly (leaf node selection)
@@ -671,44 +671,46 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                             <TouchableOpacity
                                 key={opt.id}
                                 style={[
-                                    styles.optionCardSplit,
-                                    isSelected && styles.optionCardSelected
+                                    styles.optionListItem,
+                                    isSelected && styles.optionListItemSelected
                                 ]}
                                 onPress={() => handleOptionPress(opt)}
                             >
-                                {opt.image ? (
-                                    <Image source={{ uri: opt.image }} style={styles.optionImageSplit} />
-                                ) : (
-                                    <View style={styles.optionPlaceholderSplit}>
-                                        <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                    {/* Image or Icon */}
+                                    <View style={styles.optionListImageContainer}>
+                                        {opt.image ? (
+                                            <Image source={{ uri: opt.image }} style={styles.optionListImage} />
+                                        ) : (
+                                            <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
+                                        )}
                                     </View>
-                                )}
-                                <Text
-                                    numberOfLines={2}
-                                    style={[
-                                        styles.optionTextSplit,
-                                        isSelected && styles.optionTextSelected
-                                    ]}
-                                >
-                                    {opt.name}
-                                </Text>
-                                {isSelected && !hasChildren && (
-                                    <View style={styles.checkBadge}>
-                                        <Check size={10} color={Colors.white} />
-                                    </View>
-                                )}
-                                {/* Indicator for Drill-down */}
-                                {hasChildren && (
-                                    <View style={{ position: 'absolute', top: 4, right: 4 }}>
-                                        <ChevronRight size={14} color={Colors.textSecondary} />
-                                    </View>
-                                )}
-                                {/* Show selected child if drill-down */}
-                                {isSelected && hasChildren && selectedValue.includes(' - ') && (
-                                    <View style={{ marginTop: 4, backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ fontSize: 10, color: '#166534', fontFamily: 'Inter-Medium' }}>
-                                            {selectedValue.split(' - ')[1]}
+
+                                    {/* Text */}
+                                    <View style={{ flex: 1 }}>
+                                        <Text
+                                            style={[
+                                                styles.optionListText,
+                                                isSelected && styles.optionListTextSelected
+                                            ]}
+                                        >
+                                            {opt.name}
                                         </Text>
+                                        {/* Show selected child if drill-down */}
+                                        {isSelected && hasChildren && selectedValue.includes(' - ') && (
+                                            <Text style={{ fontSize: 11, color: Colors.primary, fontFamily: 'Inter-Medium', marginTop: 2 }}>
+                                                {selectedValue.split(' - ')[1]}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+
+                                {/* Right Side: Chevron or Check */}
+                                {hasChildren ? (
+                                    <ChevronRight size={18} color={Colors.textSecondary} />
+                                ) : (
+                                    <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                        {isSelected && <View style={styles.radioInner} />}
                                     </View>
                                 )}
                             </TouchableOpacity>
@@ -3438,13 +3440,73 @@ const styles = StyleSheet.create({
         resizeMode: 'contain'
     },
     optionPlaceholderSplit: {
-        width: 50,
-        height: 50,
+        width: 48,
+        height: 48,
         borderRadius: 8,
         backgroundColor: '#F3F4F6',
-        alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 8
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    optionListImage: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+    },
+    // List Styles for Options
+    optionListItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: Colors.white,
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: Colors.border, // Using border color
+        marginBottom: 0,
+        ...Shadow.small,
+    },
+    optionListItemSelected: {
+        borderColor: Colors.primary,
+        backgroundColor: '#F0FDF9', // Very light green
+    },
+    optionListImageContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: '#F9FAFB',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    optionListText: {
+        fontSize: 15,
+        fontFamily: 'Inter-Medium',
+        color: Colors.textPrimary,
+    },
+    optionListTextSelected: {
+        color: Colors.primary,
+        fontFamily: 'Inter-SemiBold',
+    },
+    radioCircle: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: '#D1D5DB',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    radioCircleSelected: {
+        borderColor: Colors.primary,
+    },
+    radioInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Colors.primary,
     },
     optionTextSplit: {
         fontFamily: 'Inter-Medium',
