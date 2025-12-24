@@ -38,9 +38,7 @@ const OrderSuccessModal = ({
                             <Check size={40} color={Colors.white} strokeWidth={4} />
                         </View>
                         <Text style={styles.title}>Order created{'\n'}successfully!</Text>
-                        <View style={styles.subTitleContainer}>
-                            <Text style={styles.subTitle}>Order and Payment details has been sent to customer</Text>
-                        </View>
+
                     </View>
 
                     {/* Details Table */}
@@ -106,12 +104,8 @@ const OrderSuccessModal = ({
 
                     {/* Actions */}
                     <View style={styles.footer}>
-                        <TouchableOpacity style={[styles.btn, styles.whatsappBtn]} onPress={onWhatsapp}>
-                            <Text style={styles.whatsappBtnText}>Whatsapp</Text>
-                        </TouchableOpacity>
-
                         <TouchableOpacity style={[styles.btn, styles.printBtn]} onPress={onPrint}>
-                            <Text style={styles.printBtnText}>Print Order Copy</Text>
+                            <Text style={styles.printBtnText}>Print Customer Copy</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={[styles.btn, styles.closeBtn]} onPress={onClose}>

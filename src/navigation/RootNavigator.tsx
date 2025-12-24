@@ -28,6 +28,7 @@ import BillSettingsScreen from '../screens/BillSettingsScreen';
 import ManageOutfitsScreen from '../screens/ManageOutfitsScreen';
 import OutfitCategoriesScreen from '../screens/OutfitCategoriesScreen';
 import EditCategoryScreen from '../screens/EditCategoryScreen';
+import ItemDetailScreen from '../screens/ItemDetailScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import VerifyOtpScreen from '../screens/VerifyOtpScreen';
@@ -247,9 +248,10 @@ export default function RootNavigator() {
                 <>
                     <Stack.Screen name="Main" component={MainTabs} />
                     <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} options={{ headerShown: true, title: 'Client Details' }} />
-                    <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ headerShown: true, title: 'Bill Details' }} />
-                    <Stack.Screen name="CreateOrder" component={CreateOrderScreen} options={{ headerShown: true, title: 'New Bill' }} />
-                    <Stack.Screen name="CreateOrderFlow" component={CreateOrderFlowScreen} options={{ headerShown: true, title: 'Create New Order' }} />
+                    <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ headerShown: true, title: 'Order Details' }} />
+                    <Stack.Screen name="CreateOrder" component={CreateOrderScreen} options={{ headerShown: true, title: 'New Order' }} />
+                    <Stack.Screen name="CreateOrderFlow" component={CreateOrderFlowScreen} options={{ headerShown: false, title: 'Create New Order' }} />
+                    <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="ManageOutfits" component={ManageOutfitsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="OutfitCategories" component={OutfitCategoriesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />

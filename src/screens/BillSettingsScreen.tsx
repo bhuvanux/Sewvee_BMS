@@ -71,7 +71,7 @@ const BillSettingsScreen = ({ navigation }: any) => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ArrowLeft size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={Typography.h3}>Bill Settings</Text>
+                <Text style={Typography.h3}>Order Settings</Text>
                 <TouchableOpacity onPress={handleSave} style={styles.saveIconButton}>
                     <Save size={24} color={Colors.primary} />
                 </TouchableOpacity>
@@ -89,7 +89,7 @@ const BillSettingsScreen = ({ navigation }: any) => {
                         <TextInput
                             style={styles.textArea}
                             placeholderTextColor={Colors.textSecondary}
-                                placeholder="Enter your terms and conditions (e.g., No refund after 7 days, etc.)"
+                            placeholder="Enter your terms and conditions (e.g., No refund after 7 days, etc.)"
                             value={terms}
                             onChangeText={setTerms}
                             multiline
@@ -140,7 +140,7 @@ const BillSettingsScreen = ({ navigation }: any) => {
                 </View>
 
                 <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                    <Text style={styles.saveButtonText}>Save Bill Settings</Text>
+                    <Text style={styles.saveButtonText}>Save Order Settings</Text>
                 </TouchableOpacity>
 
                 <View style={{ height: 40 }} />

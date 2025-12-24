@@ -484,10 +484,16 @@ const styles = StyleSheet.create({
 
 const getStatusColor = (status: string) => {
     switch (status) {
+        case 'In Progress': return '#3B82F6'; // Blue
+        case 'Trial': return '#8B5CF6'; // Purple
+        case 'Overdue': return Colors.danger;
+        case 'Cancelled': return '#6B7280'; // Gray
+        case 'Completed': return Colors.success;
         case 'Paid': return Colors.success;
+        case 'Partial': return '#F59E0B'; // Amber
+        case 'Pending': return '#F59E0B'; // Amber
         case 'Due': return Colors.danger;
-        case 'Partial': return '#F59E0B';
-        default: return Colors.textSecondary;
+        default: return '#6B7280';
     }
 };
 

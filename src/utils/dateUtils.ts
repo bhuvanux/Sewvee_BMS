@@ -33,7 +33,12 @@ export const formatDate = (date?: string | Date | null): string => {
             d = new Date(date);
         }
     } else {
-        d = date;
+        // Handle Firestore Timestamp or similar objects with toDate()
+        if (date && typeof (date as any).toDate === 'function') {
+            d = (date as any).toDate();
+        } else {
+            d = date as Date;
+        }
     }
 
     // Check for invalid date

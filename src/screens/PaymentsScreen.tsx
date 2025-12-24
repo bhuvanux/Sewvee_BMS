@@ -26,7 +26,8 @@ import {
 
     LogOut,
     ListFilter,
-    Search
+    Search,
+    MoreVertical
 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useNavigation } from '@react-navigation/native';
@@ -217,6 +218,19 @@ const PaymentsScreen = () => {
 
     const renderPaymentItem = ({ item }: any) => {
         const order = orders.find(o => o.id === item.orderId);
+
+        const showOptions = () => {
+            Alert.alert(
+                'Payment Options',
+                'Choose an action',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Edit', onPress: () => openEditModal(item) },
+                    { text: 'Delete', onPress: () => handleDeletePayment(item.id), style: 'destructive' },
+                ]
+            );
+        };
+
         return (
             <View style={styles.paymentCard}>
                 <View style={styles.paymentInfo}>
@@ -232,22 +246,22 @@ const PaymentsScreen = () => {
                             <Text style={styles.detailText}>{formatDate(item.date)}</Text>
                         </View>
                     </TouchableOpacity>
-                    <View style={styles.amountArea}>
-                        <Text style={styles.paymentAmount}>₹{item.amount}</Text>
-                        <View style={[styles.modeBadge, { backgroundColor: item.mode === 'UPI' || item.mode === 'GPay' ? '#EEF2FF' : '#F3F4F6' }]}>
+
+                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={styles.paymentAmount}>₹{item.amount}</Text>
+                            <TouchableOpacity
+                                onPress={showOptions}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                style={{ padding: 4 }}
+                            >
+                                <MoreHorizontal size={20} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={[styles.modeBadge, { backgroundColor: item.mode === 'UPI' || item.mode === 'GPay' ? '#EEF2FF' : '#F3F4F6', alignSelf: 'flex-end', marginRight: 28 }]}>
                             <Text style={[styles.modeText, { color: item.mode === 'UPI' || item.mode === 'GPay' ? '#4F46E5' : Colors.textSecondary }]}>{item.mode}</Text>
                         </View>
                     </View>
-                </View>
-                <View style={styles.cardActions}>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => openEditModal(item)}>
-                        <Edit2 size={16} color={Colors.primary} />
-                        <Text style={styles.actionBtnText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleDeletePayment(item.id)}>
-                        <Trash2 size={16} color={Colors.danger} />
-                        <Text style={[styles.actionBtnText, { color: Colors.danger }]}>Delete</Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         );
@@ -414,7 +428,7 @@ const PaymentsScreen = () => {
                                             {orders.find(o => o.id === selectedOrderId)?.customerName}
                                         </Text>
                                         <Text style={styles.billNoText}>
-                                            Bill #{orders.find(o => o.id === selectedOrderId)?.billNo}
+                                            Order #{orders.find(o => o.id === selectedOrderId)?.billNo}
                                         </Text>
                                     </View>
                                     <View style={styles.statLine}>
@@ -431,7 +445,7 @@ const PaymentsScreen = () => {
                                 </View>
                             ) : (
                                 <>
-                                    <Text style={styles.label}>Select Bill</Text>
+                                    <Text style={styles.label}>Select Order</Text>
                                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.billSelector}>
                                         {orders.filter(o => o.balance > 0 || o.id === selectedOrderId).map(o => (
                                             <TouchableOpacity

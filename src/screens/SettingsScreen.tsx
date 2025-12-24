@@ -22,10 +22,12 @@ import {
     Edit3,
     ReceiptIndianRupee,
     Scissors,
-    ShieldCheck
+    ShieldCheck,
+    Lock
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import SuccessModal from '../components/SuccessModal';
+import ChangePinModal from '../components/ChangePinModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent } from '../config/firebase';
 
@@ -33,6 +35,8 @@ const SettingsScreen = ({ navigation }: any) => {
     const { company, user, logout } = useAuth();
     const insets = useSafeAreaInsets();
     const [logoutVisible, setLogoutVisible] = React.useState(false);
+    const [changePinVisible, setChangePinVisible] = React.useState(false);
+    const [pinSuccessVisible, setPinSuccessVisible] = React.useState(false);
 
     const handleLogout = () => {
         logEvent('logout_initiated');
@@ -105,7 +109,7 @@ const SettingsScreen = ({ navigation }: any) => {
                     />
                     <SettingItem
                         icon={ReceiptIndianRupee}
-                        title="Bill Settings"
+                        title="Order Settings"
                         value="Terms, Signature & more"
                         onPress={() => navigation.navigate('BillSettings')}
                         isLast={true}
@@ -128,6 +132,20 @@ const SettingsScreen = ({ navigation }: any) => {
             </View>
 
 
+
+            <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Security</Text>
+                <View style={styles.card}>
+                    <SettingItem
+                        icon={Lock}
+                        title="Change App PIN"
+                        value="Update your 4-digit code"
+                        onPress={() => setChangePinVisible(true)}
+                        color="#EF4444"
+                        isLast={true}
+                    />
+                </View>
+            </View>
 
             <View style={styles.section}>
                 <Text style={styles.sectionLabel}>App Settings</Text>
@@ -175,6 +193,23 @@ const SettingsScreen = ({ navigation }: any) => {
                 type="warning"
                 confirmText="Logout"
                 onConfirm={logout}
+            />
+
+            <ChangePinModal
+                visible={changePinVisible}
+                onClose={() => setChangePinVisible(false)}
+                onSuccess={() => {
+                    setChangePinVisible(false);
+                    setTimeout(() => setPinSuccessVisible(true), 500);
+                }}
+            />
+
+            <SuccessModal
+                visible={pinSuccessVisible}
+                onClose={() => setPinSuccessVisible(false)}
+                title="PIN Updated"
+                description="Your security PIN has been updated successfully."
+                type="success"
             />
         </ScrollView>
     );

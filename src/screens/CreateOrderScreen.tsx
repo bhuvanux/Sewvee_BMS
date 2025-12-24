@@ -75,8 +75,8 @@ const CreateOrderScreen = ({ route, navigation }: any) => {
                 setItems(existingOrder.items.map((it, idx) => ({
                     id: (idx + 1).toString(),
                     name: it.name,
-                    qty: it.qty.toString(),
-                    rate: it.rate.toString(),
+                    qty: it.qty?.toString() || '1',
+                    rate: it.rate?.toString() || '0',
                     amount: it.amount,
                     description: it.description || ''
                 })));
@@ -290,11 +290,11 @@ const CreateOrderScreen = ({ route, navigation }: any) => {
                 } catch (pdfErr: any) {
                     console.error("PDF Generation Failed (Order Saved)", pdfErr);
                     // Instead of Alert.alert, we update the success modal description
-                    setSuccessDesc(`Bill successfully saved, but the PDF could not be generated: ${pdfErr.message || 'Unknown error'}. You can try printing again from the details screen.`);
+                    setSuccessDesc(`Order successfully saved, but the PDF could not be generated: ${pdfErr.message || 'Unknown error'}. You can try printing again from the details screen.`);
                 }
             }
 
-            setSuccessTitle(editOrderId ? "Bill Updated" : "Bill Created");
+            setSuccessTitle(editOrderId ? "Order Updated" : "Order Created");
             if (!successDesc) {
                 setSuccessDesc(editOrderId ?
                     "The bill has been successfully updated." :
@@ -638,7 +638,7 @@ const CreateOrderScreen = ({ route, navigation }: any) => {
                         {isSaving ? (
                             <ActivityIndicator size="small" color={Colors.white} />
                         ) : (
-                            <Text style={styles.saveBtnText}>Save Bill</Text>
+                            <Text style={styles.saveBtnText}>Save Order</Text>
                         )}
                     </TouchableOpacity>
                 </View>

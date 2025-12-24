@@ -45,11 +45,11 @@ const OrdersListScreen = ({ navigation }: any) => {
         if (filterStatus !== 'All' && o.status !== filterStatus) return false;
 
         // Then filter by search query
-        return o.billNo.includes(search) ||
-            o.customerName.toLowerCase().includes(search.toLowerCase());
+        return (o.billNo?.includes(search) ?? false) ||
+            (o.customerName?.toLowerCase().includes(search.toLowerCase()) ?? false);
     }).sort((a, b) => {
-        const dateA = parseDate(a.date).getTime();
-        const dateB = parseDate(b.date).getTime();
+        const dateA = a.date ? parseDate(a.date).getTime() : 0;
+        const dateB = b.date ? parseDate(b.date).getTime() : 0;
 
         if (sortBy === 'DateDesc' || sortBy === 'DateAsc') {
             return sortBy === 'DateDesc' ? dateB - dateA : dateA - dateB;
@@ -71,7 +71,7 @@ const OrdersListScreen = ({ navigation }: any) => {
             onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
         >
             <View style={styles.orderHeader}>
-                <Text style={styles.billNo}>Bill No: #{item.billNo}</Text>
+                <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
                 </View>
@@ -82,7 +82,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                     <Text style={styles.customerName}>{item.customerName}</Text>
                     <View style={styles.dateRow}>
                         <Calendar size={12} color={Colors.textSecondary} />
-                        <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+                        <Text style={styles.dateText}>{formatDate(item.date || item.createdAt)}</Text>
                     </View>
                 </View>
                 <View style={styles.amountArea}>
@@ -100,10 +100,16 @@ const OrdersListScreen = ({ navigation }: any) => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
+            case 'In Progress': return '#3B82F6'; // Blue
+            case 'Trial': return '#8B5CF6'; // Purple
+            case 'Overdue': return Colors.danger;
+            case 'Cancelled': return '#6B7280'; // Gray
+            case 'Completed': return Colors.success;
             case 'Paid': return Colors.success;
-            case 'Due': return Colors.danger;
             case 'Partial': return '#F59E0B'; // Amber
-            default: return Colors.textSecondary;
+            case 'Pending': return '#F59E0B'; // Amber
+            case 'Due': return Colors.danger;
+            default: return '#6B7280';
         }
     };
 
@@ -188,7 +194,7 @@ const OrdersListScreen = ({ navigation }: any) => {
 
                         <View style={styles.modalBody}>
                             <View style={styles.filterGroup}>
-                                <Text style={styles.groupLabel}>Bill Status</Text>
+                                <Text style={styles.groupLabel}>Order Status</Text>
                                 <View style={styles.chipGrid}>
                                     {['All', 'Paid', 'Partial', 'Due'].map(status => (
                                         <TouchableOpacity

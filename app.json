@@ -34,7 +34,13 @@
       "expo-font",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Sewvee Mini to access your microphone."
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/049c0301-9322-4f3d-ba93-8baa65a13555",

@@ -29,7 +29,7 @@ interface DataContextType {
 const DataContext = createContext<DataContextType>({} as DataContextType);
 
 // Default Seed Data
-const DEFAULT_OUTFITS = [
+export const DEFAULT_OUTFITS = [
     {
         name: 'Blouse',
         category: 'Stitching',
@@ -40,7 +40,19 @@ const DEFAULT_OUTFITS = [
                 id: 'cat_1',
                 name: 'Front Neck',
                 isVisible: true,
-                subCategories: [{ id: 'opt_1', name: 'Paan' }, { id: 'opt_2', name: 'Round' }, { id: 'opt_3', name: 'Square' }, { id: 'opt_4', name: 'Boat' }]
+                subCategories: [
+                    {
+                        id: 'opt_1',
+                        name: 'Paan',
+                        options: [
+                            { id: 'sub_1', name: 'Deep' },
+                            { id: 'sub_2', name: 'Standard' }
+                        ]
+                    },
+                    { id: 'opt_2', name: 'Round' },
+                    { id: 'opt_3', name: 'Square' },
+                    { id: 'opt_4', name: 'Boat' }
+                ]
             },
             {
                 id: 'cat_2',
@@ -239,11 +251,30 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const addOrder = async (order: Partial<Order>) => {
         if (!user?.uid) throw new Error('Not authenticated');
 
+        // Custom Order ID Logic: YYYY/00001
+        const currentYear = new Date().getFullYear().toString();
+
+        // 1. Get all orders for current year to determine next sequence
+        // Note: For high volume, a separate counter doc is better, but for this app, client-side calc from existing list is acceptable.
+        const existingOrders = orders.filter(o => o.billNo?.startsWith(currentYear));
+        const maxSeq = existingOrders.reduce((max, o) => {
+            const parts = o.billNo?.split('/');
+            if (parts?.length === 2 && parts[0] === currentYear) {
+                const seq = parseInt(parts[1], 10);
+                return !isNaN(seq) && seq > max ? seq : max;
+            }
+            return max;
+        }, 0);
+
+        const nextSeq = maxSeq + 1;
+        const newBillNo = `${currentYear}/${String(nextSeq).padStart(5, '0')}`;
+
         const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc();
 
         const newItem = {
             ...order,
-            id: orderRef.id, // Use Firestore's ID as the source of truth
+            id: orderRef.id,
+            billNo: newBillNo, // Set the custom ID
             ownerId: user.uid,
             createdAt: new Date().toISOString(),
             time: order.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
@@ -271,11 +302,12 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             batch.set(paymentRef, {
                 id: paymentRef.id,
                 orderId: orderRef.id,
+                billNo: newBillNo, // redundant but useful for searching
                 customerId: newItem.customerId,
                 amount: newItem.advance,
                 date: newItem.date || getCurrentDate(),
                 time: newItem.time,
-                mode: 'Cash', // Default
+                mode: (order as any).advanceMode || 'Cash', // Use the selected mode
                 type: 'Advance',
                 ownerId: user.uid
             });

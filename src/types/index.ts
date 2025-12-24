@@ -28,7 +28,7 @@ export interface OrderItem {
     description?: string;
 }
 
-export type OrderStatus = 'Paid' | 'Partial' | 'Due' | 'Pending' | 'Active' | 'Completed' | 'Cancelled';
+export type OrderStatus = 'Pending' | 'In Progress' | 'Trial' | 'Completed' | 'Overdue' | 'Active' | 'Cancelled' | 'Paid' | 'Partial' | 'Due';
 
 export interface Order {
     id: string;
@@ -87,6 +87,8 @@ export interface OutfitItem {
     costItems: CostItem[];
     images: string[];
     voiceNote?: string;
+    audioUri?: string; // Standardized URI field
+    transcription?: string; // AI Transcribed text
     notes?: string;
     totalCost: number;
 }

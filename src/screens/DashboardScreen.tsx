@@ -101,7 +101,7 @@ const DashboardScreen = ({ navigation }: any) => {
 
     const stats = [
         {
-            title: "Total Bills",
+            title: "Total Orders",
             value: orders.length.toString(),
             icon: ReceiptIndianRupee,
             color: '#6366F1',
@@ -188,7 +188,7 @@ const DashboardScreen = ({ navigation }: any) => {
                         <View style={[styles.actionIcon, { backgroundColor: Colors.primary }]}>
                             <Plus size={28} color={Colors.white} />
                         </View>
-                        <Text style={[styles.actionLabel, { color: Colors.primary, fontFamily: 'Inter-Bold' }]}>New Bill</Text>
+                        <Text style={[styles.actionLabel, { color: Colors.primary, fontFamily: 'Inter-Bold' }]}>New Order</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -218,7 +218,7 @@ const DashboardScreen = ({ navigation }: any) => {
                         <View style={[styles.actionIcon, { backgroundColor: '#FCE7F3' }]}>
                             <ReceiptIndianRupee size={24} color="#DB2777" />
                         </View>
-                        <Text style={styles.actionLabel}>Bills List</Text>
+                        <Text style={styles.actionLabel}>Orders List</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -261,7 +261,7 @@ const DashboardScreen = ({ navigation }: any) => {
 
                 {/* Recent Items */}
                 <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Recent Bills</Text>
+                    <Text style={styles.sectionTitle}>Recent Orders</Text>
                     <TouchableOpacity onPress={() => navigation.navigate('Orders', { screen: 'OrderList' })}>
                         <Text style={styles.seeAll}>See All</Text>
                     </TouchableOpacity>
@@ -269,7 +269,7 @@ const DashboardScreen = ({ navigation }: any) => {
 
                 {recentOrders.length === 0 ? (
                     <View style={styles.emptyRecent}>
-                        <Text style={styles.emptyText}>No recent bills found</Text>
+                        <Text style={styles.emptyText}>No recent orders found</Text>
                     </View>
                 ) : (
                     recentOrders.map((order) => (
@@ -323,7 +323,7 @@ const DashboardScreen = ({ navigation }: any) => {
                                 <TextInput
                                     style={styles.searchInput}
                                     placeholderTextColor={Colors.textSecondary}
-                                    placeholder="Search Bill No or Customer..."
+                                    placeholder="Search Order No or Customer..."
                                     value={searchQuery}
                                     onChangeText={setSearchQuery}
                                     autoFocus
@@ -362,7 +362,7 @@ const DashboardScreen = ({ navigation }: any) => {
                                                         <ReceiptIndianRupee size={18} color={Colors.primary} />
                                                     </View>
                                                     <View>
-                                                        <Text style={styles.searchResultTitle}>Bill #{o.billNo}</Text>
+                                                        <Text style={styles.searchResultTitle}>Order #{o.billNo}</Text>
                                                         <Text style={styles.searchResultSub}>{formatDate(o.date)} • {o.customerName}</Text>
                                                     </View>
                                                 </TouchableOpacity>

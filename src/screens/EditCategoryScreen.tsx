@@ -91,12 +91,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
                     if (editMode && targetId) {
                         updatedOptions = updatedOptions.map(opt =>
-                            opt.id === targetId ? { ...opt, name: inputName.trim() } : opt
+                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: editImage || null } : opt
                         );
                     } else {
                         updatedOptions.push({
                             id: Date.now().toString(),
-                            name: inputName.trim()
+                            name: inputName.trim(),
+                            image: editImage || null
                         });
                     }
                     subCat.options = updatedOptions;
@@ -162,7 +163,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         setEditMode(edit);
         setTargetId(option?.id || null);
         setInputName(option?.name || '');
-        setEditImage(null);
+        setEditImage(option?.image || null);
         setModalVisible(true);
     };
 
@@ -310,18 +311,16 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                             </View>
 
                             <View style={styles.inputContainer}>
-                                {modalType === 'subcategory' && (
-                                    <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                        {editImage ? (
-                                            <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                        ) : (
-                                            <View style={styles.placeholderImage}>
-                                                <Camera size={24} color={Colors.textSecondary} />
-                                                <Text style={styles.imagePickerText}>Add Image</Text>
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
-                                )}
+                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                                    {editImage ? (
+                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                    ) : (
+                                        <View style={styles.placeholderImage}>
+                                            <Camera size={24} color={Colors.textSecondary} />
+                                            <Text style={styles.imagePickerText}>Add Image</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
 
                                 <Text style={styles.label}>Name</Text>
                                 <TextInput
@@ -352,18 +351,16 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                             </View>
 
                             <View style={styles.inputContainer}>
-                                {modalType === 'subcategory' && (
-                                    <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                        {editImage ? (
-                                            <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                        ) : (
-                                            <View style={styles.placeholderImage}>
-                                                <Camera size={24} color={Colors.textSecondary} />
-                                                <Text style={styles.imagePickerText}>Add Image</Text>
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
-                                )}
+                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                                    {editImage ? (
+                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                    ) : (
+                                        <View style={styles.placeholderImage}>
+                                            <Camera size={24} color={Colors.textSecondary} />
+                                            <Text style={styles.imagePickerText}>Add Image</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
 
                                 <Text style={styles.label}>Name</Text>
                                 <TextInput
