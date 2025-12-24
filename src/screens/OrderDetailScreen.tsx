@@ -584,49 +584,51 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 onRequestClose={() => setPaymentModalVisible(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1 }}
                 >
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
-                            <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>Add Payment</Text>
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>Add Payment</Text>
 
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Amount Received (Balance: ₹{currentBalance})</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholderTextColor={Colors.textSecondary}
-                                    placeholder="₹ 0.00"
-                                    keyboardType="numeric"
-                                    value={paymentAmount}
-                                    onChangeText={setPaymentAmount}
-                                    autoFocus
-                                />
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Payment Mode</Text>
-                                <View style={styles.modeRow}>
-                                    {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
-                                        <TouchableOpacity
-                                            key={m}
-                                            style={[styles.modeBtn, paymentMode === m && styles.modeBtnActive]}
-                                            onPress={() => setPaymentMode(m)}
-                                        >
-                                            <Text style={[styles.modeBtnText, paymentMode === m && styles.modeBtnTextActive]}>{m}</Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Amount Received (Balance: ₹{currentBalance})</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholderTextColor={Colors.textSecondary}
+                                        placeholder="₹ 0.00"
+                                        keyboardType="numeric"
+                                        value={paymentAmount}
+                                        onChangeText={setPaymentAmount}
+                                        autoFocus
+                                    />
                                 </View>
-                            </View>
 
-                            <View style={styles.modalFooter}>
-                                <TouchableOpacity style={styles.cancelBtn} onPress={() => setPaymentModalVisible(false)}>
-                                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
-                                    <Text style={styles.saveBtnText}>Save Payment</Text>
-                                </TouchableOpacity>
-                            </View>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Payment Mode</Text>
+                                    <View style={styles.modeRow}>
+                                        {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
+                                            <TouchableOpacity
+                                                key={m}
+                                                style={[styles.modeBtn, paymentMode === m && styles.modeBtnActive]}
+                                                onPress={() => setPaymentMode(m)}
+                                            >
+                                                <Text style={[styles.modeBtnText, paymentMode === m && styles.modeBtnTextActive]}>{m}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View style={styles.modalFooter}>
+                                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setPaymentModalVisible(false)}>
+                                        <Text style={styles.cancelBtnText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
+                                        <Text style={styles.saveBtnText}>Add Payment</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </ScrollView>
                         </View>
                     </View>
                 </KeyboardAvoidingView>
