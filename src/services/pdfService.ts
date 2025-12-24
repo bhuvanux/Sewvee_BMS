@@ -37,23 +37,23 @@ export const normalizeItems = (orderData: any) => {
 
 const COMMON_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  body { font-family: 'Inter', sans-serif; padding: 40px; color: #1F2937; background-color: white; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 20px; margin-bottom: 30px; }
-  .company-logo { width: 60px; height: 60px; background-color: #0E9F8A; color: white; border-radius: 8px; display: flex; justify-content: center; align-items: center; text-align: center; vertical-align: middle; line-height: 60px; font-weight: 700; font-size: 24px; margin-bottom: 10px; overflow: hidden; }
-  .company-name { font-size: 24px; font-weight: 700; margin: 0; text-transform: uppercase; color: #0E9F8A; }
-  .company-details { font-size: 12px; color: #6B7280; line-height: 1.4; max-width: 300px; }
-  .document-label { background-color: #F3F4F6; padding: 8px 16px; border-radius: 4px; font-weight: 600; font-size: 14px; text-transform: uppercase; color: #374151; }
-  .info-row { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  body { font-family: 'Inter', sans-serif; padding: 25px; color: #1F2937; background-color: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px; margin-bottom: 15px; }
+  .company-logo { width: 50px; height: 50px; background-color: #0E9F8A; color: white; border-radius: 8px; display: flex; justify-content: center; align-items: center; text-align: center; vertical-align: middle; line-height: 50px; font-weight: 700; font-size: 20px; margin-bottom: 5px; overflow: hidden; }
+  .company-name { font-size: 20px; font-weight: 700; margin: 0; text-transform: uppercase; color: #0E9F8A; }
+  .company-details { font-size: 11px; color: #6B7280; line-height: 1.3; max-width: 300px; }
+  .document-label { background-color: #F3F4F6; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #374151; }
+  .info-row { display: flex; justify-content: space-between; margin-bottom: 15px; }
   .info-group { flex: 1; }
-  .info-label { font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-  .info-value { font-size: 14px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-  th { background-color: #F9FAFB; text-align: left; padding: 12px; font-size: 11px; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; }
-  td { padding: 12px; font-size: 13px; border-bottom: 1px solid #F3F4F6; }
-  .footer { display: flex; justify-content: space-between; margin-top: 50px; border-top: 1px solid #E5E7EB; padding-top: 20px; }
-  .terms { font-size: 10px; color: #9CA3AF; max-width: 300px; }
+  .info-label { font-size: 10px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .info-value { font-size: 13px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th { background-color: #F9FAFB; text-align: left; padding: 8px; font-size: 10px; color: #6B7280; border-bottom: 1px solid #E5E7EB; text-transform: uppercase; }
+  td { padding: 8px; font-size: 12px; border-bottom: 1px solid #F3F4F6; }
+  .footer { display: flex; justify-content: space-between; margin-top: 20px; border-top: 1px solid #E5E7EB; padding-top: 15px; }
+  .terms { font-size: 9px; color: #9CA3AF; max-width: 300px; }
   .signature-area { text-align: right; }
-  .signature-text { font-size: 11px; color: #6B7280; margin-top: 10px; }
+  .signature-text { font-size: 10px; color: #6B7280; margin-top: 8px; }
 `;
 
 const getBaseHeader = (companyData: any, label: string) => {
@@ -272,19 +272,19 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
         <style>
           ${COMMON_STYLES}
-          .item-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 20px; margin-bottom: 30px; page-break-inside: avoid; }
-          .item-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F3F4F6; padding-bottom: 12px; margin-bottom: 15px; }
-          .item-title { font-size: 18px; font-weight: 700; color: #111827; }
-          .item-qty { background: #E0E7FF; color: #4338CA; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-          .measurement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
-          .measurement-item { border-left: 3px solid #0E9F8A; padding-left: 10px; }
-          .measurement-label { font-size: 10px; color: #6B7280; text-transform: capitalize; }
-          .measurement-value { font-size: 14px; font-weight: 600; }
-          .notes-box { background: #FFFBEB; border: 1px solid #FEF3C7; padding: 15px; border-radius: 8px; margin-top: 15px; }
-          .notes-label { font-size: 11px; font-weight: 700; color: #92400E; margin-bottom: 4px; text-transform: uppercase; }
-          .notes-text { font-size: 13px; color: #78350F; line-height: 1.5; }
-          .item-images { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
-          .item-image { width: 45%; height: auto; min-width: 200px; object-fit: contain; border-radius: 8px; border: 1px solid #E5E7EB; background-color: #F9FAFB; }
+          .item-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+          .item-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F3F4F6; padding-bottom: 8px; margin-bottom: 10px; page-break-inside: avoid; break-inside: avoid; }
+          .item-title { font-size: 16px; font-weight: 700; color: #111827; }
+          .item-qty { background: #E0E7FF; color: #4338CA; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+          .measurement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; page-break-inside: avoid; break-inside: avoid; }
+          .measurement-item { border-left: 2px solid #0E9F8A; padding-left: 8px; }
+          .measurement-label { font-size: 9px; color: #6B7280; text-transform: capitalize; }
+          .measurement-value { font-size: 13px; font-weight: 600; }
+          .notes-box { background: #FFFBEB; border: 1px solid #FEF3C7; padding: 10px; border-radius: 8px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
+          .notes-label { font-size: 10px; font-weight: 700; color: #92400E; margin-bottom: 2px; text-transform: uppercase; }
+          .notes-text { font-size: 12px; color: #78350F; line-height: 1.4; }
+          .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
+          .item-image { height: 180px; width: auto; max-width: 100%; object-fit: contain; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; }
         </style>
       </head>
       <body>
@@ -297,7 +297,7 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
           </div>
           <div class="info-group">
             <div class="info-label">Order Date</div>
-            <div class="info-value">${formatDate(orderData.date)}</div>
+            <div class="info-value">${formatDate(orderData.date || orderData.createdAt || new Date())}</div>
           </div>
           <div class="info-group">
             <div class="info-label">Delivery Date</div>
@@ -305,7 +305,7 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
           </div>
         </div>
 
-        <div class="info-row" style="margin-top: -10px;">
+        <div class="info-row" style="margin-top: -5px;">
           <div class="info-group">
             <div class="info-label">Customer ID</div>
             <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
