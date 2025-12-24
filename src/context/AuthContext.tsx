@@ -321,82 +321,81 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-};
 
-const changePin = async (oldPin: string, newPin: string) => {
-    const currentUser = auth().currentUser;
-    if (!currentUser) throw new Error('User not authenticated');
 
-    const userDoc = await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).get();
-    const storedPin = userDoc.data()?.pin;
+    const changePin = async (oldPin: string, newPin: string) => {
+        const currentUser = auth().currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
 
-    // If a PIN is set, verify it. If not set (migration), allow setting it without old PIN (or maybe require standard auth?). 
-    // For security, if pin exists, oldPin MUST match.
-    if (storedPin && storedPin !== oldPin) {
-        throw new Error('Incorrect old PIN');
-    }
+        const userDoc = await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).get();
+        const storedPin = userDoc.data()?.pin;
 
-    await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).update({
-        pin: newPin
-    });
-};
-
-const resetPassword = async (email: string) => {
-    await auth().sendPasswordResetEmail(email);
-};
-
-const logout = async () => {
-    try {
-        await auth().signOut();
-    } catch (error) {
-        console.error('Logout Error:', error);
-    }
-};
-
-const saveCompany = async (companyData: any) => {
-    const currentUser = auth().currentUser;
-    if (!currentUser) throw new Error('User not authenticated');
-
-    try {
-        const companyWithId = {
-            ...companyData,
-            ownerId: currentUser.uid,
-            updatedAt: new Date().toISOString()
-        };
-
-        if (company?.id) {
-            await firestore().collection(COLLECTIONS.COMPANIES).doc(company.id).set(companyWithId, { merge: true });
-            setCompany((prev: any) => ({ ...prev, ...companyWithId }));
-        } else {
-            const newCompanyRef = await firestore().collection(COLLECTIONS.COMPANIES).add(companyWithId);
-            setCompany({ id: newCompanyRef.id, ...companyWithId });
+        // If a PIN is set, verify it. If not set (migration), allow setting it without old PIN (or maybe require standard auth?). 
+        // For security, if pin exists, oldPin MUST match.
+        if (storedPin && storedPin !== oldPin) {
+            throw new Error('Incorrect old PIN');
         }
-    } catch (error) {
-        console.error('Save Company Error:', error);
-        throw error;
-    }
-};
 
-return (
-    <AuthContext.Provider value={{
-        user,
-        company,
-        loading,
-        logout,
-        saveCompany,
-        login,
-        loginWithPhone,
-        signup,
-        resetPassword,
-        sendOtp,
-        confirmOtp,
-        confirmOtp,
-        resetPinWithPhone,
-        changePin
-    }}>
-        {children}
-    </AuthContext.Provider>
-);
+        await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).update({
+            pin: newPin
+        });
+    };
+
+    const resetPassword = async (email: string) => {
+        await auth().sendPasswordResetEmail(email);
+    };
+
+    const logout = async () => {
+        try {
+            await auth().signOut();
+        } catch (error) {
+            console.error('Logout Error:', error);
+        }
+    };
+
+    const saveCompany = async (companyData: any) => {
+        const currentUser = auth().currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
+
+        try {
+            const companyWithId = {
+                ...companyData,
+                ownerId: currentUser.uid,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (company?.id) {
+                await firestore().collection(COLLECTIONS.COMPANIES).doc(company.id).set(companyWithId, { merge: true });
+                setCompany((prev: any) => ({ ...prev, ...companyWithId }));
+            } else {
+                const newCompanyRef = await firestore().collection(COLLECTIONS.COMPANIES).add(companyWithId);
+                setCompany({ id: newCompanyRef.id, ...companyWithId });
+            }
+        } catch (error) {
+            console.error('Save Company Error:', error);
+            throw error;
+        }
+    };
+
+    return (
+        <AuthContext.Provider value={{
+            user,
+            company,
+            loading,
+            logout,
+            saveCompany,
+            login,
+            loginWithPhone,
+            signup,
+            resetPassword,
+            sendOtp,
+            confirmOtp,
+            resetPinWithPhone,
+            changePin
+        }}>
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
 export const useAuth = () => useContext(AuthContext);
