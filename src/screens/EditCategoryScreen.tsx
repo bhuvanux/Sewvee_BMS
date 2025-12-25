@@ -353,13 +353,29 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                     <View style={styles.inputContainer}>
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
                             {editImage ? (
-                                <View style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden' }}>
-                                    <Image source={{ uri: editImage }} style={{ width: '100%', height: '100%' }} />
+                                <View style={{
+                                    width: 80,
+                                    height: 80,
+                                    borderRadius: 12,
+                                    overflow: 'hidden',
+                                    backgroundColor: '#E2E8F0', // Ensure visibility
+                                    position: 'relative'
+                                }}>
+                                    <Image
+                                        source={{ uri: editImage }}
+                                        style={{ width: '100%', height: '100%' }}
+                                        resizeMode="cover"
+                                    />
                                     <View style={{
-                                        ...StyleSheet.absoluteFillObject,
-                                        backgroundColor: 'rgba(0,0,0,0.5)',
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: 'rgba(0,0,0,0.4)',
                                         alignItems: 'center',
                                         justifyContent: 'center',
+                                        zIndex: 1
                                     }}>
                                         <Edit2 size={20} color="white" />
                                         <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
