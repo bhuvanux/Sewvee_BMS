@@ -362,6 +362,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                                     position: 'relative'
                                 }}>
                                     <Image
+                                        key={editImage}
                                         source={{ uri: editImage }}
                                         style={{ width: '100%', height: '100%' }}
                                         resizeMode="cover"

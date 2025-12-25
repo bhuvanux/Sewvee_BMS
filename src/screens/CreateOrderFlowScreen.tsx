@@ -1836,17 +1836,21 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             <View style={styles.accordionContent}>
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />
 
-                                <View style={{ marginBottom: 16 }}>
-                                    <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Measurements</Text>
-                                    {stitchOptions.length > 0 ? (
-                                        <View style={{ gap: 4 }}>
-                                            {stitchOptions.map((opt, i) => (
-                                                <Text key={i} style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Regular' }}>• {opt}</Text>
-                                            ))}
-                                        </View>
-                                    ) : (
-                                        <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: 'Inter-Regular', fontStyle: 'italic' }}>No measurements added</Text>
-                                    )}
+                                <View style={{ marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, gap: 8 }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Delivery Date</Text>
+                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.deliveryDate || 'Not set'}</Text>
+                                    </View>
+                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Fabric Source</Text>
+                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.fabricSource || 'Not set'}</Text>
+                                    </View>
+                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Urgency</Text>
+                                        <Text style={{ fontSize: 13, color: state.urgency === 'Urgent' ? Colors.danger : Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.urgency || 'Normal'}</Text>
+                                    </View>
                                 </View>
 
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />

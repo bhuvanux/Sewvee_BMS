@@ -76,19 +76,8 @@ const Toast: React.FC = () => {
     };
 
     const getBgColor = () => {
-        switch (toast.type) {
-            case 'success':
-                return '#ECFDF5';
-            case 'error':
-                return '#FEF2F2';
-            case 'warning':
-                return '#FFFBEB';
-            case 'dark':
-                return '#1F2937';
-            case 'info':
-            default:
-                return '#EFF6FF';
-        }
+        // Always return dark background as per request
+        return '#1F2937';
     };
 
     const getBorderColor = () => {
@@ -100,7 +89,7 @@ const Toast: React.FC = () => {
             case 'warning':
                 return '#F59E0B';
             case 'dark':
-                return '#F59E0B';
+                return '#F59E0B'; // Or maybe keep consistent with warning/primary?
             case 'info':
             default:
                 return '#3B82F6';
@@ -125,7 +114,7 @@ const Toast: React.FC = () => {
                 <View style={styles.iconContainer}>
                     {getIcon()}
                 </View>
-                <Text style={[styles.message, toast.type === 'dark' && { color: '#FFFFFF' }]} numberOfLines={2}>
+                <Text style={styles.message} numberOfLines={2}>
                     {toast.message}
                 </Text>
             </View>
@@ -136,8 +125,8 @@ const Toast: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        left: 12,
-        right: 12,
+        left: 8, // Increased width by reducing margin (was 12)
+        right: 8,
         zIndex: 99999,
         alignItems: 'center',
     },
@@ -146,20 +135,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 14,
         paddingHorizontal: 20,
-        borderRadius: 16,
+        borderRadius: 12, // Slightly sharper corners for modern look
         width: '100%',
         maxWidth: 600,
         borderLeftWidth: 4,
         ...Shadow.medium,
         ...Platform.select({
-            ios: {
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            },
             android: {
-                backgroundColor: 'white',
                 elevation: 10,
             }
         }),
+        backgroundColor: '#1F2937', // Default dark
     },
     iconContainer: {
         marginRight: 10,
@@ -168,7 +154,7 @@ const styles = StyleSheet.create({
         flex: 1,
         fontFamily: 'Inter-Medium',
         fontSize: 14,
-        color: Colors.textPrimary,
+        color: '#FFFFFF', // Always white text
     }
 });
 
