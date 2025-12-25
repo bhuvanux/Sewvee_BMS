@@ -245,35 +245,43 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 title={editMode ? 'Edit Category' : 'Add New Category'}
                 height={450}
             >
-                <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-                    <View style={styles.inputContainer}>
-                        {/* Image Picker */}
-                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                            {editImage ? (
-                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                            ) : (
-                                <View style={styles.placeholderImage}>
-                                    <Camera size={24} color={Colors.textSecondary} />
-                                    <Text style={styles.imagePickerText}>Add Image</Text>
-                                </View>
-                            )}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
+                >
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.inputContainer}>
+                            {/* Image Picker */}
+                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                                {editImage ? (
+                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                ) : (
+                                    <View style={styles.placeholderImage}>
+                                        <Camera size={24} color={Colors.textSecondary} />
+                                        <Text style={styles.imagePickerText}>Add Image</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            <Text style={styles.label}>Category Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={categoryName}
+                                onChangeText={setCategoryName}
+                                placeholder="e.g. 3 Dot Blouse, Princess Cut"
+                                placeholderTextColor={Colors.textSecondary}
+                                autoFocus
+                            />
+                        </View>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save</Text>
                         </TouchableOpacity>
-
-                        <Text style={styles.label}>Category Name</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={categoryName}
-                            onChangeText={setCategoryName}
-                            placeholder="e.g. 3 Dot Blouse, Princess Cut"
-                            placeholderTextColor={Colors.textSecondary}
-                            autoFocus
-                        />
-                    </View>
-
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                        <Text style={styles.saveBtnText}>Save</Text>
-                    </TouchableOpacity>
-                </View>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             </ReusableBottomDrawer>
 
             <AlertModal

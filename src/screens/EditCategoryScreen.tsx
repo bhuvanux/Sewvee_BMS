@@ -327,35 +327,41 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 height={500}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={{ paddingHorizontal: 20, paddingTop: 20 }}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
+                    keyboardVerticalOffset={Platform.OS === 'android' ? -150 : 0} // Adjust for Android overlay if needed
                 >
-                    <View style={styles.inputContainer}>
-                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                            {editImage ? (
-                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                            ) : (
-                                <View style={styles.placeholderImage}>
-                                    <Camera size={24} color={Colors.textSecondary} />
-                                    <Text style={styles.imagePickerText}>Add Image</Text>
-                                </View>
-                            )}
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.inputContainer}>
+                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                                {editImage ? (
+                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                ) : (
+                                    <View style={styles.placeholderImage}>
+                                        <Camera size={24} color={Colors.textSecondary} />
+                                        <Text style={styles.imagePickerText}>Add Image</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            <Text style={styles.label}>Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={inputName}
+                                onChangeText={setInputName}
+                                placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
+                                placeholderTextColor={Colors.textSecondary}
+                                autoFocus
+                            />
+                        </View>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save</Text>
                         </TouchableOpacity>
-
-                        <Text style={styles.label}>Name</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={inputName}
-                            onChangeText={setInputName}
-                            placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                            placeholderTextColor={Colors.textSecondary}
-                            autoFocus
-                        />
-                    </View>
-
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                        <Text style={styles.saveBtnText}>Save</Text>
-                    </TouchableOpacity>
+                    </ScrollView>
                 </KeyboardAvoidingView>
             </ReusableBottomDrawer>
 
