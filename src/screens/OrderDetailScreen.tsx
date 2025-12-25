@@ -593,6 +593,26 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
     const renderPaymentHistory = () => (
         <View style={{ flex: 1 }}>
+            {/* Payment Summary Card */}
+            <View style={{ backgroundColor: Colors.white, padding: 16, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Total</Text>
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{order.total.toLocaleString()}</Text>
+                    </View>
+                    <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
+                    <View style={{ flex: 1, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Paid</Text>
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.success }}>₹{totalPaid.toLocaleString()}</Text>
+                    </View>
+                    <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
+                    <View style={{ flex: 1, alignItems: 'center' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Balance</Text>
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: currentBalance > 0 ? Colors.danger : Colors.success }}>₹{currentBalance.toLocaleString()}</Text>
+                    </View>
+                </View>
+            </View>
+
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.sectionTitle}>History ({billPayments.length})</Text>
                 <TouchableOpacity

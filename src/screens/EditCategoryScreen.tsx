@@ -222,17 +222,8 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             });
 
             if (!result.canceled && result.assets[0].uri) {
-                try {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        result.assets[0].uri,
-                        [{ resize: { width: 400 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-                    );
-                    setEditImage(manipResult.uri);
-                } catch (e) {
-                    console.error('Image processing error:', e);
-                    setEditImage(result.assets[0].uri);
-                }
+                // PREVIEW STRATEGY: Use original URI directly.
+                setEditImage(result.assets[0].uri);
             }
         } catch (error) {
             console.error('Image Error:', error);

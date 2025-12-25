@@ -77,44 +77,63 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
         let updatedCategories = [...(currentOutfit.categories || [])];
 
         // Process Image if new (file/content URI)
-        let finalImage = editImage;
-        if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
-            try {
-                const manipResult = await ImageManipulator.manipulateAsync(
-                    editImage,
-                    [{ resize: { width: 300 } }],
-                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                );
-                if (manipResult.base64) {
-                    finalImage = `data:image/jpeg;base64,${manipResult.base64}`;
-                }
-            } catch (e) {
-                console.error('Image processing failed during save', e);
-            }
-        }
-
         try {
-            if (editMode && categoryId) {
-                updatedCategories = updatedCategories.map(c =>
-                    c.id === categoryId ? { ...c, name: categoryName.trim(), image: finalImage || null } : c
-                );
+            // Process Image if new file selected
+            let imageToSave = editImage;
+            if (editImage && editImage.startsWith('file://')) {
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        editImage,
+                        [{ resize: { width: 400 } }],
+                        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+                    if (manipResult.base64) {
+                        imageToSave = `data:image/jpeg;base64,${manipResult.base64}`;
+                    }
+                } catch (imgError) {
+                    Alert.alert('Error', 'Failed to process image.');
+                    return;
+                }
+            }
+
+            if (editMode) {
+                // Update existing category
+                const updatedCategories = (currentOutfit.categories || []).map((cat: OutfitCategory) => {
+                    if (cat.id === categoryId) {
+                        return { ...cat, name: categoryName.trim(), image: imageToSave };
+                    }
+                    return cat;
+                });
+
+                await updateOutfit(outfitId, {
+                    ...currentOutfit,
+                    categories: updatedCategories
+                });
             } else {
+                // Add new category
                 const newCategory: OutfitCategory = {
                     id: Date.now().toString(),
                     name: categoryName.trim(),
-                    image: finalImage || null,
-                    isVisible: true,
-                    subCategories: []
+                    image: imageToSave,
+                    subCategories: [],
+                    isVisible: true, // Added isVisible to match OutfitCategory type
                 };
-                updatedCategories.push(newCategory);
+
+                await updateOutfit(outfitId, {
+                    ...currentOutfit,
+                    categories: [...(currentOutfit.categories || []), newCategory]
+                });
             }
 
-            await updateOutfit(outfitId, { categories: updatedCategories });
-            // setModalVisible(false); // Moved up
+            setModalVisible(false);
+            setCategoryId(null);
+            setCategoryName('');
+            setEditImage(null);
+            setEditMode(false);
+
         } catch (error) {
-            console.error('Save Error:', error);
-            // setAlertConfig({ title: 'Error', message: 'Failed to save category. Please try again.' });
-            // setAlertVisible(true);
+            console.error(error);
+            Alert.alert('Error', 'Failed to save category');
         }
     };
 
@@ -157,17 +176,8 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             });
 
             if (!result.canceled && result.assets[0].uri) {
-                try {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        result.assets[0].uri,
-                        [{ resize: { width: 400 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-                    );
-                    setEditImage(manipResult.uri);
-                } catch (e) {
-                    console.error('Image processing error:', e);
-                    setEditImage(result.assets[0].uri);
-                }
+                // PREVIEW STRATEGY: Use original URI directly.
+                setEditImage(result.assets[0].uri);
             }
         } catch (error) {
             console.error('Image Error:', error);
