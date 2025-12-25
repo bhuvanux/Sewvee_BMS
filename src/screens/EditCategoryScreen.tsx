@@ -78,6 +78,9 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         }
         if (!currentOutfit || !currentCategory) return;
 
+        // Optimistic Close: Close drawer immediately for better UX
+        setModalVisible(false);
+
         let updatedCategories = [...(currentOutfit.categories || [])];
         const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
         if (catIndex === -1) return;
@@ -126,11 +129,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
             await updateOutfit(outfitId, { categories: updatedCategories });
             setEditImage(null);
-            setModalVisible(false);
+            // setModalVisible(false); // Moved up
         } catch (error) {
             console.error('Save EditCategory Error:', error);
-            setAlertConfig({ title: 'Error', message: 'Failed to save changes. Please try again.' });
-            setAlertVisible(true);
+            // If save fails silently (since drawer is closed), maybe show a toast or global alert?
+            // For now, console log is safer than reopening drawer which is jarring.
+            // setAlertConfig({ title: 'Error', message: 'Failed to save changes. Please try again.' });
+            // setAlertVisible(true);
         }
     };
 
@@ -338,17 +343,16 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                     <View style={styles.inputContainer}>
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
                             {editImage ? (
-                                <View style={{ width: '100%', height: '100%' }}>
-                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                <View style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden' }}>
+                                    <Image source={{ uri: editImage }} style={{ width: '100%', height: '100%' }} />
                                     <View style={{
                                         ...StyleSheet.absoluteFillObject,
-                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        backgroundColor: 'rgba(0,0,0,0.5)',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        borderRadius: 12
                                     }}>
-                                        <Edit2 size={24} color="white" />
-                                        <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Inter-SemiBold', marginTop: 4 }}>Change</Text>
+                                        <Edit2 size={20} color="white" />
+                                        <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
                                     </View>
                                 </View>
                             ) : (

@@ -100,6 +100,9 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             return;
         }
 
+        // Optimistic Close
+        setModalVisible(false);
+
         try {
             const outfitData = {
                 name: editName.trim(),
@@ -112,11 +115,11 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             } else {
                 await addOutfit(outfitData);
             }
-            setModalVisible(false);
+            // setModalVisible(false); // Moved up
         } catch (error) {
             console.error('Save Outfit Error:', error);
-            setAlertConfig({ title: 'Error', message: 'Failed to save outfit. Please try again.' });
-            setAlertVisible(true);
+            // setAlertConfig({ title: 'Error', message: 'Failed to save outfit. Please try again.' });
+            // setAlertVisible(true);
         }
     };
 
@@ -261,17 +264,16 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                         {/* Image Picker */}
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
                             {editImage ? (
-                                <View style={{ width: '100%', height: '100%' }}>
-                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                <View style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden' }}>
+                                    <Image source={{ uri: editImage }} style={{ width: '100%', height: '100%' }} />
                                     <View style={{
                                         ...StyleSheet.absoluteFillObject,
-                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        backgroundColor: 'rgba(0,0,0,0.5)',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        borderRadius: 12
                                     }}>
-                                        <Edit2 size={24} color="white" />
-                                        <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Inter-SemiBold', marginTop: 4 }}>Change</Text>
+                                        <Edit2 size={20} color="white" />
+                                        <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
                                     </View>
                                 </View>
                             ) : (
