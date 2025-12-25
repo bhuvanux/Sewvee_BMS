@@ -328,7 +328,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             >
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={{ paddingHorizontal: 20 }}
+                    style={{ paddingHorizontal: 20, paddingTop: 20 }}
                 >
                     <View style={styles.inputContainer}>
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>

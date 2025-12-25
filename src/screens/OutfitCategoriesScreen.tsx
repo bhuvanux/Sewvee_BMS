@@ -245,7 +245,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 title={editMode ? 'Edit Category' : 'Add New Category'}
                 height={450}
             >
-                <View style={{ paddingHorizontal: 20 }}>
+                <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
                     <View style={styles.inputContainer}>
                         {/* Image Picker */}
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
