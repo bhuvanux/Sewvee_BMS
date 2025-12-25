@@ -232,7 +232,7 @@ const CustomerDetailScreen = ({ route, navigation }: any) => {
                 onRequestClose={() => setIsEditModalVisible(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                     style={styles.modalOverlay}
                 >
                     <View style={styles.modalContent}>
