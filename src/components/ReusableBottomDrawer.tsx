@@ -8,7 +8,9 @@ import {
     Animated,
     Dimensions,
     TouchableWithoutFeedback,
-    Platform
+    Platform,
+    Keyboard,
+    LayoutAnimation
 } from 'react-native';
 import { Colors, Shadow } from '../constants/theme';
 import { X } from 'lucide-react-native';
@@ -32,6 +34,7 @@ const ReusableBottomDrawer = ({
 }: ReusableBottomDrawerProps) => {
     // Internal visibility state to keep Modal open during exit animation
     const [isVisible, setIsVisible] = useState(visible);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     // Animations
     const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -56,13 +59,29 @@ const ReusableBottomDrawer = ({
                 })
             ]).start();
         } else {
-            // If parent forces close (rare in this flow, usually handled by internal handleClose)
-            // But good to have:
-            // handleClose(); -- Wait, this might loop if local state isn't managed well.
-            // In this specific design, we assume handleClose is the primary trigger.
-            // If parent resets visible prop, we should sync, but careful about animation interrupts.
+            // Logic handled by close
         }
     }, [visible]);
+
+    // Keyboard Listeners for Android
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+                // Configure animation to match keyboard if possible, or use LayoutAnimation
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setKeyboardHeight(e.endCoordinates.height);
+            });
+            const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setKeyboardHeight(0);
+            });
+
+            return () => {
+                showSub.remove();
+                hideSub.remove();
+            };
+        }
+    }, []);
 
     const handleClose = () => {
         // Animate Out
@@ -76,7 +95,7 @@ const ReusableBottomDrawer = ({
                 toValue: SCREEN_HEIGHT,
                 duration: 250,
                 useNativeDriver: true,
-            }) // Using timing for exit is often cleaner than spring
+            })
         ]).start(() => {
             setIsVisible(false);
             onClose();
@@ -127,6 +146,11 @@ const ReusableBottomDrawer = ({
                         <View style={{ flex: 1 }}>
                             {children}
                         </View>
+
+                        {/* Manual Keyboard Spacer for Android */}
+                        {Platform.OS === 'android' && (
+                            <View style={{ height: keyboardHeight }} />
+                        )}
                     </View>
                 </Animated.View>
             </View>

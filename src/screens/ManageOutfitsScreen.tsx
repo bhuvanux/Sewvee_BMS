@@ -250,44 +250,38 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 onClose={() => setModalVisible(false)}
                 title={editId ? 'Edit Outfit' : 'Add New Outfit'}
             >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-                    style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
-                    keyboardVerticalOffset={Platform.OS === 'android' ? 100 : 0}
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                    >
-                        <View style={styles.inputContainer}>
-                            {/* Image Picker */}
-                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                {editImage ? (
-                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                ) : (
-                                    <View style={styles.placeholderImage}>
-                                        <Camera size={24} color={Colors.textSecondary} />
-                                        <Text style={styles.imagePickerText}>Add Image</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <Text style={styles.label}>Outfit Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={editName}
-                                onChangeText={setEditName}
-                                placeholderTextColor={Colors.textSecondary}
-                                placeholder="e.g. Blouse, Kurta, Lehenga"
-                                autoFocus
-                            />
-                        </View>
-
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                            <Text style={styles.saveBtnText}>Save</Text>
+                    <View style={styles.inputContainer}>
+                        {/* Image Picker */}
+                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                            {editImage ? (
+                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                            ) : (
+                                <View style={styles.placeholderImage}>
+                                    <Camera size={24} color={Colors.textSecondary} />
+                                    <Text style={styles.imagePickerText}>Add Image</Text>
+                                </View>
+                            )}
                         </TouchableOpacity>
-                    </ScrollView>
-                </KeyboardAvoidingView>
+
+                        <Text style={styles.label}>Outfit Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={editName}
+                            onChangeText={setEditName}
+                            placeholderTextColor={Colors.textSecondary}
+                            placeholder="e.g. Blouse, Kurta, Lehenga"
+                            autoFocus
+                        />
+                    </View>
+
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                        <Text style={styles.saveBtnText}>Save</Text>
+                    </TouchableOpacity>
+                </ScrollView>
             </ReusableBottomDrawer>
 
             <AlertModal
