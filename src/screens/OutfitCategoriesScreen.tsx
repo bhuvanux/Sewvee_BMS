@@ -9,7 +9,8 @@ import {
     TextInput,
     Alert,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Edit2, Trash2, ChevronRight, Image as ImageIcon, X, Camera, Plus, Layers } from 'lucide-react-native';
@@ -135,8 +136,8 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 // Resize and compress
                 const manipResult = await ImageManipulator.manipulateAsync(
                     result.assets[0].uri,
-                    [{ resize: { width: 512 } }],
-                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
                 );
 
                 if (manipResult.base64) {

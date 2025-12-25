@@ -10,7 +10,8 @@ import {
     Modal,
     Alert,
     Platform,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
@@ -74,8 +75,8 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 // Resize and compress for DB storage (max 512px, 0.7 quality)
                 const manipResult = await ImageManipulator.manipulateAsync(
                     result.assets[0].uri,
-                    [{ resize: { width: 512 } }],
-                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
                 );
 
                 if (manipResult.base64) {

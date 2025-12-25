@@ -9,7 +9,8 @@ import {
     TextInput,
     Alert,
     Platform,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers } from 'lucide-react-native';
@@ -131,6 +132,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         }
     };
 
+
     const handleDelete = (type: 'subcategory' | 'option', id: string, name: string, parentId?: string) => {
         setDeleteConfig({ type, id, name, parentId });
         setDeleteSheetVisible(true);
@@ -196,8 +198,8 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 // Resize and compress
                 const manipResult = await ImageManipulator.manipulateAsync(
                     result.assets[0].uri,
-                    [{ resize: { width: 512 } }],
-                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
                 );
 
                 if (manipResult.base64) {
