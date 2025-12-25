@@ -257,11 +257,23 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                         {/* Image Picker */}
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
                             {editImage ? (
-                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                <View style={{ width: '100%', height: '100%' }}>
+                                    <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                                    <View style={{
+                                        ...StyleSheet.absoluteFillObject,
+                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: 12
+                                    }}>
+                                        <Edit2 size={24} color="white" />
+                                        <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Inter-SemiBold', marginTop: 4 }}>Change</Text>
+                                    </View>
+                                </View>
                             ) : (
                                 <View style={styles.placeholderImage}>
                                     <Camera size={24} color={Colors.textSecondary} />
-                                    <Text style={styles.imagePickerText}>Add Image</Text>
+                                    <Text style={styles.imagePickerText}>Add Photo</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
