@@ -329,9 +329,8 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 height={500}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
-                    keyboardVerticalOffset={Platform.OS === 'android' ? -150 : 0} // Adjust for Android overlay if needed
                 >
                     <ScrollView
                         showsVerticalScrollIndicator={false}
