@@ -154,6 +154,20 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
                     </View>
                 ) : null}
 
+                {/* Design Sketches */}
+                {currentItem.sketches && currentItem.sketches.length > 0 ? (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Design Sketches</Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                            {currentItem.sketches.map((img: string, i: number) => (
+                                <TouchableOpacity key={i} onPress={() => setPreviewImageUri(img)} style={{ width: (width - 44) / 2, aspectRatio: 1 }}>
+                                    <Image source={{ uri: img }} style={{ width: '100%', height: '100%', borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }} resizeMode="contain" />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                ) : null}
+
                 {/* Info Card: Name, Price, Qty */}
                 <View style={styles.infoCard}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>

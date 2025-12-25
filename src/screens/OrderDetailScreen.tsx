@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
+import { useToast } from '../context/ToastContext';
 
 const { width } = Dimensions.get('window');
 
@@ -127,6 +128,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
     // Use orderId to find the order in the global state
     const order = orders.find(o => o.id === orderId);
+    const { showToast } = useToast();
 
     if (!order) {
         return (
@@ -273,8 +275,11 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             setPaymentModalVisible(false);
             setPaymentAmount('');
 
-            setAlertConfig({ title: 'Payment Successful', message: `₹${amount} has been added to bill #${order.billNo}` });
-            setAlertVisible(true);
+            setPaymentModalVisible(false);
+            setPaymentAmount('');
+
+            showToast(`₹${amount} added successfully!`, 'success');
+            // AlertModal removed for toast
         } catch (error: any) {
             console.error('Payment Error:', error);
             setAlertConfig({ title: 'Payment Failed', message: error.message || 'Could not save payment' });
@@ -286,6 +291,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         if (isSharing) return;
         setIsSharing(true);
         try {
+            showToast("Printing PDF...", "info");
             const customer = customers.find(c => c.id === order.customerId);
             const companyData = {
                 name: company?.name || 'My Boutique',
@@ -311,6 +317,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         if (isSharing) return;
         setIsSharing(true);
         try {
+            showToast("Printing PDF...", "info");
             const companyData = {
                 name: company?.name || 'My Boutique',
                 address: company?.address || 'Your Address Here',
@@ -365,25 +372,6 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         return (
             <View style={{ gap: 24, paddingVertical: 8 }}>
                 <View>
-                    <DetailRow label="Order ID" value={`#${order.billNo}`} />
-                    <DetailRow label="Time" value={order.time || '10:00 AM'} />
-                    <DetailRow label="Customer ID" value={customer?.displayId || '-'} />
-                    <DetailRow label="Name" value={order.customerName} />
-                    <DetailRow label="Whatsapp Number" value={order.customerMobile} />
-                    <DetailRow label="Ordered Date" value={formatDate(order.date || order.createdAt || new Date())} />
-
-                    {/* Item Count */}
-                    <DetailRow label="Total Items" value={displayItems.length.toString()} />
-
-                    {/* Item Breakdown with Delivery Date */}
-                    {displayItems.map((item: any, index: number) => (
-                        <DetailRow
-                            key={index}
-                            label={`${item.name} (${item.qty})`}
-                            value={order.deliveryDate ? formatDate(order.deliveryDate) : '-'}
-                        />
-                    ))}
-
                     <DetailRow
                         label="Order Status"
                         isStatus
@@ -413,8 +401,25 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                             </TouchableOpacity>
                         }
                     />
-                </View>
+                    <DetailRow label="Order ID" value={`#${order.billNo}`} />
+                    <DetailRow label="Time" value={order.time || '10:00 AM'} />
+                    <DetailRow label="Customer ID" value={customer?.displayId || '-'} />
+                    <DetailRow label="Name" value={order.customerName} />
+                    <DetailRow label="Whatsapp Number" value={order.customerMobile} />
+                    <DetailRow label="Ordered Date" value={formatDate(order.date || order.createdAt || new Date())} />
 
+                    {/* Item Count */}
+                    <DetailRow label="Total Items" value={displayItems.length.toString()} />
+
+                    {/* Item Breakdown with Delivery Date */}
+                    {displayItems.map((item: any, index: number) => (
+                        <DetailRow
+                            key={index}
+                            label={`${item.name} (${item.qty})`}
+                            value={order.deliveryDate ? formatDate(order.deliveryDate) : '-'}
+                        />
+                    ))}
+                </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                     <TouchableOpacity
                         style={[styles.secondaryBtn, { flex: 1, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border }, isPrinting && { opacity: 0.7 }]}
@@ -1235,7 +1240,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 0, // Removed padding to let children handle it
-        paddingBottom: 0,
+        paddingBottom: 40, // Increased bottom padding for the drawer
         ...Shadow.large,
     },
     bottomSheetHeader: {

@@ -13,7 +13,8 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { Phone, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { firestore, COLLECTIONS } from '../config/firebase';
+import { getFirestore, collection, query, where, getDocs } from '@react-native-firebase/firestore';
+import { COLLECTIONS } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
 
 const ForgotPinScreen = ({ navigation }: any) => {
@@ -49,10 +50,9 @@ const ForgotPinScreen = ({ navigation }: any) => {
         setLoading(true);
         try {
             // Check if user exists
-            const userSnapshot = await firestore()
-                .collection(COLLECTIONS.USERS)
-                .where('phone', '==', phone)
-                .get();
+            const db = getFirestore();
+            const q = query(collection(db, COLLECTIONS.USERS), where('phone', '==', phone));
+            const userSnapshot = await getDocs(q);
 
             if (userSnapshot.empty) {
                 setAlertConfig({

@@ -15,17 +15,20 @@ import Toast from './src/components/Toast';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Ignore all logs for a cleaner demo experience
-LogBox.ignoreAllLogs();
+// LogBox.ignoreAllLogs();
 
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  console.log("🚀 App initializing...");
   const [fontsLoaded, error] = useFonts({
     'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
     'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
     'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
     'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
   });
+
+  console.log("📊 Fonts Status:", { fontsLoaded, error });
 
   const navigationRef = React.useRef<any>(null);
   const routeNameRef = React.useRef<string | undefined>(undefined);

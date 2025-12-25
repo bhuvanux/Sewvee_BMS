@@ -301,7 +301,7 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
           .notes-box { background: #FFFBEB; border: 1px solid #FEF3C7; padding: 10px; border-radius: 8px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
           .notes-label { font-size: 10px; font-weight: 700; color: #92400E; margin-bottom: 2px; text-transform: uppercase; }
           .notes-text { font-size: 12px; color: #78350F; line-height: 1.4; }
-          .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
+          .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
           .item-image { width: 45%; height: auto; object-fit: contain; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; }
         </style>
       </head>

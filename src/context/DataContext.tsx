@@ -1,5 +1,22 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { firestore, COLLECTIONS } from '../config/firebase';
+import { COLLECTIONS } from '../config/firebase';
+import {
+    getFirestore,
+    collection,
+    query,
+    where,
+    onSnapshot,
+    doc,
+    getDoc,
+    getDocs,
+    updateDoc,
+    setDoc,
+    addDoc,
+    deleteDoc,
+    writeBatch,
+    increment,
+    serverTimestamp
+} from '@react-native-firebase/firestore';
 import { getCurrentDate } from '../utils/dateUtils';
 import { Customer, Order, Payment, Outfit } from '../types';
 import { useAuth } from './AuthContext';
@@ -105,9 +122,10 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Re-implement seed logic function safely
     const seedDefaultOutfits = async (uid: string) => {
-        const batch = firestore().batch();
+        const db = getFirestore();
+        const batch = writeBatch(db);
         DEFAULT_OUTFITS.forEach(outfit => {
-            const ref = firestore().collection(COLLECTIONS.OUTFITS).doc();
+            const ref = doc(collection(db, COLLECTIONS.OUTFITS));
             batch.set(ref, { ...outfit, ownerId: uid });
         });
         await batch.commit();
@@ -121,18 +139,19 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
         setLoading(true);
 
+        const db = getFirestore();
+
         // Real-time listeners WITHOUT orderBy (Client-side sorting to avoid Index requirements)
         // This solves the 'index-not-found' error without manual console intervention.
 
-        const unsubCustomers = firestore()
-            .collection(COLLECTIONS.CUSTOMERS)
-            .where('ownerId', '==', user.uid)
-            .onSnapshot(snapshot => {
+        const unsubCustomers = onSnapshot(
+            query(collection(db, COLLECTIONS.CUSTOMERS), where('ownerId', '==', user.uid)),
+            snapshot => {
                 console.log(`[DataContext] Customers snapshot update. Size: ${snapshot?.size}`);
                 if (snapshot) {
-                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+                    const data = snapshot.docs.map((docSnap: any) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
                     // Sort A-Z by name
-                    data.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+                    data.sort((a: any, b: any) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
                     setCustomers(data);
                 }
             }, error => {
@@ -140,17 +159,16 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 setLoading(false);
             });
 
-        const unsubOrders = firestore()
-            .collection(COLLECTIONS.ORDERS)
-            .where('ownerId', '==', user.uid)
-            .onSnapshot(snapshot => {
+        const unsubOrders = onSnapshot(
+            query(collection(db, COLLECTIONS.ORDERS), where('ownerId', '==', user.uid)),
+            snapshot => {
                 if (snapshot) {
-                    const data = snapshot.docs.map(doc => {
-                        const d = doc.data();
-                        return { ...d, id: doc.id } as Order;
+                    const data = snapshot.docs.map((docSnap: any) => {
+                        const d = docSnap.data();
+                        return { ...d, id: docSnap.id } as Order;
                     });
                     // Sort Descending by createdAt (Newest First)
-                    data.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                    data.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
                     setOrders(data);
                 }
             }, error => {
@@ -158,14 +176,13 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 setLoading(false);
             });
 
-        const unsubPayments = firestore()
-            .collection(COLLECTIONS.PAYMENTS)
-            .where('ownerId', '==', user.uid)
-            .onSnapshot(snapshot => {
+        const unsubPayments = onSnapshot(
+            query(collection(db, COLLECTIONS.PAYMENTS), where('ownerId', '==', user.uid)),
+            snapshot => {
                 if (snapshot) {
-                    const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Payment));
+                    const data = snapshot.docs.map((docSnap: any) => ({ ...docSnap.data(), id: docSnap.id } as Payment));
                     // Sort Descending by date (Newest First) (Assuming Payment has date field)
-                    data.sort((a, b) => ((b as any).date || '').localeCompare((a as any).date || ''));
+                    data.sort((a: any, b: any) => ((b as any).date || '').localeCompare((a as any).date || ''));
                     setPayments(data);
                 }
             }, error => {
@@ -173,28 +190,27 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 setLoading(false);
             });
 
-        const unsubOutfits = firestore()
-            .collection(COLLECTIONS.OUTFITS)
-            .where('ownerId', '==', user.uid)
-            .onSnapshot(snapshot => {
+        const unsubOutfits = onSnapshot(
+            query(collection(db, COLLECTIONS.OUTFITS), where('ownerId', '==', user.uid)),
+            snapshot => {
                 if (snapshot) {
                     if (snapshot.empty) {
                         seedDefaultOutfits(user.uid);
                     }
-                    const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Outfit));
+                    const data = snapshot.docs.map((docSnap: any) => ({ ...docSnap.data(), id: docSnap.id } as Outfit));
 
                     // Inject "Others" if missing in active list (Self-healing)
-                    if (data.length > 0 && !data.find(o => o.name === 'Others')) {
+                    if (data.length > 0 && !data.find((o: any) => o.name === 'Others')) {
                         const defaultOthers = DEFAULT_OUTFITS.find(d => d.name === 'Others');
                         if (defaultOthers) {
                             // Add it to DB asynchronously
-                            firestore().collection(COLLECTIONS.OUTFITS).add({ ...defaultOthers, ownerId: user.uid })
+                            addDoc(collection(db, COLLECTIONS.OUTFITS), { ...defaultOthers, ownerId: user.uid })
                                 .catch(err => console.error('Failed to auto-inject Others outfit:', err));
                         }
                     }
 
                     // Sort A-Z by name
-                    data.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                    data.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
                     setOutfits(data);
                 }
                 setLoading(false);
@@ -237,16 +253,16 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             createdAt: new Date().toISOString(),
             displayId: nextDisplayId
         };
-        const ref = await firestore().collection(COLLECTIONS.CUSTOMERS).add(newItem);
+        const ref = await addDoc(collection(getFirestore(), COLLECTIONS.CUSTOMERS), newItem);
         return { id: ref.id, ...newItem } as Customer;
     };
 
     const updateCustomer = async (id: string, customer: Partial<Customer>) => {
-        await firestore().collection(COLLECTIONS.CUSTOMERS).doc(id).update(customer);
+        await updateDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id), customer);
     };
 
     const deleteCustomer = async (id: string) => {
-        await firestore().collection(COLLECTIONS.CUSTOMERS).doc(id).delete();
+        await deleteDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id));
     };
 
     const addOrder = async (order: Partial<Order>) => {
@@ -270,7 +286,8 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const nextSeq = maxSeq + 1;
         const newBillNo = `${currentYear}/${String(nextSeq).padStart(5, '0')}`;
 
-        const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc();
+        const db = getFirestore();
+        const orderRef = doc(collection(db, COLLECTIONS.ORDERS));
 
         const newItem = {
             ...order,
@@ -284,22 +301,22 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             balance: (order.total || 0) - (order.advance || 0)
         };
 
-        const batch = firestore().batch();
+        const batch = writeBatch(db);
         batch.set(orderRef, newItem);
 
         // Update Customer Stats
         if (newItem.customerId) {
-            const customerRef = firestore().collection(COLLECTIONS.CUSTOMERS).doc(newItem.customerId);
+            const customerRef = doc(db, COLLECTIONS.CUSTOMERS, newItem.customerId);
             batch.set(customerRef, {
-                totalOrders: firestore.FieldValue.increment(1),
-                totalSpent: firestore.FieldValue.increment(newItem.advance || 0),
+                totalOrders: increment(1),
+                totalSpent: increment(newItem.advance || 0),
                 lastOrderDate: newItem.createdAt
             }, { merge: true });
         }
 
         // Add initial payment if advance > 0
         if (newItem.advance && newItem.advance > 0) {
-            const paymentRef = firestore().collection(COLLECTIONS.PAYMENTS).doc();
+            const paymentRef = doc(collection(db, COLLECTIONS.PAYMENTS));
             batch.set(paymentRef, {
                 id: paymentRef.id,
                 orderId: orderRef.id,
@@ -321,11 +338,12 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const updateOrder = async (id: string, orderData: Partial<Order>) => {
         // Robust update handling (Upsert strategy)
         let updates: any = { ...orderData };
-        const docRef = firestore().collection(COLLECTIONS.ORDERS).doc(id);
+        const db = getFirestore();
+        const docRef = doc(db, COLLECTIONS.ORDERS, id);
 
         try {
-            const doc = await docRef.get();
-            const current = (typeof doc.exists === 'function' ? doc.exists() : doc.exists) ? (doc.data() as Order) : {} as Order;
+            const docSnap = await getDoc(docRef);
+            const current = docSnap.exists() ? (docSnap.data() as Order) : {} as Order;
 
             // Recalculate balance only if necessary fields are changing
             if (updates.total !== undefined || updates.advance !== undefined) {
@@ -344,7 +362,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             // Use set with merge: true to prevent "not-found" errors if doc is missing on server
-            await docRef.set(updates, { merge: true });
+            await setDoc(docRef, updates, { merge: true });
         } catch (error) {
             console.error('Update Order Failed:', error);
             throw error;
@@ -354,37 +372,38 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const deleteOrder = async (id: string) => {
         console.log('[DataContext] Attempting to delete order:', id);
         try {
-            const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc(id);
-            const orderSnap = await orderRef.get();
+            const db = getFirestore();
+            const orderRef = doc(db, COLLECTIONS.ORDERS, id);
+            const orderSnap = await getDoc(orderRef);
 
-            const exists = typeof orderSnap.exists === 'function' ? orderSnap.exists() : orderSnap.exists;
-            if (!exists) {
+            if (!orderSnap.exists) {
                 console.warn('[DataContext] Order not found (already deleted?):', id);
                 return; // Treat as success if already gone
             }
 
             const orderData = orderSnap.data();
-            const batch = firestore().batch();
+            const batch = writeBatch(db);
             batch.delete(orderRef);
 
             // Cascade: Delete Payments & Calculate Total Paid
-            const pSnap = await firestore().collection(COLLECTIONS.PAYMENTS).where('orderId', '==', id).get();
+            const q = query(collection(db, COLLECTIONS.PAYMENTS), where('orderId', '==', id));
+            const pSnap = await getDocs(q);
             console.log(`[DataContext] Found ${pSnap.size} payments to delete`);
 
             let totalPaidForOrder = 0;
-            pSnap.forEach(doc => {
-                const pData = doc.data();
+            pSnap.forEach((docSnap: any) => {
+                const pData = docSnap.data();
                 totalPaidForOrder += (pData.amount || 0);
-                batch.delete(doc.ref);
+                batch.delete(docSnap.ref);
             });
 
             // Sync: Update Customer Stats
             if (orderData?.customerId) {
-                const custRef = firestore().collection(COLLECTIONS.CUSTOMERS).doc(orderData.customerId);
+                const custRef = doc(db, COLLECTIONS.CUSTOMERS, orderData.customerId);
                 // We use set with merge to safely update specific fields
                 batch.set(custRef, {
-                    totalOrders: firestore.FieldValue.increment(-1),
-                    totalSpent: firestore.FieldValue.increment(-totalPaidForOrder)
+                    totalOrders: increment(-1),
+                    totalSpent: increment(-totalPaidForOrder)
                 }, { merge: true });
             }
 
@@ -399,8 +418,9 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const addPayment = async (payment: Partial<Payment>) => {
         if (!user?.uid) throw new Error('Not authenticated');
 
-        const batch = firestore().batch();
-        const paymentRef = firestore().collection(COLLECTIONS.PAYMENTS).doc();
+        const db = getFirestore();
+        const batch = writeBatch(db);
+        const paymentRef = doc(collection(db, COLLECTIONS.PAYMENTS));
 
         const newPayment = {
             ...payment,
@@ -410,17 +430,19 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         batch.set(paymentRef, newPayment);
 
         // Update Order Balance
-        const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc(payment.orderId);
-        batch.set(orderRef, {
-            advance: firestore.FieldValue.increment(payment.amount || 0),
-            balance: firestore.FieldValue.increment(-(payment.amount || 0))
-        }, { merge: true });
+        if (payment.orderId) {
+            const orderRef = doc(db, COLLECTIONS.ORDERS, payment.orderId);
+            batch.set(orderRef, {
+                advance: increment(payment.amount || 0),
+                balance: increment(-(payment.amount || 0))
+            }, { merge: true });
+        }
 
         // Update Customer Stats
         if (payment.customerId) {
-            const custRef = firestore().collection(COLLECTIONS.CUSTOMERS).doc(payment.customerId);
+            const custRef = doc(db, COLLECTIONS.CUSTOMERS, payment.customerId);
             batch.set(custRef, {
-                totalSpent: firestore.FieldValue.increment(payment.amount || 0)
+                totalSpent: increment(payment.amount || 0)
             }, { merge: true });
         }
 
@@ -428,14 +450,15 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const updatePayment = async (id: string, updates: Partial<Payment>) => {
-        const doc = await firestore().collection(COLLECTIONS.PAYMENTS).doc(id).get();
-        const exists = typeof doc.exists === 'function' ? doc.exists() : doc.exists;
-        if (!exists) return;
-        const oldPayment = { id: doc.id, ...doc.data() } as Payment;
+        const db = getFirestore();
+        const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
+        const paymentDocSnap = await getDoc(paymentDocRef);
 
-        const batch = firestore().batch();
-        const paymentRef = firestore().collection(COLLECTIONS.PAYMENTS).doc(id);
-        batch.update(paymentRef, updates);
+        if (!paymentDocSnap.exists) return;
+        const oldPayment = { id: paymentDocSnap.id, ...paymentDocSnap.data() } as Payment;
+
+        const batch = writeBatch(db);
+        batch.update(paymentDocRef, updates);
 
         if (updates.amount !== undefined && updates.amount !== oldPayment.amount) {
             const newAmount = Number(updates.amount) || 0;
@@ -444,18 +467,18 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
             // Update Order Balance
             if (oldPayment.orderId) {
-                const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc(oldPayment.orderId);
+                const orderRef = doc(db, COLLECTIONS.ORDERS, oldPayment.orderId);
                 batch.set(orderRef, {
-                    advance: firestore.FieldValue.increment(delta),
-                    balance: firestore.FieldValue.increment(-delta)
+                    advance: increment(delta),
+                    balance: increment(-delta)
                 }, { merge: true });
             }
 
             // Update Customer Stats
             if (oldPayment.customerId) {
-                const custRef = firestore().collection(COLLECTIONS.CUSTOMERS).doc(oldPayment.customerId);
+                const custRef = doc(db, COLLECTIONS.CUSTOMERS, oldPayment.customerId);
                 batch.set(custRef, {
-                    totalSpent: firestore.FieldValue.increment(delta)
+                    totalSpent: increment(delta)
                 }, { merge: true });
             }
         }
@@ -464,42 +487,45 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
     const deletePayment = async (id: string) => {
         // Revert balance on order
-        const doc = await firestore().collection(COLLECTIONS.PAYMENTS).doc(id).get();
-        const payment = doc.data() as Payment;
+        const db = getFirestore();
+        const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
+        const paymentDocSnap = await getDoc(paymentDocRef);
+        const payment = paymentDocSnap.data() as Payment;
+
         if (payment && payment.orderId) {
-            const batch = firestore().batch();
-            batch.delete(doc.ref);
-            const orderRef = firestore().collection(COLLECTIONS.ORDERS).doc(payment.orderId);
+            const batch = writeBatch(db);
+            batch.delete(paymentDocRef);
+            const orderRef = doc(db, COLLECTIONS.ORDERS, payment.orderId);
             batch.set(orderRef, {
-                advance: firestore.FieldValue.increment(-(Number(payment.amount) || 0)),
-                balance: firestore.FieldValue.increment(Number(payment.amount) || 0)
+                advance: increment(-(Number(payment.amount) || 0)),
+                balance: increment(Number(payment.amount) || 0)
             }, { merge: true });
 
             // Update Customer Stats
             if (payment.customerId) {
-                const custRef = firestore().collection(COLLECTIONS.CUSTOMERS).doc(payment.customerId);
+                const custRef = doc(db, COLLECTIONS.CUSTOMERS, payment.customerId);
                 batch.set(custRef, {
-                    totalSpent: firestore.FieldValue.increment(-(Number(payment.amount) || 0))
+                    totalSpent: increment(-(Number(payment.amount) || 0))
                 }, { merge: true });
             }
 
             await batch.commit();
         } else {
-            await firestore().collection(COLLECTIONS.PAYMENTS).doc(id).delete();
+            await deleteDoc(paymentDocRef);
         }
     };
 
     const addOutfit = async (outfit: Partial<Outfit>) => {
         if (!user?.uid) throw new Error('Not authenticated');
-        await firestore().collection(COLLECTIONS.OUTFITS).add({ ...outfit, ownerId: user.uid });
+        await addDoc(collection(getFirestore(), COLLECTIONS.OUTFITS), { ...outfit, ownerId: user.uid });
     };
 
     const updateOutfit = async (id: string, outfit: Partial<Outfit>) => {
-        await firestore().collection(COLLECTIONS.OUTFITS).doc(id).update(outfit);
+        await updateDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id), outfit);
     };
 
     const deleteOutfit = async (id: string) => {
-        await firestore().collection(COLLECTIONS.OUTFITS).doc(id).delete();
+        await deleteDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id));
     };
 
     const getCustomerOrders = (customerId: string) => {

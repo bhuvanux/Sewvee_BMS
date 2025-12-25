@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Dimensions, Animated } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { Check, X, Printer, Share2 } from 'lucide-react-native';
 
@@ -20,6 +20,21 @@ const OrderSuccessModal = ({
     onWhatsapp,
     order
 }: OrderSuccessModalProps) => {
+    // Animation Refs
+    const scaleAnim = React.useRef(new Animated.Value(0)).current;
+
+    React.useEffect(() => {
+        if (visible) {
+            // Reset and Animate
+            scaleAnim.setValue(0);
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                friction: 5,   // low friction = boucy
+                tension: 40,   // spring tension
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible]);
 
     if (!order) return null;
 
@@ -34,9 +49,9 @@ const OrderSuccessModal = ({
                 <View style={styles.container}>
                     {/* Icon Header */}
                     <View style={styles.header}>
-                        <View style={styles.iconCircle}>
+                        <Animated.View style={[styles.iconCircle, { transform: [{ scale: scaleAnim }] }]}>
                             <Check size={40} color={Colors.white} strokeWidth={4} />
-                        </View>
+                        </Animated.View>
                         <Text style={styles.title}>Order created{'\n'}successfully!</Text>
 
                     </View>

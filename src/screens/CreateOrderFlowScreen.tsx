@@ -48,6 +48,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '../types';
 import { formatDate, getCurrentDate, getCurrentTime } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
@@ -59,7 +60,6 @@ import SignatureScreen from 'react-native-signature-canvas';
 import { transcribeAudio } from '../services/geminiService';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
 import { useNavigation } from '@react-navigation/native';
-import { useToast } from '../context/ToastContext';
 // Skia drawing temporarily disabled due to version compatibility
 
 
@@ -1056,9 +1056,11 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const [viewerVisible, setViewerVisible] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
     const [sketchModalVisible, setSketchModalVisible] = useState(false); // New Modal state
-    const [penWidth, setPenWidth] = useState<{ min: number, max: number }>({ min: 1, max: 2 }); // Default Medium
-    const [penColor, setPenColor] = useState('#000000'); // Default Black
-    const [editingSketchIndex, setEditingSketchIndex] = useState<number | null>(null); // Track if editing existing sketch
+    const [penWidth, setPenWidth] = useState({ min: 2, max: 4 });
+    const [penColor, setPenColor] = useState('#000000');
+    const [editingSketchIndex, setEditingSketchIndex] = useState<number | null>(null);
+    const [sketches, setSketches] = useState<string[]>([]);
+    // Explicit UI doesn't need picker state
     const [initialSketchData, setInitialSketchData] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [editImageBase64, setEditImageBase64] = useState<string | null>(null);
@@ -1240,6 +1242,25 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         signatureRef.current?.undo();
     };
 
+    const handleColorChange = (color: string) => {
+        setPenColor(color);
+        signatureRef.current?.changePenColor(color);
+    };
+
+    const handleWidthChange = (min: number, max: number) => {
+        setPenWidth({ min, max });
+        // NOTE: Older 'changeMinWidth' methods caused crashes.
+        // We use JS Injection to update the signature pad directly without triggering a re-render
+        // that would wipe the existing strokes.
+        const js = `
+            if (window.signaturePad) {
+                window.signaturePad.minWidth = ${min};
+                window.signaturePad.maxWidth = ${max};
+            }
+        `;
+        signatureRef.current?.webview?.injectJavaScript(js);
+    };
+
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>
             {/* Reference Images */}
@@ -1344,19 +1365,16 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                         </TouchableOpacity>
                     </View>
 
-                    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <View style={{ flex: 1, backgroundColor: '#fff', position: 'relative' }}>
                         <SignatureScreen
                             ref={signatureRef}
-                            minWidth={penWidth.min}
-                            maxWidth={penWidth.max}
-                            penColor={penColor}
                             onOK={(sig) => {
                                 handleSketchOK(sig);
                             }}
                             onEmpty={() => console.log('Empty')}
                             descriptionText="Sketch here"
-                            clearText="Clear"
-                            confirmText="Save"
+                            clearText=""
+                            confirmText=""
                             webStyle={`
                                 .m-signature-pad--footer { display: none; margin: 0px; } 
                                 body,html { width: 100%; height: 100%; background-color: #fff; }
@@ -1367,49 +1385,67 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                             imageType="image/png"
                             trimWhitespace={false}
                             dataURL={initialSketchData || undefined}
+                            minWidth={penWidth.min}
+                            maxWidth={penWidth.max}
                         />
-                    </View>
 
-                    {/* BOTTOM TOOLBAR */}
-                    <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff' }}>
+                        {/* EXPLICIT TOOLBAR (2 Rows) */}
+                        <View style={{ padding: 16, paddingBottom: 30, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 16 }}>
 
-                        {/* 1. Colors */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, gap: 16 }}>
-                            {['#000000', '#EF4444', '#3B82F6', '#10B981'].map(color => (
-                                <TouchableOpacity
-                                    key={color}
-                                    onPress={() => setPenColor(color)}
-                                    style={{
-                                        width: 32, height: 32, borderRadius: 16, backgroundColor: color,
-                                        borderWidth: penColor === color ? 3 : 1, borderColor: penColor === color ? '#ddd' : '#fff',
-                                        shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, elevation: 2
-                                    }}
-                                />
-                            ))}
-                        </View>
+                            {/* Row 1: Tools (Colors & Sizes) */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {/* Colors */}
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    {['#000000', '#EF4444', '#3B82F6', '#10B981'].map(color => (
+                                        <TouchableOpacity
+                                            key={color}
+                                            onPress={() => handleColorChange(color)}
+                                            style={{
+                                                width: 32, height: 32, borderRadius: 16, backgroundColor: color,
+                                                borderWidth: penColor === color ? 3 : 1, borderColor: penColor === color ? '#e5e5e5' : '#fff',
+                                                shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
+                                                transform: [{ scale: penColor === color ? 1.1 : 1 }]
+                                            }}
+                                        />
+                                    ))}
+                                </View>
 
-                        {/* 2. Sizes & Tools */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            {/* Sizes */}
-                            <View style={{ flexDirection: 'row', gap: 8, backgroundColor: '#F3F4F6', padding: 4, borderRadius: 8 }}>
-                                <TouchableOpacity onPress={() => setPenWidth({ min: 0.5, max: 1.5 })} style={{ padding: 8, backgroundColor: penWidth.min === 0.5 ? '#fff' : 'transparent', borderRadius: 6 }}>
-                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.textPrimary }} />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setPenWidth({ min: 1, max: 2.5 })} style={{ padding: 8, backgroundColor: penWidth.min === 1 ? '#fff' : 'transparent', borderRadius: 6 }}>
-                                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.textPrimary }} />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setPenWidth({ min: 3, max: 5 })} style={{ padding: 8, backgroundColor: penWidth.min === 3 ? '#fff' : 'transparent', borderRadius: 6 }}>
-                                    <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.textPrimary }} />
-                                </TouchableOpacity>
+                                {/* Divider */}
+                                <View style={{ width: 1, height: 24, backgroundColor: '#eee' }} />
+
+                                {/* Sizes */}
+                                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#F9FAFB', padding: 6, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                                    <TouchableOpacity onPress={() => handleWidthChange(2, 4)} style={{ padding: 8, backgroundColor: penWidth.min === 2 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 2 ? Shadow.subtle : {} }}>
+                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: 'black', opacity: penWidth.min === 2 ? 1 : 0.3 }} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleWidthChange(5, 8)} style={{ padding: 8, backgroundColor: penWidth.min === 5 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 5 ? Shadow.subtle : {} }}>
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'black', opacity: penWidth.min === 5 ? 1 : 0.3 }} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleWidthChange(10, 15)} style={{ padding: 8, backgroundColor: penWidth.min === 10 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 10 ? Shadow.subtle : {} }}>
+                                        <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: 'black', opacity: penWidth.min === 10 ? 1 : 0.3 }} />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
-                            {/* Undo/Clear */}
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                                <TouchableOpacity onPress={handleSketchUndo} style={styles.sketchToolBtn}>
-                                    <Undo2 size={20} color={Colors.textPrimary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSketchClear} style={styles.sketchToolBtn}>
-                                    <Eraser size={20} color={Colors.textPrimary} />
+                            {/* Row 2: Actions */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <TouchableOpacity onPress={handleSketchUndo} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F3F4F6', borderRadius: 8 }}>
+                                        <Undo2 size={18} color={Colors.textPrimary} />
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-Medium', color: Colors.textPrimary }}>Undo</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={handleSketchClear} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FEE2E2', borderRadius: 8 }}>
+                                        <Trash2 size={18} color={Colors.danger} />
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-Medium', color: Colors.danger }}>Clear</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <TouchableOpacity
+                                    onPress={() => signatureRef.current?.readSignature()}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 8, ...Shadow.medium }}
+                                >
+                                    <Check size={18} color={Colors.white} />
+                                    <Text style={{ fontSize: 14, fontFamily: 'Inter-SemiBold', color: Colors.white }}>Save Sketch</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -1909,7 +1945,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
             }
             setIsExpanded(false);
             if (uri) {
-                if (onShowAlert) onShowAlert("Recorded!", "Audio memo saved.");
+                showToast("Audio memo saved!", "success");
                 if (onRecordingComplete) onRecordingComplete(uri, duration);
             }
         } catch (e) {

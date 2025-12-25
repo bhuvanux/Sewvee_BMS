@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth, firestore, COLLECTIONS } from '../config/firebase';
+import { auth, COLLECTIONS } from '../config/firebase';
+import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
 
 interface AuthContextType {
     user: any;
@@ -43,10 +44,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             if (firebaseUser) {
                 try {
+                    const db = getFirestore();
                     // Fetch user profile from Firestore
-                    const userDoc = await firestore().collection(COLLECTIONS.USERS).doc(firebaseUser.uid).get();
-                    const docExists = typeof userDoc.exists === 'function' ? userDoc.exists() : userDoc.exists;
-                    const userData = docExists ? userDoc.data() : null;
+                    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid));
+                    const userData = userDoc.exists() ? userDoc.data() : null;
 
                     setUser({
                         uid: firebaseUser.uid,
@@ -56,10 +57,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     });
 
                     // Fetch company data
-                    const companySnapshot = await firestore()
-                        .collection(COLLECTIONS.COMPANIES)
-                        .where('ownerId', '==', firebaseUser.uid)
-                        .get();
+                    const q = query(
+                        collection(db, COLLECTIONS.COMPANIES),
+                        where('ownerId', '==', firebaseUser.uid)
+                    );
+                    const companySnapshot = await getDocs(q);
 
                     if (!companySnapshot.empty) {
                         setCompany({
@@ -97,10 +99,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const loginWithPhone = async (phone: string, pin: string) => {
-        const userSnapshot = await firestore()
-            .collection(COLLECTIONS.USERS)
-            .where('phone', '==', phone)
-            .get();
+        const db = getFirestore();
+        const userSnapshot = await getDocs(query(
+            collection(db, COLLECTIONS.USERS),
+            where('phone', '==', phone)
+        ));
 
         if (userSnapshot.empty) {
             throw new Error('User not found with this phone number');
@@ -174,7 +177,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Migration check: Ensure Firestore has the PIN (for users created before this field existed)
         if (!storedPin) {
-            await firestore().collection(COLLECTIONS.USERS).doc(userSnapshot.docs[0].id).update({ pin });
+            await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userSnapshot.docs[0].id), { pin });
         }
     };
 
@@ -182,7 +185,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Use deterministic password for Auth, store plain PIN in Firestore
         const { user: newUser } = await auth().createUserWithEmailAndPassword(email, getAuthPassword(email));
         if (newUser) {
-            await firestore().collection(COLLECTIONS.USERS).doc(newUser.uid).set({
+            await setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
                 name,
                 email,
                 phone,
@@ -282,7 +285,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (code === activeOtp || (USE_MOCK_OTP && code === '123456')) {
             const currentUser = auth().currentUser;
             if (currentUser) {
-                await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).update({
+                await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
                     isPhoneVerified: true
                 });
                 setUser((prev: any) => ({ ...prev, isPhoneVerified: true }));
@@ -294,10 +297,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const resetPinWithPhone = async (phone: string, newPin: string) => {
         console.log(`ResetPIN: Attempting reset for phone ${phone}`);
-        const userSnapshot = await firestore()
-            .collection(COLLECTIONS.USERS)
-            .where('phone', '==', phone)
-            .get();
+        const db = getFirestore();
+        const userSnapshot = await getDocs(query(
+            collection(db, COLLECTIONS.USERS),
+            where('phone', '==', phone)
+        ));
 
         if (userSnapshot.empty) {
             console.log('ResetPIN: User not found in Firestore');
@@ -311,7 +315,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // 1. Update the PIN in Firestore (Primary source of truth for the 4-digit code)
         try {
             console.log('ResetPIN: Updating Firestore PIN...');
-            await firestore().collection(COLLECTIONS.USERS).doc(userId).update({
+            await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userId), {
                 pin: newPin
             });
             console.log('ResetPIN: Firestore update SUCCESS');
@@ -327,7 +331,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const currentUser = auth().currentUser;
         if (!currentUser) throw new Error('User not authenticated');
 
-        const userDoc = await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).get();
+        const userDoc = await getDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid));
         const storedPin = userDoc.data()?.pin;
 
         // If a PIN is set, verify it. If not set (migration), allow setting it without old PIN (or maybe require standard auth?). 
@@ -336,7 +340,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             throw new Error('Incorrect old PIN');
         }
 
-        await firestore().collection(COLLECTIONS.USERS).doc(currentUser.uid).update({
+        await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
             pin: newPin
         });
     };
@@ -365,10 +369,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
 
             if (company?.id) {
-                await firestore().collection(COLLECTIONS.COMPANIES).doc(company.id).set(companyWithId, { merge: true });
+                await setDoc(doc(getFirestore(), COLLECTIONS.COMPANIES, company.id), companyWithId, { merge: true });
                 setCompany((prev: any) => ({ ...prev, ...companyWithId }));
             } else {
-                const newCompanyRef = await firestore().collection(COLLECTIONS.COMPANIES).add(companyWithId);
+                const newCompanyRef = await addDoc(collection(getFirestore(), COLLECTIONS.COMPANIES), companyWithId);
                 setCompany({ id: newCompanyRef.id, ...companyWithId });
             }
         } catch (error) {
