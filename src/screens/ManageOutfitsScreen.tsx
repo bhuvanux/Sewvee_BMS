@@ -75,18 +75,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             if (!result.canceled && result.assets[0].uri) {
                 // Show immediately for better UX
                 setEditImage(result.assets[0].uri);
-
-                // Resize and compress for DB storage (max 512px, 0.7 quality)
-                const manipResult = await ImageManipulator.manipulateAsync(
-                    result.assets[0].uri,
-                    [{ resize: { width: 300 } }],
-                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                );
-
-                if (manipResult.base64) {
-                    const base64Image = `data:image/jpeg;base64,${manipResult.base64}`;
-                    setEditImage(base64Image);
-                }
             }
         } catch (error) {
             console.error('Image processing error:', error);
@@ -106,15 +94,32 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         // Optimistic Close
         setModalVisible(false);
 
+        // Process Image if new (file/content URI)
+        let finalImage = editImage;
+        if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
+            try {
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    editImage,
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+                if (manipResult.base64) {
+                    finalImage = `data:image/jpeg;base64,${manipResult.base64}`;
+                }
+            } catch (e) {
+                console.error('Image processing failed during save', e);
+            }
+        }
+
         try {
             const outfitData = {
                 name: editName.trim(),
                 isVisible: true,
-                image: editImage || null
+                image: finalImage || null
             };
 
             if (editId) {
-                await updateOutfit(editId, { name: editName.trim(), image: editImage || null });
+                await updateOutfit(editId, { name: editName.trim(), image: finalImage || null });
             } else {
                 await addOutfit(outfitData);
             }

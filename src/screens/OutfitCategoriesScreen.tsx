@@ -74,16 +74,33 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
 
         let updatedCategories = [...(currentOutfit.categories || [])];
 
+        // Process Image if new (file/content URI)
+        let finalImage = editImage;
+        if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
+            try {
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    editImage,
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+                if (manipResult.base64) {
+                    finalImage = `data:image/jpeg;base64,${manipResult.base64}`;
+                }
+            } catch (e) {
+                console.error('Image processing failed during save', e);
+            }
+        }
+
         try {
             if (editMode && categoryId) {
                 updatedCategories = updatedCategories.map(c =>
-                    c.id === categoryId ? { ...c, name: categoryName.trim(), image: editImage || null } : c
+                    c.id === categoryId ? { ...c, name: categoryName.trim(), image: finalImage || null } : c
                 );
             } else {
                 const newCategory: OutfitCategory = {
                     id: Date.now().toString(),
                     name: categoryName.trim(),
-                    image: editImage || null,
+                    image: finalImage || null,
                     isVisible: true,
                     subCategories: []
                 };
@@ -140,17 +157,6 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             if (!result.canceled && result.assets[0].uri) {
                 // Show immediately for better UX
                 setEditImage(result.assets[0].uri);
-
-                // Resize and compress
-                const manipResult = await ImageManipulator.manipulateAsync(
-                    result.assets[0].uri,
-                    [{ resize: { width: 300 } }],
-                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                );
-
-                if (manipResult.base64) {
-                    setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                }
             }
         } catch (error) {
             console.error('Image Error:', error);

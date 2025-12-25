@@ -85,6 +85,24 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
         if (catIndex === -1) return;
 
+        // Process Image if new (file/content URI)
+        let finalImage = editImage;
+        if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
+            try {
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    editImage,
+                    [{ resize: { width: 300 } }],
+                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+                if (manipResult.base64) {
+                    finalImage = `data:image/jpeg;base64,${manipResult.base64}`;
+                }
+            } catch (e) {
+                console.error('Image processing failed during save', e);
+                // Fallback or abort? Continuing with URI might break db, but likely better than crash.
+            }
+        }
+
         const updatedCategory = { ...updatedCategories[catIndex] };
         let updatedSubCategories = [...(updatedCategory.subCategories || [])];
 
@@ -92,13 +110,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             if (modalType === 'subcategory') {
                 if (editMode && targetId) {
                     updatedSubCategories = updatedSubCategories.map(sc =>
-                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: editImage || undefined } : sc
+                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: finalImage || undefined } : sc
                     );
                 } else {
                     updatedSubCategories.push({
                         id: Date.now().toString(),
                         name: inputName.trim(),
-                        image: editImage || undefined,
+                        image: finalImage || undefined,
                         options: []
                     });
                 }
@@ -110,13 +128,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
                     if (editMode && targetId) {
                         updatedOptions = updatedOptions.map(opt =>
-                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: editImage || undefined } : opt
+                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: finalImage || undefined } : opt
                         );
                     } else {
                         updatedOptions.push({
                             id: Date.now().toString(),
                             name: inputName.trim(),
-                            image: editImage || undefined
+                            image: finalImage || undefined
                         });
                     }
                     subCat.options = updatedOptions;
@@ -204,17 +222,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             if (!result.canceled && result.assets[0].uri) {
                 // Show immediately for better UX
                 setEditImage(result.assets[0].uri);
-
-                // Resize and compress
-                const manipResult = await ImageManipulator.manipulateAsync(
-                    result.assets[0].uri,
-                    [{ resize: { width: 300 } }],
-                    { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                );
-
-                if (manipResult.base64) {
-                    setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                }
             }
         } catch (error) {
             console.error('Image Error:', error);
