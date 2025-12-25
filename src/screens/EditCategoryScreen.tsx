@@ -16,8 +16,9 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Image as ExpoImage } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { cacheDirectory, copyAsync } from 'expo-file-system';
 import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -223,18 +224,17 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
             if (!result.canceled && result.assets[0].uri) {
                 try {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        result.assets[0].uri,
-                        [{ resize: { width: 300 } }],
-                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                    );
-                    if (manipResult.base64) {
-                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                    }
+                    // Copy to cache with unique name
+                    const filename = `preview_${Date.now()}.jpg`;
+                    const destPath = `${FileSystem.cacheDirectory}${filename}`;
+                    await FileSystem.copyAsync({
+                        from: result.assets[0].uri,
+                        to: destPath
+                    });
+                    setEditImage(destPath);
                 } catch (e) {
-                    console.error('Image manipulation error:', e);
-                    setAlertConfig({ title: 'Image Error', message: 'Failed to process image.' });
-                    setAlertVisible(true);
+                    console.error('Image preview error:', e);
+                    setEditImage(result.assets[0].uri);
                 }
             }
         } catch (error) {
@@ -375,12 +375,11 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                                     backgroundColor: '#E2E8F0', // Ensure visibility
                                     position: 'relative'
                                 }}>
-                                    <ExpoImage
+                                    <Image
                                         key={editImage}
                                         source={{ uri: editImage }}
                                         style={{ width: '100%', height: '100%' }}
-                                        contentFit="cover"
-                                        transition={500}
+                                        resizeMode="cover"
                                     />
                                     <View style={{
                                         position: 'absolute',
