@@ -252,7 +252,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             >
                 <ScrollView
                     showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
+                    keyboardShouldPersistTaps="always"
                     contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20 }}
                 >
                     <View style={styles.inputContainer}>
