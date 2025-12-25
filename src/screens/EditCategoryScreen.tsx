@@ -324,6 +324,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 visible={modalVisible}
                 onClose={() => setModalVisible(false)}
                 title={`${editMode ? 'Edit' : 'Add'} ${modalType === 'subcategory' ? 'Sub Category' : 'Option'}`}
+                height={500}
             >
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
