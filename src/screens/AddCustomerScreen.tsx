@@ -12,11 +12,12 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { User, Phone, MapPin, ArrowLeft } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
-import SuccessModal from '../components/SuccessModal';
 import { validatePhone } from '../utils/validation';
+import { useToast } from '../context/ToastContext';
 
 const AddCustomerScreen = ({ navigation }: any) => {
     const { addCustomer } = useData();
+    const { showToast } = useToast();
     const [name, setName] = useState('');
 
     useLayoutEffect(() => {
@@ -33,51 +34,32 @@ const AddCustomerScreen = ({ navigation }: any) => {
     }, [navigation]);
     const [mobile, setMobile] = useState('');
     const [location, setLocation] = useState('');
-    const [successVisible, setSuccessVisible] = useState(false);
     const [loading, setLoading] = useState(false);
-
-    // Alert Modal State
-    const [alertVisible, setAlertVisible] = useState(false);
-    const [alertTitle, setAlertTitle] = useState('');
-    const [alertDesc, setAlertDesc] = useState('');
-    const [alertType, setAlertType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
 
     const handleSave = async () => {
         if (!name.trim()) {
-            setAlertTitle('Required');
-            setAlertDesc('Please enter customer name');
-            setAlertType('warning');
-            setAlertVisible(true);
+            showToast('Please enter customer name', 'warning');
             return;
         }
 
         if (!validatePhone(mobile)) {
-            setAlertTitle('Required');
-            setAlertDesc('Please enter valid 10-digit mobile number');
-            setAlertType('warning');
-            setAlertVisible(true);
+            showToast('Please enter valid 10-digit mobile number', 'warning');
             return;
         }
 
         setLoading(true);
         try {
             await addCustomer({ name, mobile, location });
-            setSuccessVisible(true);
+            showToast(`${name} added successfully!`, 'success');
+            navigation.goBack();
         } catch (error: any) {
             console.error('AddCustomerScreen: handleSave error:', error);
-            setAlertTitle('Error');
-            setAlertDesc(error.message || 'Failed to save customer. Please try again.');
-            setAlertType('error');
-            setAlertVisible(true);
+            showToast(error.message || 'Failed to save customer', 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSuccessDone = () => {
-        setSuccessVisible(false);
-        navigation.goBack();
-    };
 
     return (
         <KeyboardAvoidingView
@@ -143,21 +125,6 @@ const AddCustomerScreen = ({ navigation }: any) => {
                     </TouchableOpacity>
                 </View>
             </View>
-
-            <SuccessModal
-                visible={successVisible}
-                onClose={handleSuccessDone}
-                title="Customer Added"
-                description={`${name} has been successfully added to your customer list.`}
-            />
-
-            <SuccessModal
-                visible={alertVisible}
-                onClose={() => setAlertVisible(false)}
-                title={alertTitle}
-                description={alertDesc}
-                type={alertType}
-            />
         </KeyboardAvoidingView>
     );
 };

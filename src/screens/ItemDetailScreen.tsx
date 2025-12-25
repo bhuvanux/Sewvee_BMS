@@ -7,6 +7,8 @@ import { Audio } from 'expo-av';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, normalizeItems } from '../services/pdfService';
+import AlertModal from '../components/AlertModal';
+import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -19,6 +21,13 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [playingUri, setPlayingUri] = useState<string | null>(null);
     const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
+
+    // Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Delete State
+    const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
     // Get latest item data in case it changes
     const order = orders.find((o: any) => o.id === orderId);
@@ -38,7 +47,11 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
     const handlePlayAudio = async (uri: string) => {
         try {
             if (playingUri === uri) {
-                await sound?.stopAsync();
+                if (sound) {
+                    await sound.stopAsync();
+                    await sound.unloadAsync();
+                    setSound(null);
+                }
                 setPlayingUri(null);
                 return;
             }
@@ -53,12 +66,17 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
             await newSound.playAsync();
 
             newSound.setOnPlaybackStatusUpdate((status: any) => {
-                if (status.isLoaded && status.didJustFinish) {
-                    setPlayingUri(null);
+                if (status.isLoaded) {
+                    if (status.didJustFinish) {
+                        setPlayingUri(null);
+                        newSound.unloadAsync();
+                        setSound(null);
+                    }
                 }
             });
         } catch (error) {
-            Alert.alert('Error', 'Could not play audio note');
+            setAlertConfig({ title: 'Error', message: 'Could not play audio note.' });
+            setAlertVisible(true);
         }
     };
 
@@ -68,34 +86,28 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
         };
     }, [sound]);
 
-    const handleDeleteItem = async () => {
-        Alert.alert(
-            'Delete Item',
-            'Are you sure you want to delete this item?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        const newItems = [...order.items];
-                        newItems.splice(itemIndex, 1);
+    const handleDeleteItem = () => {
+        setDeleteSheetVisible(true);
+    };
 
-                        // Recalculate totals
-                        const newTotal = newItems.reduce((sum: number, i: any) => sum + (Number(i.amount) || Number(i.rate) * Number(i.qty) || 0), 0);
-                        const newBalance = newTotal - (order.advance || 0);
+    const confirmDelete = async () => {
+        if (!order) return;
 
-                        await updateOrder(orderId, {
-                            items: newItems,
-                            total: newTotal,
-                            balance: newBalance,
-                            updatedAt: new Date().toISOString()
-                        });
-                        navigation.goBack();
-                    }
-                }
-            ]
-        );
+        const newItems = [...order.items];
+        newItems.splice(itemIndex, 1);
+
+        // Recalculate totals
+        const newTotal = newItems.reduce((sum: number, i: any) => sum + (Number(i.amount) || Number(i.rate) * Number(i.qty) || 0), 0);
+        const newBalance = newTotal - (order.advance || 0);
+
+        await updateOrder(orderId, {
+            items: newItems,
+            total: newTotal,
+            balance: newBalance,
+            updatedAt: new Date().toISOString()
+        });
+        setDeleteSheetVisible(false);
+        navigation.goBack();
     };
 
     const handleEditItem = () => {
@@ -243,6 +255,24 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
                     <Image source={{ uri: previewImageUri }} style={{ width: width, height: '80%' }} resizeMode="contain" />
                 </View>
             )}
+
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
+            />
+
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
+                title="Delete Item"
+                description="Are you sure you want to delete this item from the order?"
+                confirmText="Delete Item"
+                cancelText="Cancel"
+                type="danger"
+            />
         </View>
     );
 };

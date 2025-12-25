@@ -7,6 +7,13 @@ export interface Company {
     ownerId: string;
 }
 
+export interface MeasurementHistoryItem {
+    id: string;
+    date: string;
+    type: string;
+    data: MeasurementProfile;
+}
+
 export interface Customer {
     id: string;
     displayId?: string;
@@ -17,6 +24,7 @@ export interface Customer {
     totalOrders: number;
     totalSpent: number;
     createdAt: any;
+    measurementHistory?: MeasurementHistoryItem[];
 }
 
 export interface OrderItem {
@@ -89,6 +97,8 @@ export interface OutfitItem {
     voiceNote?: string;
     audioUri?: string; // Standardized URI field
     transcription?: string; // AI Transcribed text
+    sketchUri?: string; // Legacy single sketch
+    sketches?: string[]; // Multiple sketches support
     notes?: string;
     totalCost: number;
 }

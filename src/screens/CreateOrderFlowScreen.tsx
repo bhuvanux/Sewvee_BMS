@@ -13,7 +13,6 @@ import {
     Modal,
     Image,
     StatusBar,
-    SafeAreaView,
     Animated,
     Easing,
     LayoutAnimation
@@ -38,20 +37,30 @@ import {
     User,
     Upload,
     PenTool,
-    Square
+    Square,
+    Search,
+    AlertTriangle,
+    Pen,
+    Eraser,
+    Undo2
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { Order, OutfitItem, MeasurementProfile } from '../types';
+import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '../types';
 import { formatDate, getCurrentDate, getCurrentTime } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import SignatureScreen from 'react-native-signature-canvas';
 import { transcribeAudio } from '../services/geminiService';
+import { transcribeAudioWithWhisper } from '../services/openaiService';
+import { useNavigation } from '@react-navigation/native';
+import { useToast } from '../context/ToastContext';
+// Skia drawing temporarily disabled due to version compatibility
 
 
 
@@ -107,8 +116,9 @@ const QuantityStepper = ({ value, onChange }: { value: number, onChange: (val: n
     );
 };
 
-const CalendarModal = ({ visible, onClose, onSelect, initialDate }: any) => {
+const CalendarModal = ({ visible, onClose, onSelect, initialDate, disablePastDates = true }: any) => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     // Parse initialDate (DD/MM/YYYY) if exists, else today
     let startMonth = today.getMonth();
     let startYear = today.getFullYear();
@@ -182,6 +192,12 @@ const CalendarModal = ({ visible, onClose, onSelect, initialDate }: any) => {
         // Actual days
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${String(i).padStart(2, '0')}/${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`;
+            const cellDate = new Date(currentYear, currentMonth, i);
+            cellDate.setHours(0, 0, 0, 0);
+
+            // Check if date is in the past
+            const isPast = disablePastDates && cellDate < today;
+
             // Highlight if matches initialDate
             const isSelected = initialDate === dateStr;
             const isToday = todayStr === dateStr && !isSelected;
@@ -192,14 +208,17 @@ const CalendarModal = ({ visible, onClose, onSelect, initialDate }: any) => {
                     style={[
                         styles.calendarDay,
                         isSelected && styles.calendarDaySelected,
-                        isToday && styles.calendarDayToday
+                        isToday && styles.calendarDayToday,
+                        isPast && styles.calendarDayDisabled
                     ]}
-                    onPress={() => handleDateClick(i)}
+                    onPress={() => !isPast && handleDateClick(i)}
+                    disabled={isPast}
                 >
                     <Text style={[
                         styles.calendarDayText,
                         isSelected && styles.calendarDayTextSelected,
-                        isToday && styles.calendarDayTextToday
+                        isToday && styles.calendarDayTextToday,
+                        isPast && styles.calendarDayTextDisabled
                     ]}>{i}</Text>
                 </TouchableOpacity>
             );
@@ -303,7 +322,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
             {/* Customer Section - Clean Row */}
             <View>
-                <Text style={styles.sectionTitle}>Customer</Text>
+                <Text style={styles.sectionTitleClean}>Customer</Text>
                 <TouchableOpacity
                     style={[styles.cleanRow, editItemIndex !== undefined && { opacity: 0.6 }]}
                     onPress={editItemIndex === undefined ? openCustomerModal : () => onShowAlert('Editing Restricted', 'Cannot change customer while editing an item.')}
@@ -326,18 +345,18 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                     </View>
                     {editItemIndex === undefined && <ChevronRight size={18} color={Colors.textSecondary} />}
                 </TouchableOpacity>
-                <View style={styles.divider} />
+                <View style={styles.dividerClean} />
             </View>
 
             {/* Dates Section - Clean Grid */}
             <View>
-                <Text style={styles.sectionTitle}>Dates</Text>
+                <Text style={styles.sectionTitleClean}>Dates</Text>
                 <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
                     <TouchableOpacity
                         style={styles.datePill}
                         onPress={() => openCalendar('trialDate')}
                     >
-                        <Text style={styles.fieldLabelSmall}>Trial</Text>
+                        <Text style={styles.fieldLabelSmallClean}>{state.trialDate ? 'Trial' : 'Trial'}</Text>
                         <Text style={[styles.dateInputText, !state.trialDate && { color: Colors.textSecondary }]}>
                             {state.trialDate || 'Select Date'}
                         </Text>
@@ -347,7 +366,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         style={styles.datePill}
                         onPress={() => openCalendar('deliveryDate')}
                     >
-                        <Text style={styles.fieldLabelSmall}>Delivery</Text>
+                        <Text style={styles.fieldLabelSmallClean}>{state.deliveryDate ? 'Delivery' : 'Delivery'}</Text>
                         <Text style={[styles.dateInputText, !state.deliveryDate && { color: Colors.textSecondary }]}>
                             {state.deliveryDate || 'Select Date'}
                         </Text>
@@ -357,13 +376,13 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
             {/* Outfit Details - Clean Form */}
             <View>
-                <Text style={styles.sectionTitle}>Outfit Details</Text>
+                <Text style={styles.sectionTitleClean}>Outfit Details</Text>
 
                 <View style={{ gap: 16, marginTop: 12 }}>
                     {/* Type & Qty Row */}
                     <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.fieldLabelSmall}>Type</Text>
+                            <Text style={styles.fieldLabelSmallClean}>Type</Text>
                             <TouchableOpacity
                                 style={[styles.cleanDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F3F4F6' }]}
                                 onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => { }}
@@ -375,7 +394,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         </View>
 
                         <View style={{ width: 120 }}>
-                            <Text style={styles.fieldLabelSmall}>Quantity</Text>
+                            <Text style={styles.fieldLabelSmallClean}>Quantity</Text>
                             <QuantityStepper
                                 value={state.currentOutfit.quantity || 1}
                                 onChange={handleQuantityChange}
@@ -385,7 +404,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
                     {/* Urgency */}
                     <View>
-                        <Text style={styles.fieldLabelSmall}>Urgency</Text>
+                        <Text style={styles.fieldLabelSmallClean}>Urgency</Text>
                         <View style={styles.cleanSegment}>
                             {['Normal', 'Urgent'].map((u) => {
                                 const isSelected = state.urgency === u;
@@ -463,38 +482,73 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
 
     // Deep merge function
     const mergeCategories = (defaults: any[], dbCats: any[]) => {
-        return defaults.map(defCat => {
-            const dbCat = dbCats.find(c => c.name === defCat.name || c.id === defCat.id);
-            if (!dbCat) return defCat;
+        // 1. Start with DB categories to ensure custom ones are preserved
+        const result = (dbCats || []).map(dbCat => {
+            const defCat = (defaults || []).find(d => d.name === dbCat.name || d.id === dbCat.id);
+
+            // Merge sub-categories
+            const mergedSubCats = (dbCat.subCategories || []).map((dbSub: any) => {
+                const defSub = (defCat?.subCategories || []).find((s: any) => s.name === dbSub.name || s.id === dbSub.id);
+
+                // Merge options
+                const mergedOptions = (dbSub.options || []).map((dbOpt: any) => {
+                    const defOpt = (defSub?.options || []).find((o: any) => o.name === dbOpt.name || o.id === dbOpt.id);
+                    return {
+                        ...(defOpt || {}),
+                        ...dbOpt,
+                        image: dbOpt.image || defOpt?.image // Prioritize DB image
+                    };
+                });
+
+                // Add missing options from defaults
+                if (defSub?.options) {
+                    defSub.options.forEach((defOpt: any) => {
+                        if (!mergedOptions.find((o: any) => o.name === defOpt.name || o.id === defOpt.id)) {
+                            mergedOptions.push(defOpt);
+                        }
+                    });
+                }
+
+                return {
+                    ...(defSub || {}),
+                    ...dbSub,
+                    image: dbSub.image || defSub?.image,
+                    options: mergedOptions
+                };
+            });
+
+            // Add missing sub-categories from defaults
+            if (defCat?.subCategories) {
+                defCat.subCategories.forEach((defSub: any) => {
+                    if (!mergedSubCats.find((s: any) => s.name === defSub.name || s.id === defSub.id)) {
+                        mergedSubCats.push(defSub);
+                    }
+                });
+            }
 
             return {
-                ...defCat,
-                image: dbCat.image || defCat.image,
-                subCategories: (defCat.subCategories || []).map((defSub: any) => {
-                    const dbSub = (dbCat.subCategories || []).find((s: any) => s.name === defSub.name || s.id === defSub.id);
-                    if (!dbSub) return defSub;
-
-                    return {
-                        ...defSub,
-                        image: dbSub.image || defSub.image,
-                        options: (defSub.options || []).map((defOpt: any) => {
-                            const dbOpt = (dbSub.options || []).find((o: any) => o.name === defOpt.name || o.id === defOpt.id);
-                            return {
-                                ...defOpt,
-                                image: dbOpt?.image || defOpt.image
-                            };
-                        })
-                    };
-                })
+                ...(defCat || {}),
+                ...dbCat,
+                image: dbCat.image || defCat?.image,
+                subCategories: mergedSubCats
             };
         });
+
+        // 2. Add missing categories from defaults (in case of app updates)
+        (defaults || []).forEach(defCat => {
+            if (!result.find(c => c.name === defCat.name || c.id === defCat.id)) {
+                result.push(defCat);
+            }
+        });
+
+        return result;
     };
 
     if (defaultDef && selectedOutfitType) {
         // Merge to keep DB images but use Default structure
         selectedOutfitType = {
             ...selectedOutfitType,
-            categories: mergeCategories(defaultDef.categories, selectedOutfitType.categories || [])
+            categories: mergeCategories(defaultDef.categories || [], selectedOutfitType.categories || [])
         };
     } else if (defaultDef && !selectedOutfitType) {
         selectedOutfitType = defaultDef;
@@ -750,12 +804,19 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
 const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const [historyVisible, setHistoryVisible] = useState(false);
 
-    // 2. Mock History Data
-    const historyData = [
-        { id: '1', date: '22 Oct 2024', type: state.currentOutfit.type, data: { Length: '40', Waist: '32', Bust: '36' } },
-        { id: '2', date: '10 Sep 2024', type: state.currentOutfit.type, data: { Length: '38', Waist: '30', Bust: '34' } },
-        { id: '3', date: '05 Aug 2024', type: state.currentOutfit.type, data: { Length: '39', Waist: '31', Bust: '35' } },
-    ];
+    // Use actual customer history or empty
+    const historyData = state.selectedCustomer?.measurementHistory || [];
+
+    // Filter by current type if desired, or show all? 
+    // Usually better to show relevant ones first.
+    // Let's sort: exact type match first, then by date.
+    const sortedHistory = [...historyData].sort((a: any, b: any) => {
+        if (a.type === state.currentOutfit.type && b.type !== state.currentOutfit.type) return -1;
+        if (a.type !== state.currentOutfit.type && b.type === state.currentOutfit.type) return 1;
+        // Date sort (assuming string dd MMM yyyy - might need parsing if format varies, but standardizing helps)
+        // Simple fallback: newest (top of list) is index 0. Reversing standard JS sort stability isn't guaranteed
+        return 0;
+    });
 
     const applyHistory = (data: any) => {
         onChange({
@@ -783,11 +844,14 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
             <View style={[styles.card, { paddingBottom: 24 }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Measurements</Text>
-                    <TouchableOpacity onPress={() => setHistoryVisible(true)}>
-                        <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
-                            View History
-                        </Text>
-                    </TouchableOpacity>
+
+                    {historyData.length > 0 && (
+                        <TouchableOpacity onPress={() => setHistoryVisible(true)}>
+                            <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
+                                View History
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 <View style={styles.measurementsGrid}>
@@ -838,23 +902,28 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                         </View>
 
                         <ScrollView style={{ maxHeight: 300 }}>
-                            {historyData.map((item) => (
-                                <View key={item.id} style={styles.tableRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.tableCellDate}>{item.date}</Text>
-                                        {/* Removed redundant "X measurements" subtitle */}
+                            {sortedHistory.length > 0 ? (
+                                sortedHistory.map((item: any) => (
+                                    <View key={item.id} style={styles.tableRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.tableCellDate}>{item.date}</Text>
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.tableCellText}>{item.type}</Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.applyBtn}
+                                            onPress={() => applyHistory(item.data)}
+                                        >
+                                            <Text style={styles.applyBtnText}>Apply</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.tableCellText}>{item.type}</Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.applyBtn}
-                                        onPress={() => applyHistory(item.data)}
-                                    >
-                                        <Text style={styles.applyBtnText}>Apply</Text>
-                                    </TouchableOpacity>
+                                ))
+                            ) : (
+                                <View style={{ padding: 20, alignItems: 'center' }}>
+                                    <Text style={{ color: Colors.textSecondary }}>No history available.</Text>
                                 </View>
-                            ))}
+                            )}
                         </ScrollView>
                     </TouchableOpacity>
                 </TouchableOpacity>
@@ -873,23 +942,28 @@ const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compa
         try {
             if (sound) {
                 if (isPlaying) {
-                    await sound.pauseAsync();
+                    await sound.stopAsync();
                     setIsPlaying(false);
                 } else {
                     await sound.playAsync();
                     setIsPlaying(true);
                 }
             } else {
-                const { sound: newSound } = await Audio.Sound.createAsync({ uri });
+                const { sound: newSound } = await Audio.Sound.createAsync(
+                    { uri },
+                    { shouldPlay: true }
+                );
                 setSound(newSound);
+                setIsPlaying(true);
+
                 newSound.setOnPlaybackStatusUpdate((status) => {
-                    if (status.isLoaded && status.didJustFinish) {
-                        setIsPlaying(false);
-                        newSound.setPositionAsync(0);
+                    if (status.isLoaded) {
+                        if (status.didJustFinish) {
+                            setIsPlaying(false);
+                            newSound.setPositionAsync(0);
+                        }
                     }
                 });
-                await newSound.playAsync();
-                setIsPlaying(true);
             }
         } catch (error) {
             console.log("Error playing sound", error);
@@ -981,14 +1055,21 @@ const StitchDetailsModal = ({ visible, title, content, onClose }: any) => {
 const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const [viewerVisible, setViewerVisible] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
+    const [sketchModalVisible, setSketchModalVisible] = useState(false); // New Modal state
+    const [penWidth, setPenWidth] = useState<{ min: number, max: number }>({ min: 1, max: 2 }); // Default Medium
+    const [penColor, setPenColor] = useState('#000000'); // Default Black
+    const [editingSketchIndex, setEditingSketchIndex] = useState<number | null>(null); // Track if editing existing sketch
+    const [initialSketchData, setInitialSketchData] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [editImageBase64, setEditImageBase64] = useState<string | null>(null);
     const signatureRef = useRef<any>(null);
+    const { showToast } = useToast();
+    // const canvasRef = useRef<any>(null); // Skia drawing temporarily disabled
 
     const pickImage = async () => {
         // 1. Multiple Selection Enabled (Editing disabled to allow multiple)
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: false,
             allowsMultipleSelection: true,
             quality: 1,
@@ -1083,6 +1164,81 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
             if (onShowAlert) onShowAlert("Error", "Could not save edit");
         }
     };
+    /* DESIGN SKETCH LOGIC - Replacing Canvas with SignatureScreen */
+    const handleSketchOK = async (signature: string) => {
+        // signature is base64
+        const path = FileSystem.cacheDirectory + `sketch_${Date.now()}.png`;
+        try {
+            // Strip the header to get raw base64
+            const base64Code = signature.replace('data:image/png;base64,', '');
+            await FileSystem.writeAsStringAsync(path, base64Code, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            if (editingSketchIndex !== null) {
+                // Update existing
+                const updatedSketches = [...(state.currentOutfit.sketches || [])];
+                updatedSketches[editingSketchIndex] = path;
+                onChange({
+                    currentOutfit: {
+                        ...state.currentOutfit,
+                        sketches: updatedSketches
+                    }
+                });
+                showToast('Sketch updated!', 'success');
+            } else {
+                // Add new
+                const newSketches = [...(state.currentOutfit.sketches || []), path];
+                onChange({
+                    currentOutfit: {
+                        ...state.currentOutfit,
+                        sketches: newSketches
+                    }
+                });
+                showToast('Sketch saved!', 'success');
+            }
+
+            setSketchModalVisible(false);
+            setEditingSketchIndex(null); // Reset
+            setInitialSketchData(null);
+        } catch (error) {
+            console.error('Error saving sketch:', error);
+            Alert.alert('Error', 'Failed to save sketch');
+        }
+    };
+
+    const handleEditSketch = async (uri: string, index: number) => {
+        try {
+            // Read file to get base64
+            const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            setInitialSketchData(`data:image/png;base64,${base64}`);
+            setEditingSketchIndex(index);
+            setSketchModalVisible(true);
+        } catch (e) {
+            console.error("Failed to load sketch for editing", e);
+            Alert.alert("Error", "Could not load sketch for editing");
+        }
+    };
+
+    const handleDeleteSketch = (index: number) => {
+        const currentSketches = [...(state.currentOutfit.sketches || [])];
+        currentSketches.splice(index, 1);
+        onChange({
+            currentOutfit: {
+                ...state.currentOutfit,
+                sketches: currentSketches,
+                sketchUri: currentSketches.length > 0 ? currentSketches[currentSketches.length - 1] : undefined
+            }
+        });
+    };
+
+    const handleSketchClear = () => {
+        signatureRef.current?.clearSignature();
+    };
+
+    const handleSketchUndo = () => {
+        signatureRef.current?.undo();
+    };
 
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>
@@ -1126,6 +1282,140 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                     )}
                 </View>
             </View>
+
+            {/* Design Sketch Area - MOVED TO MODAL */}
+            <View style={styles.section}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={styles.subLabel}>Design Sketch</Text>
+                </View>
+
+                {/* Sketch Gallery */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 12 }}>
+                    {(state.currentOutfit.sketches || []).map((uri: string, index: number) => (
+                        <View key={index} style={{ width: 120, height: 120, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#fff', position: 'relative' }}>
+                            <TouchableOpacity
+                                style={{ width: 120, height: 120, borderRadius: 12, borderWidth: 1, borderColor: '#ccc', marginRight: 10, overflow: 'hidden', backgroundColor: '#fff' }}
+                                onPress={() => handleEditSketch(uri, index)}
+                            >
+                                <Image
+                                    source={{ uri }}
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode="contain" // Changed to contain to show full sketch
+                                />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 4 }}
+                                onPress={() => handleDeleteSketch(index)}
+                            >
+                                <Trash2 size={14} color={Colors.danger} />
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+
+                    {/* Add New Sketch Button */}
+                    <TouchableOpacity
+                        style={{ width: 120, height: 120, borderRadius: 12, borderWidth: 2, borderColor: Colors.primary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' }}
+                        onPress={() => {
+                            setEditingSketchIndex(null);
+                            setInitialSketchData(null);
+                            setSketchModalVisible(true);
+                        }}
+                    >
+                        <Pen size={32} color={Colors.primary} />
+                        <Text style={{ marginTop: 8, fontFamily: 'Inter-Medium', color: Colors.primary, fontSize: 12 }}>Draw Sketch</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+
+                <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 8, fontStyle: 'italic' }}>
+                    * Tap to open the full-screen drawing canvas.
+                </Text>
+            </View>
+
+            {/* SKETCH MODAL */}
+            <Modal visible={sketchModalVisible} animationType="slide" onRequestClose={() => setSketchModalVisible(false)}>
+                <View style={{ flex: 1, backgroundColor: '#fff' }}>
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => setSketchModalVisible(false)} style={{ padding: 8 }}>
+                            <X size={24} color={Colors.textPrimary} />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitle}>{editingSketchIndex !== null ? 'Edit Sketch' : 'New Sketch'}</Text>
+                        <TouchableOpacity onPress={() => signatureRef.current?.readSignature()} style={{ padding: 8 }}>
+                            <Check size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+                        <SignatureScreen
+                            ref={signatureRef}
+                            minWidth={penWidth.min}
+                            maxWidth={penWidth.max}
+                            penColor={penColor}
+                            onOK={(sig) => {
+                                handleSketchOK(sig);
+                            }}
+                            onEmpty={() => console.log('Empty')}
+                            descriptionText="Sketch here"
+                            clearText="Clear"
+                            confirmText="Save"
+                            webStyle={`
+                                .m-signature-pad--footer { display: none; margin: 0px; } 
+                                body,html { width: 100%; height: 100%; background-color: #fff; }
+                                .m-signature-pad { box-shadow: none; border: none; } 
+                                .m-signature-pad--body { border: none; }
+                            `}
+                            autoClear={false}
+                            imageType="image/png"
+                            trimWhitespace={false}
+                            dataURL={initialSketchData || undefined}
+                        />
+                    </View>
+
+                    {/* BOTTOM TOOLBAR */}
+                    <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: '#fff' }}>
+
+                        {/* 1. Colors */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, gap: 16 }}>
+                            {['#000000', '#EF4444', '#3B82F6', '#10B981'].map(color => (
+                                <TouchableOpacity
+                                    key={color}
+                                    onPress={() => setPenColor(color)}
+                                    style={{
+                                        width: 32, height: 32, borderRadius: 16, backgroundColor: color,
+                                        borderWidth: penColor === color ? 3 : 1, borderColor: penColor === color ? '#ddd' : '#fff',
+                                        shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, elevation: 2
+                                    }}
+                                />
+                            ))}
+                        </View>
+
+                        {/* 2. Sizes & Tools */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {/* Sizes */}
+                            <View style={{ flexDirection: 'row', gap: 8, backgroundColor: '#F3F4F6', padding: 4, borderRadius: 8 }}>
+                                <TouchableOpacity onPress={() => setPenWidth({ min: 0.5, max: 1.5 })} style={{ padding: 8, backgroundColor: penWidth.min === 0.5 ? '#fff' : 'transparent', borderRadius: 6 }}>
+                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.textPrimary }} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setPenWidth({ min: 1, max: 2.5 })} style={{ padding: 8, backgroundColor: penWidth.min === 1 ? '#fff' : 'transparent', borderRadius: 6 }}>
+                                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.textPrimary }} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setPenWidth({ min: 3, max: 5 })} style={{ padding: 8, backgroundColor: penWidth.min === 3 ? '#fff' : 'transparent', borderRadius: 6 }}>
+                                    <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.textPrimary }} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Undo/Clear */}
+                            <View style={{ flexDirection: 'row', gap: 12 }}>
+                                <TouchableOpacity onPress={handleSketchUndo} style={styles.sketchToolBtn}>
+                                    <Undo2 size={20} color={Colors.textPrimary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleSketchClear} style={styles.sketchToolBtn}>
+                                    <Eraser size={20} color={Colors.textPrimary} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Voice Note & Transcription Status */}
             {(state.currentOutfit.audioUri || state.currentOutfit.isTranscribing) && (
@@ -1383,13 +1673,20 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 16 }} />
 
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <View>
-                                        {item.audioUri ? (
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                <AudioPlayer uri={item.audioUri} compact onShowAlert={onShowAlert} />
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <View>
+                                            {item.audioUri ? (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                    <AudioPlayer uri={item.audioUri} compact onShowAlert={onShowAlert} />
+                                                </View>
+                                            ) : (
+                                                <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-Regular' }}>No audio note</Text>
+                                            )}
+                                        </View>
+                                        {item.sketchUri && (
+                                            <View style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#F3F4F6', overflow: 'hidden', borderWidth: 1, borderColor: '#E5E7EB' }}>
+                                                <Image source={{ uri: item.sketchUri }} style={{ flex: 1 }} resizeMode="contain" />
                                             </View>
-                                        ) : (
-                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-Regular' }}>No audio note</Text>
                                         )}
                                     </View>
 
@@ -1561,7 +1858,10 @@ const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, conf
 
 
 const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordingComplete?: (uri: string, duration: number) => void, onShowAlert?: (title: string, message: string) => void }) => {
+    const navigation = useNavigation<any>();
+    const { showToast } = useToast();
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [duration, setDuration] = useState(0);
     const [isExpanded, setIsExpanded] = useState(false);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1645,7 +1945,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 };
 
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
-    const { customers, outfits, addOrder, updateOrder, addCustomer, orders } = useData();
+    const { customers, outfits, addOrder, updateOrder, addCustomer, updateCustomer, orders } = useData();
     const { user } = useAuth();
 
     const editOrderId = route.params?.editOrderId;
@@ -1801,7 +2101,44 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         else navigation.goBack();
     };
 
-    const handleAddAnother = () => {
+    const saveMeasurementHistory = async (outfit: any) => {
+        if (!state.selectedCustomer || !outfit.measurements || Object.keys(outfit.measurements).length === 0) return;
+
+        // Filter out empty values
+        const validMeasurements = Object.fromEntries(
+            Object.entries(outfit.measurements).filter(([_, v]) => v && String(v).trim() !== '')
+        );
+
+        if (Object.keys(validMeasurements).length === 0) return;
+
+        const newHistoryItem: MeasurementHistoryItem = {
+            id: Date.now().toString(),
+            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), // e.g., 22 Oct 2024
+            type: outfit.type,
+            data: validMeasurements as MeasurementProfile
+        };
+
+        const currentHistory = state.selectedCustomer.measurementHistory || [];
+        const updatedHistory = [newHistoryItem, ...currentHistory];
+
+        try {
+            // Update Backend
+            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
+
+            // Update Local State
+            updateState({
+                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
+            });
+            console.log("Measurement history saved automatically.");
+        } catch (e) {
+            console.error("Failed to save measurement history", e);
+        }
+    };
+
+    const handleAddAnother = async () => {
+        // Auto-save measurements to history
+        await saveMeasurementHistory(state.currentOutfit);
+
         // Smart Grouping Logic
         // Check if an identical item exists in the cart (Type, Measurements, Notes)
         const cartIndex = state.cart.findIndex((item: any) => {
@@ -1862,7 +2199,10 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         };
 
         updateState({
-            currentOutfit: newOutfit
+            currentOutfit: {
+                ...newOutfit,
+                sketchUri: undefined
+            }
         });
         setCurrentStep(0);
     };
@@ -1903,12 +2243,21 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
         try {
             console.log("Starting transcription for:", uri);
-            const text = await transcribeAudio(uri);
+            let text = "";
+
+            try {
+                text = await transcribeAudioWithWhisper(uri);
+            } catch (whisperError: any) {
+                console.error("OpenAI Whisper failed:", whisperError);
+                if (showAlert) showAlert("Transcription Failed", `OpenAI Error: ${whisperError.message}`);
+                text = ""; // Continue even if transcription fails, don't crash the save
+            }
+
             console.log("Transcription result:", text);
 
             // Append to existing notes
             const currentNotes = state.currentOutfit.notes || '';
-            const newNotes = currentNotes ? `${currentNotes}\n\n[Transcript]: ${text}` : `[Transcript]: ${text}`;
+            const newNotes = text ? (currentNotes ? `${currentNotes}\n\n[Transcript]: ${text}` : `[Transcript]: ${text}`) : currentNotes;
 
             updateState({
                 currentOutfit: {
@@ -1920,7 +2269,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 }
             });
         } catch (error: any) {
-            console.error("Transcription failed", error);
+            console.error("Recording save failed", error);
             updateState({
                 currentOutfit: {
                     ...state.currentOutfit,
@@ -1929,7 +2278,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     isTranscribing: false
                 }
             });
-            if (showAlert) showAlert("Transcription Failed", `Error: ${error.message || 'Unknown error'}. You can still type notes manually.`);
+            if (showAlert) showAlert("Error", "Could not save recording updates.");
         }
     };
 
@@ -1951,6 +2300,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             const finalItems = [...state.cart];
             // Only add currentOutfit if it has a type selected, implying it's a valid item in progress
             if (state.currentOutfit.type) {
+                // Auto-save measurements for this final item too
+                await saveMeasurementHistory(state.currentOutfit);
+
                 // Fix: Preserve existing ID if editing, otherwise generate new
                 // This prevents duplicate items when updating an order (backend upsert logic)
                 const itemId = state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_')
@@ -2015,13 +2367,30 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         }
     };
 
+    const insets = useSafeAreaInsets();
+
+    const renderHeader = () => {
+        if (!editOrderId) {
+            return (
+                <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
+                        <ArrowLeft size={24} color={Colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{editOrderId ? 'Edit Order' : 'New Order'}</Text>
+                    <View style={{ width: 32 }} />
+                </View>
+            );
+        }
+        return null;
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
 
 
             {/* Header with Tabs */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
                     <ArrowLeft size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
@@ -2168,7 +2537,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 confirmText="Delete"
                 type="danger"
             />
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -2206,6 +2575,51 @@ const styles = StyleSheet.create({
         borderColor: Colors.primary,
         backgroundColor: '#F0FDF4',
         borderWidth: 2
+    },
+    optionCardSplitSelected: {
+        borderColor: Colors.primary,
+        borderWidth: 2,
+        backgroundColor: '#F0F9FF',
+    },
+    sketchContainer: {
+        height: 300,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        overflow: 'hidden',
+        ...Shadow.small
+    },
+    sketchToolBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: '#F3F4F6',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    sketchToolText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textPrimary
+    },
+    saveSketchBtn: {
+        position: 'absolute',
+        bottom: 16,
+        right: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
+        gap: 8,
+        ...Shadow.medium
+    },
+    saveSketchText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.white
     },
     optionImage: {
         width: 48, // Fixed size square
@@ -3157,12 +3571,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12
     },
-    divider: {
+    dividerClean: {
         height: 1,
         backgroundColor: '#F3F4F6',
         marginTop: 8
     },
-    sectionTitle: {
+    sectionTitleClean: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 15,
         color: Colors.textSecondary,
@@ -3178,7 +3592,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 12
     },
-    fieldLabelSmall: {
+    fieldLabelSmallClean: {
         fontFamily: 'Inter-Medium',
         fontSize: 12,
         color: Colors.textSecondary,
@@ -3265,6 +3679,13 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Medium',
         fontSize: 14,
         color: Colors.textPrimary
+    },
+    calendarDayDisabled: {
+        opacity: 0.25
+    },
+    calendarDayTextDisabled: {
+        color: Colors.textSecondary,
+        fontFamily: 'Inter-Regular'
     },
     calendarDayTextSelected: {
         color: Colors.white,

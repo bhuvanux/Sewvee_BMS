@@ -18,6 +18,7 @@ export const normalizeItems = (orderData: any) => {
       notes: it.notes,
       quantity: it.qty || 1,
       images: it.images || [],
+      sketches: it.sketches || [], // Add sketches support
       audioUri: it.audioUri || it.voiceNote,
       transcription: it.transcription,
       fabricSource: it.fabricSource || it.fabric_source || ''
@@ -31,6 +32,7 @@ export const normalizeItems = (orderData: any) => {
     amount: it.amount || it.totalCost || 0,
     rate: it.rate !== undefined ? it.rate : (it.totalCost ? (it.totalCost / (it.qty || it.quantity || 1)) : 0),
     images: it.images || [],
+    sketches: it.sketches || [], // Add sketches support
     fabricSource: it.fabricSource || it.fabric_source || ''
   }));
 };
@@ -257,7 +259,23 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
           return null;
         }
       }));
-      return { ...item, images: base64Images.filter(Boolean) };
+      item.images = base64Images.filter(Boolean);
+    }
+
+    if (item.sketches && item.sketches.length > 0) {
+      const base64Sketches = await Promise.all(item.sketches.map(async (sketchUri: string) => {
+        try {
+          if (sketchUri.startsWith('file://')) {
+            const base64 = await FileSystem.readAsStringAsync(sketchUri, { encoding: FileSystem.EncodingType.Base64 });
+            return `data:image/png;base64,${base64}`;
+          }
+          return sketchUri;
+        } catch (e) {
+          console.log('Error converting sketch to base64:', e);
+          return null;
+        }
+      }));
+      item.sketches = base64Sketches.filter(Boolean);
     }
     return item;
   }));
@@ -284,7 +302,7 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
           .notes-label { font-size: 10px; font-weight: 700; color: #92400E; margin-bottom: 2px; text-transform: uppercase; }
           .notes-text { font-size: 12px; color: #78350F; line-height: 1.4; }
           .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
-          .item-image { height: 180px; width: auto; max-width: 100%; object-fit: contain; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; }
+          .item-image { width: 45%; height: auto; object-fit: contain; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; }
         </style>
       </head>
       <body>
@@ -343,6 +361,13 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
               <div class="notes-label" style="margin-top: 15px; color: #0E9F8A;">Attachments / Photos</div>
               <div class="item-images">
                 ${item.images.map((img: string) => `<img src="${img}" class="item-image" />`).join('')}
+              </div>
+            ` : ''}
+
+            ${item.sketches && item.sketches.length > 0 ? `
+              <div class="notes-label" style="margin-top: 15px; color: #0E9F8A;">Design Sketches</div>
+              <div class="item-images">
+                ${item.sketches.map((img: string) => `<img src="${img}" class="item-image" style="border: 2px dashed #0E9F8A;" />`).join('')}
               </div>
             ` : ''}
 

@@ -18,7 +18,8 @@ import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory } from '../types';
-import SuccessModal from '../components/SuccessModal';
+import AlertModal from '../components/AlertModal';
+import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 
 const OutfitCategoriesScreen = ({ navigation, route }: any) => {
     const { outfitId, outfitName } = route.params;
@@ -35,11 +36,15 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
     const [editImage, setEditImage] = useState<string | null>(null);
 
     // Success Modal
-    const [successVisible, setSuccessVisible] = useState(false);
-    const [successTitle, setSuccessTitle] = useState('');
-    const [successDesc, setSuccessDesc] = useState('');
-    const [successType, setSuccessType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
-    const [onSuccessDone, setOnSuccessDone] = useState<(() => void) | null>(null);
+
+
+    // Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Delete State
+    const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
 
     useEffect(() => {
         const found = outfits.find(o => o.id === outfitId);
@@ -48,12 +53,14 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
 
     const handleSave = async () => {
         if (!categoryName.trim()) {
-            Alert.alert('Error', 'Please enter category name');
+            setAlertConfig({ title: 'Missing Information', message: 'Please enter category name.' });
+            setAlertVisible(true);
             return;
         }
 
         if (!currentOutfit) {
-            Alert.alert('Error', 'Outfit data not found');
+            setAlertConfig({ title: 'Error', message: 'Outfit data not found.' });
+            setAlertVisible(true);
             return;
         }
 
@@ -79,20 +86,23 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             setModalVisible(false);
         } catch (error) {
             console.error('Save Error:', error);
-            Alert.alert('Error', 'Failed to save category. Please try again.');
+            setAlertConfig({ title: 'Error', message: 'Failed to save category. Please try again.' });
+            setAlertVisible(true);
         }
     };
 
     const handleDelete = (id: string, name: string) => {
-        setSuccessTitle('Delete Category');
-        setSuccessDesc(`Are you sure you want to delete "${name}"?`);
-        setSuccessType('error');
-        setOnSuccessDone(() => async () => {
-            if (!currentOutfit) return;
-            const updatedCategories = (currentOutfit.categories || []).filter(c => c.id !== id);
+        setItemToDelete({ id, name });
+        setDeleteSheetVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (itemToDelete && currentOutfit) {
+            const updatedCategories = (currentOutfit.categories || []).filter(c => c.id !== itemToDelete.id);
             await updateOutfit(outfitId, { categories: updatedCategories });
-        });
-        setSuccessVisible(true);
+            setDeleteSheetVisible(false);
+            setItemToDelete(null);
+        }
     };
 
     const openAddModal = () => {
@@ -306,14 +316,22 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 )}
             </Modal>
 
-            <SuccessModal
-                visible={successVisible}
-                title={successTitle}
-                description={successDesc}
-                type={successType}
-                onConfirm={onSuccessDone || undefined}
-                confirmText={successType === 'error' ? 'Delete' : 'Done'}
-                onClose={() => setSuccessVisible(false)}
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
+            />
+
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
+                title="Delete Category"
+                description={`Are you sure you want to delete "${itemToDelete?.name}"?`}
+                confirmText="Delete Category"
+                cancelText="Cancel"
+                type="danger"
             />
         </View>
     );

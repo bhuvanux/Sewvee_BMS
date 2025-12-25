@@ -138,7 +138,6 @@ const OrdersListScreen = ({ navigation }: any) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Row 2: Search */}
                 <View style={styles.searchContainer}>
                     <Search size={18} color={Colors.textSecondary} />
                     <TextInput
@@ -153,12 +152,17 @@ const OrdersListScreen = ({ navigation }: any) => {
                 {/* Row 3: Compact Stats */}
                 <View style={styles.statsRow}>
                     <Text style={styles.statText}>
+                        <Text style={{ color: Colors.textSecondary }}>Orders: </Text>
+                        {filteredOrders.length}
+                    </Text>
+                    <View style={styles.statDivider} />
+                    <Text style={styles.statText}>
                         <Text style={{ color: Colors.textSecondary }}>Total: </Text>
                         ₹{totals.total.toLocaleString()}
                     </Text>
                     <View style={styles.statDivider} />
                     <Text style={styles.statText}>
-                        <Text style={{ color: Colors.textSecondary }}>Rec: </Text>
+                        <Text style={{ color: Colors.textSecondary }}>Paid: </Text>
                         <Text style={{ color: Colors.success }}>₹{totals.advance.toLocaleString()}</Text>
                     </Text>
                     <View style={styles.statDivider} />
@@ -282,8 +286,9 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: Colors.white,
-        padding: Spacing.md,
-        paddingBottom: Spacing.xs,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 12,
     },
     headerTop: {
         flexDirection: 'row',
@@ -300,9 +305,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#F3F4F6',
-        borderRadius: 20,
+        borderRadius: 12,
         paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingVertical: 6,
         gap: 8,
     },
     monthArrow: {
@@ -312,13 +317,14 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 14,
         color: Colors.textPrimary,
-        minWidth: 80,
+        minWidth: 70,
         textAlign: 'center',
     },
     filterBtn: {
         padding: 10,
-        borderRadius: 12,
         backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        marginLeft: 8,
     },
     filterBtnActive: {
         backgroundColor: Colors.primary,
@@ -328,10 +334,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: '#F8FAFC',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        marginTop: 12,
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        marginTop: 16,
         borderWidth: 1,
         borderColor: '#E2E8F0',
     },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, Dimensions, Share, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
 import {
@@ -14,7 +14,7 @@ import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, nor
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import SuccessModal from '../components/SuccessModal';
+import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 
 const { width } = Dimensions.get('window');
@@ -35,13 +35,39 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'details' | 'items' | 'payments'>('details');
+    const scrollRef = useRef<ScrollView>(null);
 
-    // Custom Modal State
-    const [successVisible, setSuccessVisible] = useState(false);
-    const [successTitle, setSuccessTitle] = useState('');
-    const [successDesc, setSuccessDesc] = useState('');
-    const [successType, setSuccessType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
-    const [onSuccessDone, setOnSuccessDone] = useState<(() => void) | null>(null);
+    const handleTabPress = (tab: 'details' | 'items' | 'payments') => {
+        let index = 0;
+        if (tab === 'items') index = 1;
+        if (tab === 'payments') index = 2;
+
+        setActiveTab(tab);
+        scrollRef.current?.scrollTo({
+            x: index * width,
+            animated: true
+        });
+    };
+
+    const handleScroll = (event: any) => {
+        const offsetX = event.nativeEvent.contentOffset.x;
+        const index = Math.round(offsetX / width);
+        const tabs: ('details' | 'items' | 'payments')[] = ['details', 'items', 'payments'];
+        const newTab = tabs[index];
+        if (newTab && newTab !== activeTab) {
+            setActiveTab(newTab);
+        }
+    };
+
+
+
+    // Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Delete Item State
+    const [deleteItemSheetVisible, setDeleteItemSheetVisible] = useState(false);
+    const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
 
     // Audio Playback
     const [playingUri, setPlayingUri] = useState<string | null>(null);
@@ -71,14 +97,18 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             setPlayingUri(uri);
             await sound.playAsync();
             sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.isLoaded && status.didJustFinish) {
-                    setPlayingUri(null);
-                    soundRef.current = null;
+                if (status.isLoaded) {
+                    if (status.didJustFinish) {
+                        setPlayingUri(null);
+                        soundRef.current?.unloadAsync();
+                        soundRef.current = null;
+                    }
                 }
             });
         } catch (error) {
             console.log('Audio Error:', error);
-            Alert.alert('Error', 'Could not play audio note');
+            setAlertConfig({ title: 'Error', message: 'Could not play audio note' });
+            setAlertVisible(true);
         }
     };
 
@@ -159,44 +189,38 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 customerDisplayId: customer?.displayId || '---'
             };
             await generateInvoicePDF(enrichedOrder, companyData);
+            await generateInvoicePDF(enrichedOrder, companyData);
         } catch (error: any) {
-            setSuccessTitle('Share Failed');
-            setSuccessDesc(error.message || 'Could not generate PDF for WhatsApp');
-            setSuccessType('error');
-            setOnSuccessDone(null);
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Share Failed', message: error.message || 'Could not generate PDF for WhatsApp' });
+            setAlertVisible(true);
         } finally {
             setIsSharing(false);
         }
     };
 
     const handleDeleteItem = (index: number) => {
-        Alert.alert(
-            'Delete Item',
-            'Are you sure you want to delete this item?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        const newItems = [...order.items];
-                        newItems.splice(index, 1);
+        setItemToDeleteIndex(index);
+        setDeleteItemSheetVisible(true);
+    };
 
-                        // Recalculate totals
-                        const newTotal = newItems.reduce((sum: number, i: any) => sum + (Number(i.amount) || Number(i.rate) * Number(i.qty) || 0), 0);
-                        const newBalance = newTotal - (order.advance || 0);
+    const confirmDeleteItem = async () => {
+        if (itemToDeleteIndex === null) return;
 
-                        await updateOrder(order.id, {
-                            items: newItems,
-                            total: newTotal,
-                            balance: newBalance,
-                            updatedAt: new Date().toISOString()
-                        });
-                    }
-                }
-            ]
-        );
+        const newItems = [...order.items];
+        newItems.splice(itemToDeleteIndex, 1);
+
+        // Recalculate totals
+        const newTotal = newItems.reduce((sum: number, i: any) => sum + (Number(i.amount) || Number(i.rate) * Number(i.qty) || 0), 0);
+        const newBalance = newTotal - (order.advance || 0);
+
+        await updateOrder(order.id, {
+            items: newItems,
+            total: newTotal,
+            balance: newBalance,
+            updatedAt: new Date().toISOString()
+        });
+        setDeleteItemSheetVisible(false);
+        setItemToDeleteIndex(null);
     };
 
     const handlePrint = async () => {
@@ -217,11 +241,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             navigation.goBack();
         } catch (e: any) {
             setDeleteSheetVisible(false); // Close sheet on error
-            setSuccessTitle('Delete Failed');
-            setSuccessDesc(e.message || 'Could not delete bill');
-            setSuccessType('error');
-            setOnSuccessDone(null);
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Delete Failed', message: e.message || 'Could not delete bill' });
+            setAlertVisible(true);
         } finally {
             setIsDeleting(false);
         }
@@ -230,17 +251,13 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const handleSavePayment = async () => {
         const amount = parseFloat(paymentAmount);
         if (isNaN(amount) || amount <= 0) {
-            setSuccessTitle('Invalid Amount');
-            setSuccessDesc('Please enter a valid payment amount.');
-            setSuccessType('warning');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Invalid Amount', message: 'Please enter a valid payment amount.' });
+            setAlertVisible(true);
             return;
         }
         if (amount > currentBalance) {
-            setSuccessTitle('Excess Amount');
-            setSuccessDesc('Payment cannot be greater than the balance due.');
-            setSuccessType('warning');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Excess Amount', message: 'Payment cannot be greater than the balance due.' });
+            setAlertVisible(true);
             return;
         }
 
@@ -256,17 +273,12 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             setPaymentModalVisible(false);
             setPaymentAmount('');
 
-            setSuccessTitle('Payment Successful');
-            setSuccessDesc(`₹${amount} has been added to bill #${order.billNo}`);
-            setSuccessType('success');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Payment Successful', message: `₹${amount} has been added to bill #${order.billNo}` });
+            setAlertVisible(true);
         } catch (error: any) {
             console.error('Payment Error:', error);
-            setSuccessTitle('Payment Failed');
-            setSuccessDesc(error.message || 'Could not save payment');
-            setSuccessType('error');
-            setOnSuccessDone(null);
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Payment Failed', message: error.message || 'Could not save payment' });
+            setAlertVisible(true);
         }
     };
 
@@ -288,10 +300,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
             await generateTailorCopyPDF(orderWithCustomerInfo, companyData);
         } catch (error: any) {
-            setSuccessTitle('Failed');
-            setSuccessDesc(error.message || 'Could not generate Tailor Copy');
-            setSuccessType('error');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Tailor Copy' });
+            setAlertVisible(true);
         } finally {
             setIsSharing(false);
         }
@@ -313,10 +323,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             };
             await generateCustomerCopyPDF(enrichedOrder, companyData);
         } catch (error: any) {
-            setSuccessTitle('Failed');
-            setSuccessDesc(error.message || 'Could not generate Customer Copy');
-            setSuccessType('error');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Customer Copy' });
+            setAlertVisible(true);
         } finally {
             setIsSharing(false);
         }
@@ -330,7 +338,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 <TouchableOpacity
                     key={tab}
                     style={[styles.tabItem, activeTab === tab && styles.tabItemActive]}
-                    onPress={() => setActiveTab(tab as any)}
+                    onPress={() => handleTabPress(tab as any)}
                 >
                     <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -569,10 +577,23 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     return (
         <View style={styles.container}>
             {renderTabs()}
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                {activeTab === 'details' && renderOrderDetails()}
-                {activeTab === 'items' && renderOrderItems()}
-                {activeTab === 'payments' && renderPaymentHistory()}
+            <ScrollView
+                ref={scrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleScroll}
+                style={{ flex: 1 }}
+            >
+                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                    {renderOrderDetails()}
+                </ScrollView>
+                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                    {renderOrderItems()}
+                </ScrollView>
+                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                    {renderPaymentHistory()}
+                </ScrollView>
             </ScrollView>
 
 
@@ -701,16 +722,21 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 type="danger"
             />
 
-            <SuccessModal
-                visible={successVisible}
-                title={successTitle}
-                description={successDesc}
-                type={successType}
-                onConfirm={onSuccessDone || undefined}
-                confirmText={successType === 'error' ? 'Delete' : (successType === 'info' ? 'Confirm' : 'Done')}
-                onClose={() => {
-                    setSuccessVisible(false);
-                }}
+            <BottomConfirmationSheet
+                visible={deleteItemSheetVisible}
+                onClose={() => setDeleteItemSheetVisible(false)}
+                onConfirm={confirmDeleteItem}
+                title="Delete Item"
+                description="Are you sure you want to delete this item?"
+                confirmText="Delete Item"
+                type="danger"
+            />
+
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
             />
             {/* Status Selection Modal */}
             <Modal

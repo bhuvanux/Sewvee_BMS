@@ -18,7 +18,8 @@ import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory, OutfitSubCategory, OutfitOption } from '../types';
-import SuccessModal from '../components/SuccessModal';
+import AlertModal from '../components/AlertModal';
+import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 
 const EditCategoryScreen = ({ navigation, route }: any) => {
     const { outfitId, categoryId, categoryName } = route.params;
@@ -38,11 +39,20 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     const [editImage, setEditImage] = useState<string | null>(null);
 
     // Success Modal
-    const [successVisible, setSuccessVisible] = useState(false);
-    const [successTitle, setSuccessTitle] = useState('');
-    const [successDesc, setSuccessDesc] = useState('');
-    const [successType, setSuccessType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
-    const [onSuccessDone, setOnSuccessDone] = useState<(() => void) | null>(null);
+
+
+    // Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Delete State
+    const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+    const [deleteConfig, setDeleteConfig] = useState<{
+        type: 'subcategory' | 'option',
+        id: string,
+        name: string,
+        parentId?: string
+    } | null>(null);
 
     useEffect(() => {
         const foundOutfit = outfits.find(o => o.id === outfitId);
@@ -57,7 +67,8 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
     const handleSave = async () => {
         if (!inputName.trim()) {
-            Alert.alert('Error', 'Please enter a name');
+            setAlertConfig({ title: 'Missing Information', message: 'Please enter a name.' });
+            setAlertVisible(true);
             return;
         }
         if (!currentOutfit || !currentCategory) return;
@@ -113,39 +124,42 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             setModalVisible(false);
         } catch (error) {
             console.error('Save EditCategory Error:', error);
-            Alert.alert('Error', 'Failed to save changes. Please try again.');
+            setAlertConfig({ title: 'Error', message: 'Failed to save changes. Please try again.' });
+            setAlertVisible(true);
         }
     };
 
     const handleDelete = (type: 'subcategory' | 'option', id: string, name: string, parentId?: string) => {
-        setSuccessTitle(`Delete ${type === 'subcategory' ? 'Sub-Category' : 'Option'}`);
-        setSuccessDesc(`Are you sure you want to delete "${name}"?`);
-        setSuccessType('error');
-        setOnSuccessDone(() => async () => {
-            if (!currentOutfit || !currentCategory) return;
+        setDeleteConfig({ type, id, name, parentId });
+        setDeleteSheetVisible(true);
+    };
 
-            let updatedCategories = [...(currentOutfit.categories || [])];
-            const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
-            if (catIndex === -1) return;
+    const confirmDelete = async () => {
+        if (!deleteConfig || !currentOutfit || !currentCategory) return;
+        const { type, id, parentId } = deleteConfig;
 
-            const updatedCategory = { ...updatedCategories[catIndex] };
-            let updatedSubCategories = [...(updatedCategory.subCategories || [])];
+        let updatedCategories = [...(currentOutfit.categories || [])];
+        const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
+        if (catIndex === -1) return;
 
-            if (type === 'subcategory') {
-                updatedSubCategories = updatedSubCategories.filter(sc => sc.id !== id);
-            } else if (type === 'option' && parentId) {
-                const subCatIndex = updatedSubCategories.findIndex(sc => sc.id === parentId);
-                if (subCatIndex !== -1) {
-                    const subCat = { ...updatedSubCategories[subCatIndex] };
-                    subCat.options = subCat.options.filter(opt => opt.id !== id);
-                    updatedSubCategories[subCatIndex] = subCat;
-                }
+        const updatedCategory = { ...updatedCategories[catIndex] };
+        let updatedSubCategories = [...(updatedCategory.subCategories || [])];
+
+        if (type === 'subcategory') {
+            updatedSubCategories = updatedSubCategories.filter(sc => sc.id !== id);
+        } else if (type === 'option' && parentId) {
+            const subCatIndex = updatedSubCategories.findIndex(sc => sc.id === parentId);
+            if (subCatIndex !== -1) {
+                const subCat = { ...updatedSubCategories[subCatIndex] };
+                subCat.options = subCat.options.filter(opt => opt.id !== id);
+                updatedSubCategories[subCatIndex] = subCat;
             }
-            updatedCategory.subCategories = updatedSubCategories;
-            updatedCategories[catIndex] = updatedCategory;
-            await updateOutfit(outfitId, { categories: updatedCategories });
-        });
-        setSuccessVisible(true);
+        }
+        updatedCategory.subCategories = updatedSubCategories;
+        updatedCategories[catIndex] = updatedCategory;
+        await updateOutfit(outfitId, { categories: updatedCategories });
+        setDeleteSheetVisible(false);
+        setDeleteConfig(null);
     };
 
     const openSubCatModal = (edit: boolean, subCat?: OutfitSubCategory) => {
@@ -381,14 +395,22 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 )}
             </Modal>
 
-            <SuccessModal
-                visible={successVisible}
-                title={successTitle}
-                description={successDesc}
-                type={successType}
-                onConfirm={onSuccessDone || undefined}
-                confirmText={successType === 'error' ? 'Delete' : 'Done'}
-                onClose={() => setSuccessVisible(false)}
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
+            />
+
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
+                title={`Delete ${deleteConfig?.type === 'subcategory' ? 'Sub-Category' : 'Option'}`}
+                description={`Are you sure you want to delete "${deleteConfig?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                type="danger"
             />
         </View>
     );

@@ -19,7 +19,9 @@ import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit } from '../types';
-import SuccessModal from '../components/SuccessModal';
+import AlertModal from '../components/AlertModal';
+import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
+import BottomActionSheet from '../components/BottomActionSheet';
 
 const ManageOutfitsScreen = ({ navigation }: any) => {
     const { outfits, addOutfit, updateOutfit, deleteOutfit } = useData();
@@ -29,18 +31,19 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const [modalVisible, setModalVisible] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
-
-    // Success Modal State
-    const [successVisible, setSuccessVisible] = useState(false);
-    const [successTitle, setSuccessTitle] = useState('');
-    const [successDesc, setSuccessDesc] = useState('');
-    const [successType, setSuccessType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
-    const [onSuccessDone, setOnSuccessDone] = useState<(() => void) | null>(null);
-
-    // Kebab Menu State
-    const [menuVisibleId, setMenuVisibleId] = useState<string | null>(null);
-
     const [editImage, setEditImage] = useState<string | null>(null);
+
+    // Alert State (Validation/Error)
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Delete Confirmation State
+    const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
+
+    // Bottom Action Sheet State
+    const [actionSheetVisible, setActionSheetVisible] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<Outfit | null>(null);
 
     const openAddModal = () => {
         setEditId(null);
@@ -50,8 +53,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     };
 
     const openEditModal = (outfit: Outfit) => {
-        // Close menu if open
-        setMenuVisibleId(null);
         setEditId(outfit.id);
         setEditName(outfit.name);
         setEditImage(outfit.image || null);
@@ -73,7 +74,8 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
     const handleSave = async () => {
         if (!editName.trim()) {
-            Alert.alert('Error', 'Please enter outfit name');
+            setAlertConfig({ title: 'Missing Information', message: 'Please enter an outfit name.' });
+            setAlertVisible(true);
             return;
         }
 
@@ -92,21 +94,25 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             setModalVisible(false);
         } catch (error) {
             console.error('Save Outfit Error:', error);
-            Alert.alert('Error', 'Failed to save outfit. Please try again.');
+            setAlertConfig({ title: 'Error', message: 'Failed to save outfit. Please try again.' });
+            setAlertVisible(true);
         }
     };
 
     const handleDelete = (id: string, name: string) => {
-        setMenuVisibleId(null);
-        setSuccessTitle('Delete Outfit');
-        setSuccessDesc(`Are you sure you want to delete "${name}"?`);
-        setSuccessType('error');
-        setOnSuccessDone(() => () => deleteOutfit(id));
-        setSuccessVisible(true);
+        setItemToDelete({ id, name });
+        setDeleteSheetVisible(true);
+    };
+
+    const confirmDelete = async () => {
+        if (itemToDelete) {
+            await deleteOutfit(itemToDelete.id);
+            setDeleteSheetVisible(false);
+            setItemToDelete(null);
+        }
     };
 
     const handleConfigure = (outfit: Outfit) => {
-        // Navigate to Level 2: Categories
         navigation.navigate('OutfitCategories', {
             outfitId: outfit.id,
             outfitName: outfit.name
@@ -117,16 +123,20 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         await updateOutfit(id, { isVisible: !currentStatus });
     };
 
+    const openActionSheet = (item: Outfit) => {
+        setSelectedItem(item);
+        setActionSheetVisible(true);
+    };
+
     const renderItem = ({ item }: { item: Outfit }) => (
-        <View style={[
-            styles.itemRow,
-            { zIndex: menuVisibleId === item.id ? 10 : 1, elevation: menuVisibleId === item.id ? 5 : 2 }
-        ]}>
+        <View style={styles.itemRow}>
             {/* Left: Icon/Image */}
             <View style={styles.iconBox}>
-                {item.image ? (
-                    <Image source={{ uri: item.image }} style={styles.itemImage} />
+                {item.image && typeof item.image === 'string' && item.image.startsWith('file://') ? (
+                    <Image source={{ uri: item.image }} style={styles.itemImage} onError={() => console.log('Failed to load image:', item.image)} />
                 ) : (
+                    // Default to icon if no image or if web URL (until remote image loading is fully verified)
+                    // You can enhance this to support 'http' but handle onError
                     <ImageIcon size={24} color={Colors.textSecondary} />
                 )}
             </View>
@@ -157,27 +167,13 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     </View>
                 </TouchableOpacity>
 
-                {/* Overflow Menu Trigger */}
+                {/* More Menu Trigger */}
                 <TouchableOpacity
                     style={styles.menuTrigger}
-                    onPress={() => setMenuVisibleId(menuVisibleId === item.id ? null : item.id)}
+                    onPress={() => openActionSheet(item)}
                 >
                     <MoreVertical size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
-
-                {/* Absolute Positioned Menu */}
-                {menuVisibleId === item.id && (
-                    <View style={styles.overflowMenu}>
-                        <TouchableOpacity style={styles.menuItem} onPress={() => openEditModal(item)}>
-                            <Edit2 size={16} color={Colors.textPrimary} />
-                            <Text style={styles.menuText}>Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.menuItem, styles.menuItemDelete]} onPress={() => handleDelete(item.id, item.name)}>
-                            <Trash2 size={16} color={Colors.danger} />
-                            <Text style={[styles.menuText, { color: Colors.danger }]}>Delete</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
 
                 <TouchableOpacity onPress={() => handleConfigure(item)}>
                     <ChevronRight size={20} color={Colors.textSecondary} />
@@ -185,6 +181,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             </View>
         </View>
     );
+
     return (
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top }]}>
@@ -207,10 +204,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                         Manage the types of outfits you create orders for. Toggle visibility to hide them from the selection list.
                     </Text>
                 }
-                CellRendererComponent={({ index, style, ...props }) => (
-                    <View style={[style, { zIndex: outfits.length - index }]} {...props} />
-                )}
-                removeClippedSubviews={false}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <View style={styles.emptyIconBox}>
@@ -232,6 +225,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 <Text style={styles.fabText}>Add Outfit</Text>
             </TouchableOpacity>
 
+            {/* Edit/Add Modal */}
             <Modal
                 animationType="fade"
                 transparent={true}
@@ -325,16 +319,50 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     </View>
                 )}
             </Modal>
-            <SuccessModal
-                visible={successVisible}
-                title={successTitle}
-                description={successDesc}
-                type={successType}
-                onConfirm={onSuccessDone || undefined}
-                confirmText={successType === 'error' ? 'Delete' : 'Done'}
-                onClose={() => setSuccessVisible(false)}
+
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
             />
-        </View>
+
+            <BottomActionSheet
+                visible={actionSheetVisible}
+                onClose={() => setActionSheetVisible(false)}
+                title={selectedItem?.name}
+                actions={[
+                    {
+                        id: 'edit',
+                        label: 'Edit Outfit',
+                        icon: Edit2,
+                        onPress: () => {
+                            if (selectedItem) openEditModal(selectedItem);
+                        }
+                    },
+                    {
+                        id: 'delete',
+                        label: 'Delete Outfit',
+                        icon: Trash2,
+                        type: 'danger',
+                        onPress: () => {
+                            if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
+                        }
+                    }
+                ]}
+            />
+
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
+                title="Delete Outfit"
+                description={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
+                confirmText="Delete Outfit"
+                cancelText="Cancel"
+                type="danger"
+            />
+        </View >
     );
 };
 
@@ -413,46 +441,18 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
         marginBottom: 2,
     },
-    itemMeta: { // New style for meta text
+    itemMeta: {
         fontFamily: 'Inter-Regular',
         fontSize: 13,
         color: Colors.textSecondary,
     },
-    actions: { // Group actions
+    actions: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
     },
     menuTrigger: {
         padding: 4,
-    },
-    overflowMenu: {
-        position: 'absolute',
-        top: 30,
-        right: 0,
-        backgroundColor: Colors.white,
-        borderRadius: 8,
-        padding: 4,
-        ...Shadow.medium,
-        zIndex: 10,
-        minWidth: 120,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 8,
-        gap: 8,
-    },
-    menuItemDelete: {
-        borderTopWidth: 1,
-        borderTopColor: '#F1F5F9',
-    },
-    menuText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textPrimary,
     },
     imagePickerBtn: {
         alignSelf: 'center',
@@ -481,20 +481,6 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         marginTop: 4,
     },
-    configureBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F1F5F9',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 20,
-        gap: 4,
-    },
-    configureText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textPrimary,
-    },
     toggleTrack: {
         width: 36,
         height: 20,
@@ -508,14 +494,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderRadius: 8,
         ...Shadow.subtle,
-    },
-    iconBtn: { // Existing but might need adjustments if reused
-        padding: 8,
-        borderRadius: 8,
-        backgroundColor: '#F3F4F6',
-    },
-    deleteBtn: {
-        backgroundColor: '#FEF2F2',
     },
     fab: {
         position: 'absolute',
@@ -595,7 +573,7 @@ const styles = StyleSheet.create({
     emptyIconBox: {
         width: 64,
         height: 64,
-        backgroundColor: '#F0FDF9', // Light green bg
+        backgroundColor: '#F0FDF9',
         borderRadius: 32,
         justifyContent: 'center',
         alignItems: 'center',

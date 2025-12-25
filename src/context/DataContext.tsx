@@ -128,6 +128,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             .collection(COLLECTIONS.CUSTOMERS)
             .where('ownerId', '==', user.uid)
             .onSnapshot(snapshot => {
+                console.log(`[DataContext] Customers snapshot update. Size: ${snapshot?.size}`);
                 if (snapshot) {
                     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
                     // Sort A-Z by name

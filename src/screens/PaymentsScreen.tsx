@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
     View,
     Text,
@@ -9,7 +9,9 @@ import {
     TextInput,
     Alert,
     ScrollView,
-    Platform
+    Platform,
+    Dimensions,
+    KeyboardAvoidingView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import {
@@ -27,11 +29,13 @@ import {
     LogOut,
     ListFilter,
     Search,
-    MoreVertical
+    MoreVertical,
+    MoreHorizontal
 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useNavigation } from '@react-navigation/native';
-import SuccessModal from '../components/SuccessModal';
+import AlertModal from '../components/AlertModal';
+import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent, firestore } from '../config/firebase';
 import { getCurrentDate, formatDate, parseDate } from '../utils/dateUtils';
@@ -44,18 +48,42 @@ const PaymentsScreen = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('History'); // History, Pending, Paid
+    const scrollRef = useRef<ScrollView>(null);
+    const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
     const handleTabChange = (tab: string) => {
         logEvent('payments_tab_switch', { tab });
+
+        let index = 0;
+        if (tab === 'Pending') index = 1;
+        if (tab === 'Paid') index = 2;
+
         setActiveTab(tab);
+        scrollRef.current?.scrollTo({
+            x: index * SCREEN_WIDTH,
+            animated: true
+        });
+    };
+
+    const handleScroll = (event: any) => {
+        const offsetX = event.nativeEvent.contentOffset.x;
+        const index = Math.round(offsetX / SCREEN_WIDTH);
+        const tabs = ['History', 'Pending', 'Paid'];
+        const newTab = tabs[index];
+        if (newTab && newTab !== activeTab) {
+            setActiveTab(newTab);
+        }
     };
 
     // Success Modal state
-    const [successVisible, setSuccessVisible] = useState(false);
-    const [successType, setSuccessType] = useState<'success' | 'warning' | 'info' | 'error'>('success');
-    const [successTitle, setSuccessTitle] = useState('');
-    const [successDesc, setSuccessDesc] = useState('');
-    const [onConfirmAction, setOnConfirmAction] = useState<() => void>(() => { });
+    // Alert State
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
+    // Payment Options & Delete State
+    const [paymentOptionsVisible, setPaymentOptionsVisible] = useState(false);
+    const [activePayment, setActivePayment] = useState<any>(null);
+    const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
 
     // Month state
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -139,10 +167,8 @@ const PaymentsScreen = () => {
 
     const handleSavePayment = async () => {
         if (!selectedOrderId || !amount) {
-            setSuccessTitle('Required');
-            setSuccessDesc('Please select a bill and enter amount');
-            setSuccessType('warning');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Required', message: 'Please select a bill and enter amount' });
+            setAlertVisible(true);
             return;
         }
 
@@ -155,9 +181,7 @@ const PaymentsScreen = () => {
                     amount: parseFloat(amount),
                     mode
                 });
-                setSuccessTitle('Payment Updated');
-                setSuccessDesc('The payment record has been successfully updated.');
-                setSuccessType('success');
+                setAlertConfig({ title: 'Payment Updated', message: 'The payment record has been successfully updated.' });
             } else {
                 await addPayment({
                     orderId: selectedOrderId,
@@ -166,30 +190,23 @@ const PaymentsScreen = () => {
                     mode,
                     date: getCurrentDate(),
                 });
-                setSuccessTitle('Payment Recorded');
-                setSuccessDesc('The payment has been successfully added to the bill.');
-                setSuccessType('success');
+                setAlertConfig({ title: 'Payment Recorded', message: 'The payment has been successfully added to the bill.' });
             }
             setModalVisible(false);
-            setSuccessTitle('Success');
-            setSuccessDesc(isEditing ? 'Payment updated successfully' : 'Payment added successfully');
-            setSuccessType('success');
-            setSuccessVisible(true);
+            setAlertVisible(true);
             logEvent('payment_save_success', { amount: parseFloat(amount), mode });
         } catch (e) {
-            setSuccessTitle('Error');
-            setSuccessDesc('Failed to save payment. Please try again.');
-            setSuccessType('error');
-            setSuccessVisible(true);
+            setAlertConfig({ title: 'Error', message: 'Failed to save payment. Please try again.' });
+            setAlertVisible(true);
         }
     };
 
-    const handleDeletePayment = (id: string) => {
-        setSuccessTitle('Delete Payment');
-        setSuccessDesc('Are you sure you want to delete this payment record? This will update the bill balance.');
-        setSuccessType('error');
-        setSuccessVisible(true);
-        setOnConfirmAction(() => () => deletePayment(id));
+    const confirmDelete = async () => {
+        if (activePayment) {
+            await deletePayment(activePayment.id);
+            setDeleteSheetVisible(false);
+            setActivePayment(null);
+        }
     };
 
     const openEditModal = (payment: any) => {
@@ -220,15 +237,8 @@ const PaymentsScreen = () => {
         const order = orders.find(o => o.id === item.orderId);
 
         const showOptions = () => {
-            Alert.alert(
-                'Payment Options',
-                'Choose an action',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Edit', onPress: () => openEditModal(item) },
-                    { text: 'Delete', onPress: () => handleDeletePayment(item.id), style: 'destructive' },
-                ]
-            );
+            setActivePayment(item);
+            setPaymentOptionsVisible(true);
         };
 
         return (
@@ -255,7 +265,7 @@ const PaymentsScreen = () => {
                                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 style={{ padding: 4 }}
                             >
-                                <MoreHorizontal size={20} color={Colors.textSecondary} />
+                                <MoreVertical size={20} color={Colors.textSecondary} />
                             </TouchableOpacity>
                         </View>
                         <View style={[styles.modeBadge, { backgroundColor: item.mode === 'UPI' || item.mode === 'GPay' ? '#EEF2FF' : '#F3F4F6', alignSelf: 'flex-end', marginRight: 28 }]}>
@@ -373,12 +383,17 @@ const PaymentsScreen = () => {
                 ))}
             </View>
 
-            {/* Content List */}
-            {activeTab === 'History' ? (
-                <View style={{ flex: 1 }}>
-                    {/* Analytics Row for History Only */}
-                    {/* Analytics Row Removed */}
-
+            {/* Content List as Pager */}
+            <ScrollView
+                ref={scrollRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleScroll}
+                style={{ flex: 1 }}
+            >
+                {/* History Tab */}
+                <View style={{ width: SCREEN_WIDTH }}>
                     <FlatList
                         data={displayPayments}
                         renderItem={renderPaymentItem}
@@ -392,20 +407,39 @@ const PaymentsScreen = () => {
                         }
                     />
                 </View>
-            ) : (
-                <FlatList
-                    data={activeTab === 'Pending' ? pendingOrders : paidOrders}
-                    renderItem={renderOrderItem}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.listContent}
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <ReceiptIndianRupee size={48} color={Colors.border} />
-                            <Text style={styles.emptyText}>No {activeTab.toLowerCase()} bills found</Text>
-                        </View>
-                    }
-                />
-            )}
+
+                {/* Pending Tab */}
+                <View style={{ width: SCREEN_WIDTH }}>
+                    <FlatList
+                        data={pendingOrders}
+                        renderItem={renderOrderItem}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <ReceiptIndianRupee size={48} color={Colors.border} />
+                                <Text style={styles.emptyText}>No pending bills found</Text>
+                            </View>
+                        }
+                    />
+                </View>
+
+                {/* Paid Tab */}
+                <View style={{ width: SCREEN_WIDTH }}>
+                    <FlatList
+                        data={paidOrders}
+                        renderItem={renderOrderItem}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listContent}
+                        ListEmptyComponent={
+                            <View style={styles.emptyContainer}>
+                                <ReceiptIndianRupee size={48} color={Colors.border} />
+                                <Text style={styles.emptyText}>No paid bills found</Text>
+                            </View>
+                        }
+                    />
+                </View>
+            </ScrollView>
 
             {/* Payment Modal */}
             <Modal
@@ -414,107 +448,173 @@ const PaymentsScreen = () => {
                 visible={modalVisible}
                 onRequestClose={closeModal}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>
-                            {isEditing ? 'Edit Payment' : 'Record Payment'}
-                        </Text>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>
+                                {isEditing ? 'Edit Payment' : 'Record Payment'}
+                            </Text>
 
-                        <View style={styles.inputGroup}>
-                            {selectedOrderId ? (
-                                <View style={[styles.orderCard, { borderColor: Colors.primary, backgroundColor: '#F9FAFB' }]}>
-                                    <View style={{ marginBottom: 8 }}>
-                                        <Text style={styles.customerName}>
-                                            {orders.find(o => o.id === selectedOrderId)?.customerName}
-                                        </Text>
-                                        <Text style={styles.billNoText}>
-                                            Order #{orders.find(o => o.id === selectedOrderId)?.billNo}
-                                        </Text>
+                            <View style={styles.inputGroup}>
+                                {selectedOrderId ? (
+                                    <View style={[styles.orderCard, { borderColor: Colors.primary, backgroundColor: '#F9FAFB' }]}>
+                                        <View style={{ marginBottom: 8 }}>
+                                            <Text style={styles.customerName}>
+                                                {orders.find(o => o.id === selectedOrderId)?.customerName}
+                                            </Text>
+                                            <Text style={styles.billNoText}>
+                                                Order #{orders.find(o => o.id === selectedOrderId)?.billNo}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.statLine}>
+                                            <Text style={styles.statLabel}>
+                                                Total: ₹{orders.find(o => o.id === selectedOrderId)?.total}
+                                            </Text>
+                                            <Text style={styles.statLabel}>
+                                                Paid: ₹{getOrderMetrics(selectedOrderId, orders.find(o => o.id === selectedOrderId)?.total || 0).paid}
+                                            </Text>
+                                            <Text style={[styles.statLabel, { color: Colors.danger, fontFamily: 'Inter-Bold' }]}>
+                                                Bal: ₹{getOrderMetrics(selectedOrderId, orders.find(o => o.id === selectedOrderId)?.total || 0).balance}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.statLine}>
-                                        <Text style={styles.statLabel}>
-                                            Total: ₹{orders.find(o => o.id === selectedOrderId)?.total}
-                                        </Text>
-                                        <Text style={styles.statLabel}>
-                                            Paid: ₹{getOrderMetrics(selectedOrderId, orders.find(o => o.id === selectedOrderId)?.total || 0).paid}
-                                        </Text>
-                                        <Text style={[styles.statLabel, { color: Colors.danger, fontFamily: 'Inter-Bold' }]}>
-                                            Bal: ₹{getOrderMetrics(selectedOrderId, orders.find(o => o.id === selectedOrderId)?.total || 0).balance}
-                                        </Text>
-                                    </View>
+                                ) : (
+                                    <>
+                                        <Text style={styles.label}>Select Order</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.billSelector}>
+                                            {orders.filter(o => o.balance > 0 || o.id === selectedOrderId).map(o => (
+                                                <TouchableOpacity
+                                                    key={o.id}
+                                                    style={[styles.billChip, selectedOrderId === o.id && styles.billChipActive]}
+                                                    onPress={() => {
+                                                        setSelectedOrderId(o.id);
+                                                        const { balance } = getOrderMetrics(o.id, o.total);
+                                                        if (!amount || isEditing) setAmount(balance.toString());
+                                                    }}
+                                                    disabled={isEditing}
+                                                >
+                                                    <Text style={[styles.billChipText, selectedOrderId === o.id && styles.billChipTextActive]}>
+                                                        #{o.billNo} - {o.customerName}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </ScrollView>
+                                    </>
+                                )}
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Amount Received</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholderTextColor={Colors.textSecondary}
+                                    placeholder="₹ 0.00"
+                                    keyboardType="numeric"
+                                    value={amount}
+                                    onChangeText={setAmount}
+                                />
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Payment Mode</Text>
+                                <View style={styles.modeRow}>
+                                    {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
+                                        <TouchableOpacity
+                                            key={m}
+                                            style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
+                                            onPress={() => setMode(m)}
+                                        >
+                                            <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>{m}</Text>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
-                            ) : (
-                                <>
-                                    <Text style={styles.label}>Select Order</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.billSelector}>
-                                        {orders.filter(o => o.balance > 0 || o.id === selectedOrderId).map(o => (
-                                            <TouchableOpacity
-                                                key={o.id}
-                                                style={[styles.billChip, selectedOrderId === o.id && styles.billChipActive]}
-                                                onPress={() => {
-                                                    setSelectedOrderId(o.id);
-                                                    const { balance } = getOrderMetrics(o.id, o.total);
-                                                    if (!amount || isEditing) setAmount(balance.toString());
-                                                }}
-                                                disabled={isEditing}
-                                            >
-                                                <Text style={[styles.billChipText, selectedOrderId === o.id && styles.billChipTextActive]}>
-                                                    #{o.billNo} - {o.customerName}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </>
-                            )}
-                        </View>
+                            </View>
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Amount Received</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholderTextColor={Colors.textSecondary}
-                                placeholder="₹ 0.00"
-                                keyboardType="numeric"
-                                value={amount}
-                                onChangeText={setAmount}
-                            />
-                        </View>
-
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Payment Mode</Text>
-                            <View style={styles.modeRow}>
-                                {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
-                                    <TouchableOpacity
-                                        key={m}
-                                        style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-                                        onPress={() => setMode(m)}
-                                    >
-                                        <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>{m}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            <View style={styles.modalFooter}>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={closeModal}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
+                                    <Text style={styles.saveBtnText}>{isEditing ? 'Update' : 'Save'} Payment</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
 
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity style={styles.cancelBtn} onPress={closeModal}>
-                                <Text style={styles.cancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
-                                <Text style={styles.saveBtnText}>{isEditing ? 'Update' : 'Save'} Payment</Text>
+            {/* Payment Options Custom Sheet */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={paymentOptionsVisible}
+                onRequestClose={() => setPaymentOptionsVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity
+                        style={{ flex: 1 }}
+                        activeOpacity={1}
+                        onPress={() => setPaymentOptionsVisible(false)}
+                    />
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.bottomSheetHeader}>
+                            <Text style={styles.bottomSheetTitle}>Payment Options</Text>
+                            <TouchableOpacity onPress={() => setPaymentOptionsVisible(false)}>
+                                <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>Cancel</Text>
                             </TouchableOpacity>
                         </View>
+
+                        <TouchableOpacity
+                            style={styles.optionItem}
+                            onPress={() => {
+                                setPaymentOptionsVisible(false);
+                                if (activePayment) openEditModal(activePayment);
+                            }}
+                        >
+                            <View style={[styles.optionIcon, { backgroundColor: '#F0F9FF' }]}>
+                                <Edit2 size={20} color="#0284C7" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.optionLabel}>Edit Payment</Text>
+                            </View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.optionItem, { borderBottomWidth: 0 }]}
+                            onPress={() => {
+                                setPaymentOptionsVisible(false);
+                                setDeleteSheetVisible(true);
+                            }}
+                        >
+                            <View style={[styles.optionIcon, { backgroundColor: '#FEF2F2' }]}>
+                                <Trash2 size={20} color={Colors.danger} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.optionLabel, { color: Colors.danger }]}>Delete Payment</Text>
+                            </View>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            <SuccessModal
-                visible={successVisible}
-                onClose={() => setSuccessVisible(false)}
-                title={successTitle}
-                description={successDesc}
-                type={successType}
-                onConfirm={successType === 'error' ? onConfirmAction : undefined}
-                confirmText={successType === 'error' ? 'Delete' : 'Done'}
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
+                title="Delete Payment"
+                description="Are you sure you want to delete this payment record? This will update the bill balance."
+                confirmText="Delete Payment"
+                type="danger"
+            />
+
+            <AlertModal
+                visible={alertVisible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                onClose={() => setAlertVisible(false)}
             />
         </View>
     );
@@ -527,8 +627,9 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: Colors.white,
-        padding: Spacing.md,
-        paddingBottom: Spacing.xs,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 12,
     },
     headerTop: {
         flexDirection: 'row',
@@ -545,9 +646,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#F3F4F6',
-        borderRadius: 20,
+        borderRadius: 12,
         paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingVertical: 6,
         gap: 8,
     },
     monthArrow: {
@@ -557,7 +658,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 14,
         color: Colors.textPrimary,
-        minWidth: 80,
+        minWidth: 70,
         textAlign: 'center',
     },
     searchContainer: {
@@ -569,7 +670,7 @@ const styles = StyleSheet.create({
         height: 50,
         borderWidth: 1,
         borderColor: Colors.border,
-        marginTop: 12,
+        marginTop: 4,
     },
     searchInput: {
         flex: 1,
@@ -579,9 +680,9 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
     },
     filterBtn: {
-        padding: 8,
+        padding: 10,
         backgroundColor: '#F3F4F6',
-        borderRadius: 20,
+        borderRadius: 12,
         marginLeft: 8,
     },
     statsRow: {
@@ -589,10 +690,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: '#F8FAFC',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        marginTop: 12,
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        marginTop: 16,
         borderWidth: 1,
         borderColor: '#E2E8F0',
     },
@@ -801,6 +902,51 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
+    bottomSheet: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: Colors.white,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+        paddingBottom: 40,
+        ...Shadow.large
+    },
+    bottomSheetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24
+    },
+    bottomSheetTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary
+    },
+    optionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+        gap: 16
+    },
+    optionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    optionLabel: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        marginBottom: 4
+    },
+
     modalContent: {
         backgroundColor: Colors.white,
         borderTopLeftRadius: 24,
