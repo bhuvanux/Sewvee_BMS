@@ -331,6 +331,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 <ScrollView
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20 }}
                 >
                     <View style={styles.inputContainer}>
                         <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
