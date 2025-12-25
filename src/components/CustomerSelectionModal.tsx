@@ -109,6 +109,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                                 <TextInput
                                     style={styles.searchInput}
                                     placeholder="Search name or mobile..."
+                                    placeholderTextColor="#6B7280"
                                     value={search}
                                     onChangeText={setSearch}
                                     autoFocus={false}
@@ -158,6 +159,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Customer Name"
+                                        placeholderTextColor="#6B7280"
                                         value={newCustomer.name}
                                         onChangeText={val => setNewCustomer(prev => ({ ...prev, name: val }))}
                                     />
@@ -167,6 +169,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Mobile Number"
+                                        placeholderTextColor="#6B7280"
                                         keyboardType="phone-pad"
                                         maxLength={10}
                                         value={newCustomer.mobile}
@@ -178,6 +181,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Location (Optional)"
+                                        placeholderTextColor="#6B7280"
                                         value={newCustomer.location}
                                         onChangeText={val => setNewCustomer(prev => ({ ...prev, location: val }))}
                                     />

@@ -50,7 +50,7 @@ const AddCustomerScreen = ({ navigation }: any) => {
         setLoading(true);
         try {
             await addCustomer({ name, mobile, location });
-            showToast(`${name} added successfully!`, 'success');
+            showToast(`${name} added successfully!`, 'dark');
             navigation.goBack();
         } catch (error: any) {
             console.error('AddCustomerScreen: handleSave error:', error);
