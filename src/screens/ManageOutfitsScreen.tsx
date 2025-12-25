@@ -76,18 +76,17 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
             if (!result.canceled && result.assets[0].uri) {
                 try {
+                    // Resize to ensure it's lightweight for the preview
                     const manipResult = await ImageManipulator.manipulateAsync(
                         result.assets[0].uri,
-                        [{ resize: { width: 300 } }],
-                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        [{ resize: { width: 400 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
                     );
 
-                    if (manipResult.base64) {
-                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                    }
+                    // Use the URI of the manipulated file (it's a new file, so no cache issues)
+                    setEditImage(manipResult.uri);
                 } catch (e) {
                     console.error('Image processing error:', e);
-                    // Fallback to URI if base64 fails
                     setEditImage(result.assets[0].uri);
                 }
             }
@@ -280,7 +279,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 onRequestClose={() => setModalVisible(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={styles.modalOverlay}
                 >
                     <View style={styles.modalContent}>
@@ -304,7 +303,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                                         position: 'relative'
                                     }}>
                                         <Image
-                                            key={editImage}
                                             source={{ uri: editImage }}
                                             style={{ width: '100%', height: '100%' }}
                                             resizeMode="cover"

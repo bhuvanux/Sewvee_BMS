@@ -23,7 +23,7 @@ const { width } = Dimensions.get('window');
 
 const OrderDetailScreen = ({ route, navigation }: any) => {
     const { orderId } = route.params;
-    const { orders, deleteOrder, updateOrder, addPayment, payments, customers } = useData();
+    const { orders, deleteOrder, updateOrder, addPayment, updatePayment, deletePayment, payments, customers } = useData();
     const { company } = useAuth();
     const insets = useSafeAreaInsets();
     const [paymentModalVisible, setPaymentModalVisible] = useState(false);
@@ -38,6 +38,43 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'details' | 'items' | 'payments'>('details');
     const scrollRef = useRef<ScrollView>(null);
+    const [editingPayment, setEditingPayment] = useState<any>(null);
+
+    const handleEditPayment = (payment: any) => {
+        setEditingPayment(payment);
+        setPaymentAmount(payment.amount.toString());
+        setPaymentMode(payment.mode);
+        setPaymentModalVisible(true);
+    };
+
+    const handleDeletePayment = (payment: any) => {
+        Alert.alert(
+            "Delete Payment",
+            "Are you sure you want to delete this payment?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            // Verify context has deletePayment. If not, this will error.
+                            // Assuming Step 616 successfully updated useData destructuring.
+                            if (deletePayment) {
+                                await deletePayment(payment.id);
+                                showToast("Payment deleted", "success");
+                            } else {
+                                console.error("deletePayment function missing from context");
+                            }
+                        } catch (error: any) {
+                            setAlertConfig({ title: 'Error', message: error.message });
+                            setAlertVisible(true);
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     const handleTabPress = (tab: 'details' | 'items' | 'payments') => {
         let index = 0;
@@ -161,16 +198,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     <ArrowLeft size={24} color={Colors.textPrimary} />
                 </TouchableOpacity>
             ),
-            headerRight: () => (
-                <View style={{ flexDirection: 'row', gap: 16, paddingRight: 8 }}>
-                    <TouchableOpacity
-                        onPress={handleDelete}
-                        style={{ padding: 4 }}
-                    >
-                        <Trash2 size={24} color={Colors.danger} />
-                    </TouchableOpacity>
-                </View>
-            )
+            headerRight: () => null
         });
     }, [navigation, order]);
 
@@ -261,34 +289,50 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
     const handleSavePayment = async () => {
         const amount = parseFloat(paymentAmount);
+
+        // If editing, add back the old amount to balance for validation
+        const effectiveBalance = editingPayment
+            ? currentBalance + (editingPayment.amount || 0)
+            : currentBalance;
+
         if (isNaN(amount) || amount <= 0) {
             setAlertConfig({ title: 'Invalid Amount', message: 'Please enter a valid payment amount.' });
             setAlertVisible(true);
             return;
         }
-        if (amount > currentBalance) {
+
+        if (amount > effectiveBalance) {
             setAlertConfig({ title: 'Excess Amount', message: 'Payment cannot be greater than the balance due.' });
             setAlertVisible(true);
             return;
         }
 
         try {
-            await addPayment({
-                orderId: order.id,
-                customerId: order.customerId,
-                amount: amount,
-                mode: paymentMode,
-                date: order.date || getCurrentDate(),
-            });
+            if (editingPayment) {
+                // Check if context has updatePayment
+                if (updatePayment) {
+                    await updatePayment(editingPayment.id, {
+                        amount,
+                        mode: paymentMode,
+                    });
+                    showToast(`Payment updated!`, 'success');
+                } else {
+                    console.error("updatePayment missing");
+                }
+            } else {
+                await addPayment({
+                    orderId: order.id,
+                    customerId: order.customerId,
+                    amount: amount,
+                    mode: paymentMode,
+                    date: order.date || getCurrentDate(),
+                });
+                showToast(`₹${amount} added successfully!`, 'success');
+            }
 
             setPaymentModalVisible(false);
             setPaymentAmount('');
-
-            setPaymentModalVisible(false);
-            setPaymentAmount('');
-
-            showToast(`₹${amount} added successfully!`, 'success');
-            // AlertModal removed for toast
+            setEditingPayment(null);
         } catch (error: any) {
             console.error('Payment Error:', error);
             setAlertConfig({ title: 'Payment Failed', message: error.message || 'Could not save payment' });
@@ -552,7 +596,12 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={styles.sectionTitle}>History ({billPayments.length})</Text>
                 <TouchableOpacity
-                    onPress={() => setPaymentModalVisible(true)}
+                    onPress={() => {
+                        setEditingPayment(null);
+                        setPaymentAmount('');
+                        setPaymentMode('Cash');
+                        setPaymentModalVisible(true);
+                    }}
                     style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
                 >
                     <PlusCircle size={16} color="#059669" style={{ marginRight: 4 }} />
@@ -568,17 +617,38 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             ) : (
                 <View style={{ gap: 12 }}>
                     {billPayments.map((p, index) => (
-                        <View key={index} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, padding: 16, borderRadius: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
-                            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                                <ReceiptIndianRupee size={20} color="#059669" />
+                        <View key={index} style={{ backgroundColor: Colors.white, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                    <ReceiptIndianRupee size={20} color="#059669" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textPrimary }}>Payment Received</Text>
+                                    <Text style={{ fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>
+                                        {formatDate(p.date)} • {p.mode}
+                                    </Text>
+                                </View>
+                                <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: '#059669' }}>+ ₹{p.amount}</Text>
                             </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textPrimary }}>Payment Received</Text>
-                                <Text style={{ fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>
-                                    {formatDate(p.date)} • {p.mode}
-                                </Text>
+
+                            <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 12 }} />
+
+                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
+                                <TouchableOpacity
+                                    onPress={() => handleEditPayment(p)}
+                                    style={{ flexDirection: 'row', alignItems: 'center', padding: 8, backgroundColor: '#F3F4F6', borderRadius: 8 }}
+                                >
+                                    <Edit2 size={14} color={Colors.textSecondary} style={{ marginRight: 6 }} />
+                                    <Text style={{ fontSize: 12, fontFamily: 'Inter-Medium', color: Colors.textPrimary }}>Edit</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => handleDeletePayment(p)}
+                                    style={{ flexDirection: 'row', alignItems: 'center', padding: 8, backgroundColor: '#FEF2F2', borderRadius: 8 }}
+                                >
+                                    <Trash2 size={14} color={Colors.danger} style={{ marginRight: 6 }} />
+                                    <Text style={{ fontSize: 12, fontFamily: 'Inter-Medium', color: Colors.danger }}>Delete</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: '#059669' }}>+ ₹{p.amount}</Text>
                         </View>
                     ))}
                 </View>
@@ -623,7 +693,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
                             <ScrollView showsVerticalScrollIndicator={false}>
-                                <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>Add Payment</Text>
+                                <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>{editingPayment ? 'Edit Payment' : 'Add Payment'}</Text>
 
                                 <View style={styles.inputGroup}>
                                     <Text style={styles.label}>Amount Received (Balance: ₹{currentBalance})</Text>
@@ -654,11 +724,15 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                                 </View>
 
                                 <View style={styles.modalFooter}>
-                                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setPaymentModalVisible(false)}>
+                                    <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                                        setPaymentModalVisible(false);
+                                        setEditingPayment(null);
+                                        setPaymentAmount('');
+                                    }}>
                                         <Text style={styles.cancelBtnText}>Cancel</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
-                                        <Text style={styles.saveBtnText}>Add Payment</Text>
+                                        <Text style={styles.saveBtnText}>{editingPayment ? 'Update Payment' : 'Add Payment'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </ScrollView>

@@ -225,13 +225,10 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 try {
                     const manipResult = await ImageManipulator.manipulateAsync(
                         result.assets[0].uri,
-                        [{ resize: { width: 300 } }],
-                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        [{ resize: { width: 400 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
                     );
-
-                    if (manipResult.base64) {
-                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                    }
+                    setEditImage(manipResult.uri);
                 } catch (e) {
                     console.error('Image processing error:', e);
                     setEditImage(result.assets[0].uri);
@@ -360,7 +357,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 onRequestClose={() => setModalVisible(false)}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={styles.modalOverlay}
                 >
                     <View style={styles.modalContent}>
@@ -383,7 +380,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                                         position: 'relative'
                                     }}>
                                         <Image
-                                            key={editImage}
                                             source={{ uri: editImage }}
                                             style={{ width: '100%', height: '100%' }}
                                             resizeMode="cover"
