@@ -874,7 +874,7 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
         },
         {
             title: "Shoulder & Neck",
-            fields: ["Shoulder Back", "Shoulder Front", "Front Neck", "Back Neck"]
+            fields: ["Shoulder Back", "Shoulder Front", "Front Neck Depth", "Back Neck Depth"]
         },
         {
             title: "Sleeve",
