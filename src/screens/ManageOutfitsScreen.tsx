@@ -73,6 +73,9 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             });
 
             if (!result.canceled && result.assets[0].uri) {
+                // Show immediately for better UX
+                setEditImage(result.assets[0].uri);
+
                 // Resize and compress for DB storage (max 512px, 0.7 quality)
                 const manipResult = await ImageManipulator.manipulateAsync(
                     result.assets[0].uri,

@@ -202,6 +202,9 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             });
 
             if (!result.canceled && result.assets[0].uri) {
+                // Show immediately for better UX
+                setEditImage(result.assets[0].uri);
+
                 // Resize and compress
                 const manipResult = await ImageManipulator.manipulateAsync(
                     result.assets[0].uri,
