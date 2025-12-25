@@ -100,33 +100,31 @@ export const generateInvoicePDF = async (orderData: any, companyData: any) => {
       <body>
         ${getBaseHeader(companyData, 'Invoice')}
 
-        <div class="info-row">
-          <div class="info-group">
+        <div class="info-row" style="background-color: #F9FAFB; padding: 10px; border-radius: 8px;">
+          <div style="width: 33%;">
             <div class="info-label">Order No</div>
             <div class="info-value">#${orderData.billNo}</div>
           </div>
-          <div class="info-group">
+          <div style="width: 33%; text-align: center;">
             <div class="info-label">Order Date</div>
             <div class="info-value">${formatDate(orderData.date)}</div>
           </div>
-          <div class="info-group">
+          <div style="width: 33%; text-align: right;">
             <div class="info-label">Delivery Date</div>
             <div class="info-value">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
           </div>
         </div>
 
-        <div class="info-row">
-          <div class="info-group">
-            <div class="info-label">Customer ID</div>
-            <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
+        <div class="info-row" style="margin-bottom: 25px;">
+          <div style="width: 40%;">
+            <div class="info-label">Customer Details</div>
+            <div class="info-value" style="font-size: 14px;">${orderData.customerName}</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">ID: #${orderData.customerDisplayId || '---'}</div>
           </div>
-          <div class="info-group">
-            <div class="info-label">Customer Name</div>
-            <div class="info-value">${orderData.customerName}</div>
-          </div>
-          <div class="info-group" style="text-align: right;">
-            <div class="info-label">Mobile</div>
+          <div style="width: 60%; text-align: right;">
+            <div class="info-label">Contact & Address</div>
             <div class="info-value">${orderData.customerMobile}</div>
+            ${orderData.customerLocation ? `<div style="font-size: 11px; color: #6B7280; margin-top: 2px;">${orderData.customerLocation}</div>` : ''}
           </div>
         </div>
 

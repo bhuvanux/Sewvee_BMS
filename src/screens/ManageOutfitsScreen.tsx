@@ -18,7 +18,7 @@ import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system/legacy';
+
 import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,7 @@ import { Outfit } from '../types';
 import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import BottomActionSheet from '../components/BottomActionSheet';
-import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
+
 
 const ManageOutfitsScreen = ({ navigation }: any) => {
     const { outfits, addOutfit, updateOutfit, deleteOutfit } = useData();
@@ -76,18 +76,18 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
             if (!result.canceled && result.assets[0].uri) {
                 try {
-                    // Copy to cache with unique name to bust cache and ensure local file ownership
-                    const filename = `preview_${Date.now()}.jpg`;
-                    const destPath = `${FileSystem.cacheDirectory}${filename}`;
-                    await FileSystem.copyAsync({
-                        from: result.assets[0].uri,
-                        to: destPath
-                    });
-                    // Show immediately for better UX
-                    setEditImage(destPath);
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        result.assets[0].uri,
+                        [{ resize: { width: 300 } }],
+                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+
+                    if (manipResult.base64) {
+                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
+                    }
                 } catch (e) {
-                    console.error('Image preview processing error:', e);
-                    // Fallback
+                    console.error('Image processing error:', e);
+                    // Fallback to URI if base64 fails
                     setEditImage(result.assets[0].uri);
                 }
             }
@@ -273,73 +273,82 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             </TouchableOpacity>
 
             {/* Edit/Add Modal */}
-            <ReusableBottomDrawer
+            <Modal
                 visible={modalVisible}
-                onClose={() => setModalVisible(false)}
-                title={editId ? 'Edit Outfit' : 'Add New Outfit'}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setModalVisible(false)}
             >
-                <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="always"
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20 }}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.modalOverlay}
                 >
-                    <View style={styles.inputContainer}>
-                        {/* Image Picker */}
-                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                            {editImage ? (
-                                <View style={{
-                                    width: 80,
-                                    height: 80,
-                                    borderRadius: 12,
-                                    overflow: 'hidden',
-                                    backgroundColor: '#E2E8F0', // Ensure visibility
-                                    position: 'relative'
-                                }}>
-                                    <Image
-                                        key={editImage}
-                                        source={{ uri: editImage }}
-                                        style={{ width: '100%', height: '100%' }}
-                                        resizeMode="cover"
-                                    />
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
+                            <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <X size={24} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            {/* Image Picker */}
+                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                                {editImage ? (
                                     <View style={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        backgroundColor: 'rgba(0,0,0,0.4)',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        zIndex: 1
+                                        width: 80,
+                                        height: 80,
+                                        borderRadius: 12,
+                                        overflow: 'hidden',
+                                        backgroundColor: '#E2E8F0',
+                                        position: 'relative'
                                     }}>
-                                        <Edit2 size={20} color="white" />
-                                        <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
+                                        <Image
+                                            key={editImage}
+                                            source={{ uri: editImage }}
+                                            style={{ width: '100%', height: '100%' }}
+                                            resizeMode="cover"
+                                        />
+                                        <View style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            backgroundColor: 'rgba(0,0,0,0.4)',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            zIndex: 1
+                                        }}>
+                                            <Edit2 size={20} color="white" />
+                                            <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
+                                        </View>
                                     </View>
-                                </View>
-                            ) : (
-                                <View style={styles.placeholderImage}>
-                                    <Camera size={24} color={Colors.textSecondary} />
-                                    <Text style={styles.imagePickerText}>Add Photo</Text>
-                                </View>
-                            )}
+                                ) : (
+                                    <View style={styles.placeholderImage}>
+                                        <Camera size={24} color={Colors.textSecondary} />
+                                        <Text style={styles.imagePickerText}>Add Photo</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            <Text style={styles.label}>Outfit Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={editName}
+                                onChangeText={setEditName}
+                                placeholderTextColor={Colors.textSecondary}
+                                placeholder="e.g. Blouse, Kurta, Lehenga"
+                                autoFocus
+                            />
+                        </View>
+
+                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                            <Text style={styles.saveBtnText}>Save</Text>
                         </TouchableOpacity>
-
-                        <Text style={styles.label}>Outfit Name</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={editName}
-                            onChangeText={setEditName}
-                            placeholderTextColor={Colors.textSecondary}
-                            placeholder="e.g. Blouse, Kurta, Lehenga"
-                            autoFocus
-                        />
                     </View>
-
-                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                        <Text style={styles.saveBtnText}>Save</Text>
-                    </TouchableOpacity>
-                </ScrollView>
-            </ReusableBottomDrawer>
+                </KeyboardAvoidingView>
+            </Modal>
 
             <AlertModal
                 visible={alertVisible}
@@ -544,6 +553,9 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: Spacing.lg,
         ...Shadow.medium,
+        width: '100%',
+        maxWidth: 400,
+        alignSelf: 'center',
     },
     modalHeader: {
         flexDirection: 'row',
