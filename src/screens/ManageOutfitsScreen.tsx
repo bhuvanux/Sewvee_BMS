@@ -17,6 +17,7 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
@@ -40,6 +41,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     // Alert State (Validation/Error)
     const [alertVisible, setAlertVisible] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
+
 
     // Delete Confirmation State
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
@@ -73,8 +75,20 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             });
 
             if (!result.canceled && result.assets[0].uri) {
-                // Show immediately for better UX
-                setEditImage(result.assets[0].uri);
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        result.assets[0].uri,
+                        [{ resize: { width: 300 } }],
+                        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+                    if (manipResult.base64) {
+                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
+                    }
+                } catch (e) {
+                    console.error('Image manipulation error:', e);
+                    setAlertConfig({ title: 'Image Error', message: 'Failed to process image.' });
+                    setAlertVisible(true);
+                }
             }
         } catch (error) {
             console.error('Image processing error:', error);
@@ -280,11 +294,12 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                                     backgroundColor: '#E2E8F0', // Ensure visibility
                                     position: 'relative'
                                 }}>
-                                    <Image
+                                    <ExpoImage
                                         key={editImage}
                                         source={{ uri: editImage }}
                                         style={{ width: '100%', height: '100%' }}
-                                        resizeMode="cover"
+                                        contentFit="cover"
+                                        transition={500}
                                     />
                                     <View style={{
                                         position: 'absolute',

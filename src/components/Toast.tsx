@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     content: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
+        paddingVertical: 18, // Increased height
         paddingHorizontal: 20,
         borderRadius: 12, // Slightly sharper corners for modern look
         width: '100%',
