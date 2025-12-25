@@ -11,7 +11,8 @@ import {
     Alert,
     Platform,
     KeyboardAvoidingView,
-    ScrollView
+    ScrollView,
+    Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
@@ -92,6 +93,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     };
 
     const handleSave = async () => {
+        Keyboard.dismiss();
         if (!editName.trim()) {
             setAlertConfig({ title: 'Missing Information', message: 'Please enter an outfit name.' });
             setAlertVisible(true);

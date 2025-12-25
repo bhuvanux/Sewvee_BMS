@@ -10,7 +10,8 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    ScrollView
+    ScrollView,
+    Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Edit2, Trash2, ChevronRight, Image as ImageIcon, X, Camera, Plus, Layers } from 'lucide-react-native';
@@ -55,6 +56,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
     }, [outfits, outfitId]);
 
     const handleSave = async () => {
+        Keyboard.dismiss();
         if (!categoryName.trim()) {
             setAlertConfig({ title: 'Missing Information', message: 'Please enter category name.' });
             setAlertVisible(true);
