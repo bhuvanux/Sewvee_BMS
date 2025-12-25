@@ -247,8 +247,9 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 height={450}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                     style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
+                    keyboardVerticalOffset={Platform.OS === 'android' ? 100 : 0}
                 >
                     <ScrollView
                         showsVerticalScrollIndicator={false}
