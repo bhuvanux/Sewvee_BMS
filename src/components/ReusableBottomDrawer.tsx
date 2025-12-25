@@ -64,8 +64,9 @@ const ReusableBottomDrawer = ({
                     mass: 0.8
                 })
             ]).start();
-        } else {
-            // Logic handled by close
+        } else if (isVisible) {
+            // If parent turns off visibility (e.g. after save), trigger close animation
+            handleClose();
         }
     }, [visible]);
 
