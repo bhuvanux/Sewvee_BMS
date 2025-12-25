@@ -249,10 +249,11 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
-                >  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
                 >
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         <View style={styles.inputContainer}>
                             {/* Image Picker */}
                             <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
