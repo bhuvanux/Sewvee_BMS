@@ -15,6 +15,7 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,7 @@ import { Outfit } from '../types';
 import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import BottomActionSheet from '../components/BottomActionSheet';
+import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
 
 const ManageOutfitsScreen = ({ navigation }: any) => {
     const { outfits, addOutfit, updateOutfit, deleteOutfit } = useData();
@@ -60,15 +62,31 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     };
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-        });
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1, // High quality input, we compress later
+            });
 
-        if (!result.canceled) {
-            setEditImage(result.assets[0].uri);
+            if (!result.canceled && result.assets[0].uri) {
+                // Resize and compress for DB storage (max 512px, 0.7 quality)
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    result.assets[0].uri,
+                    [{ resize: { width: 512 } }],
+                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+
+                if (manipResult.base64) {
+                    const base64Image = `data:image/jpeg;base64,${manipResult.base64}`;
+                    setEditImage(base64Image);
+                }
+            }
+        } catch (error) {
+            console.error('Image processing error:', error);
+            setAlertConfig({ title: 'Image Error', message: 'Failed to process image. Please try again.' });
+            setAlertVisible(true);
         }
     };
 
@@ -226,99 +244,44 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             </TouchableOpacity>
 
             {/* Edit/Add Modal */}
-            <Modal
-                animationType="fade"
-                transparent={true}
+            <ReusableBottomDrawer
                 visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+                onClose={() => setModalVisible(false)}
+                title={editId ? 'Edit Outfit' : 'Add New Outfit'}
             >
-                {Platform.OS === 'ios' ? (
-                    <KeyboardAvoidingView
-                        behavior="padding"
-                        style={styles.modalOverlay}
-                    >
-                        <View style={styles.modalContent}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>
-                                    {editId ? 'Edit Outfit' : 'Add New Outfit'}
-                                </Text>
-                                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                    <X size={24} color={Colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1, paddingHorizontal: 20 }}
+                >
+                    <View style={styles.inputContainer}>
+                        {/* Image Picker */}
+                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                            {editImage ? (
+                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                            ) : (
+                                <View style={styles.placeholderImage}>
+                                    <Camera size={24} color={Colors.textSecondary} />
+                                    <Text style={styles.imagePickerText}>Add Image</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
 
-                            <View style={styles.inputContainer}>
-                                {/* Image Picker */}
-                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                    {editImage ? (
-                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                    ) : (
-                                        <View style={styles.placeholderImage}>
-                                            <Camera size={24} color={Colors.textSecondary} />
-                                            <Text style={styles.imagePickerText}>Add Image</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-
-                                <Text style={styles.label}>Outfit Name</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={editName}
-                                    onChangeText={setEditName}
-                                    placeholderTextColor={Colors.textSecondary}
-                                    placeholder="e.g. Blouse, Kurta, Lehenga"
-                                    autoFocus
-                                />
-                            </View>
-
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                                <Text style={styles.saveBtnText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </KeyboardAvoidingView>
-                ) : (
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalContent}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>
-                                    {editId ? 'Edit Outfit' : 'Add New Outfit'}
-                                </Text>
-                                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                    <X size={24} color={Colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                {/* Image Picker */}
-                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                    {editImage ? (
-                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                    ) : (
-                                        <View style={styles.placeholderImage}>
-                                            <Camera size={24} color={Colors.textSecondary} />
-                                            <Text style={styles.imagePickerText}>Add Image</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-
-                                <Text style={styles.label}>Outfit Name</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={editName}
-                                    onChangeText={setEditName}
-                                    placeholderTextColor={Colors.textSecondary}
-                                    placeholder="e.g. Blouse, Kurta, Lehenga"
-                                    autoFocus
-                                />
-                            </View>
-
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                                <Text style={styles.saveBtnText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={styles.label}>Outfit Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={editName}
+                            onChangeText={setEditName}
+                            placeholderTextColor={Colors.textSecondary}
+                            placeholder="e.g. Blouse, Kurta, Lehenga"
+                            autoFocus
+                        />
                     </View>
-                )}
-            </Modal>
+
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                        <Text style={styles.saveBtnText}>Save</Text>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </ReusableBottomDrawer>
 
             <AlertModal
                 visible={alertVisible}

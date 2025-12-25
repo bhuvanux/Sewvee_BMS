@@ -67,6 +67,8 @@ const Toast: React.FC = () => {
                 return <AlertCircle size={size} color={Colors.danger} />;
             case 'warning':
                 return <AlertTriangle size={size} color="#D97706" />;
+            case 'dark':
+                return <AlertCircle size={size} color="#FCD34D" />;
             case 'info':
             default:
                 return <Info size={size} color={Colors.primary} />;
@@ -81,6 +83,8 @@ const Toast: React.FC = () => {
                 return '#FEF2F2';
             case 'warning':
                 return '#FFFBEB';
+            case 'dark':
+                return '#1F2937';
             case 'info':
             default:
                 return '#EFF6FF';
@@ -94,6 +98,8 @@ const Toast: React.FC = () => {
             case 'error':
                 return '#EF4444';
             case 'warning':
+                return '#F59E0B';
+            case 'dark':
                 return '#F59E0B';
             case 'info':
             default:
@@ -119,7 +125,7 @@ const Toast: React.FC = () => {
                 <View style={styles.iconContainer}>
                     {getIcon()}
                 </View>
-                <Text style={styles.message} numberOfLines={2}>
+                <Text style={[styles.message, toast.type === 'dark' && { color: '#FFFFFF' }]} numberOfLines={2}>
                     {toast.message}
                 </Text>
             </View>

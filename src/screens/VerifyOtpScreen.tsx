@@ -139,21 +139,8 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
     // Render Error State if Data is Missing
     if (!targetPhone || targetPhone.trim() === '') {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-                <View style={[styles.iconContainer, { backgroundColor: Colors.danger }]}>
-                    <ShieldCheck size={40} color={Colors.white} />
-                </View>
-                <Text style={styles.title}>Session Error</Text>
-                <Text style={styles.subtitle}>
-                    We couldn't retrieve your phone number. This can happen if the network is slow or the session is invalid.
-                </Text>
-
-                <TouchableOpacity
-                    style={[styles.verifyBtn, { marginTop: 30, width: '100%' }]}
-                    onPress={() => navigation.navigate('Login')}
-                >
-                    <Text style={styles.verifyBtnText}>Back to Login</Text>
-                </TouchableOpacity>
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={Colors.primary} />
             </View>
         );
     }

@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, Dimensions, Share, ActivityIndicator, KeyboardAvoidingView, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, Dimensions, ActivityIndicator, KeyboardAvoidingView, Linking } from 'react-native';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
 import {
     ChevronDown, Printer, Share2, HelpCircle, ArrowLeft, Trash2, Edit2, ChevronRight,
     Calculator, Calendar, Receipt, User, Smartphone, CreditCard, Banknote, Clock,
     CheckCircle2, AlertCircle, X, Info, Phone, Mail, MapPin, Download, FileText,
-    PlayCircle, StopCircle, PlusCircle, ReceiptIndianRupee, PenTool
+    PlayCircle, StopCircle, PlusCircle, ReceiptIndianRupee, PenTool, Check
 } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { formatDate, getCurrentDate } from '../utils/dateUtils';
-import { Platform } from 'react-native';
+import { Share, Platform } from 'react-native';
+import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
 import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, normalizeItems } from '../services/pdfService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -296,8 +297,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     };
 
     const handleTailorCopy = async () => {
-        if (isSharing) return;
-        setIsSharing(true);
+        if (isPrinting) return;
+        setIsPrinting(true);
         try {
             showToast("Printing PDF...", "info");
             const customer = customers.find(c => c.id === order.customerId);
@@ -317,13 +318,13 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Tailor Copy' });
             setAlertVisible(true);
         } finally {
-            setIsSharing(false);
+            setIsPrinting(false);
         }
     };
 
     const handleCustomerCopy = async () => {
-        if (isSharing) return;
-        setIsSharing(true);
+        if (isPrinting) return;
+        setIsPrinting(true);
         try {
             showToast("Printing PDF...", "info");
             const companyData = {
@@ -341,7 +342,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Customer Copy' });
             setAlertVisible(true);
         } finally {
-            setIsSharing(false);
+            setIsPrinting(false);
         }
     };
 
@@ -750,48 +751,66 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 onClose={() => setAlertVisible(false)}
             />
             {/* Status Selection Modal */}
-            <Modal
+            <ReusableBottomDrawer
                 visible={statusModalVisible}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setStatusModalVisible(false)}
+                onClose={() => setStatusModalVisible(false)}
+                title="Update Status"
             >
-                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-                    <View style={{ width: '80%', backgroundColor: Colors.white, borderRadius: 16, padding: 20 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>Update Status</Text>
-                            <TouchableOpacity onPress={() => setStatusModalVisible(false)}>
-                                <X size={24} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {['Pending', 'In Progress', 'Trial', 'Completed', 'Overdue', 'Cancelled'].map((statusOption) => (
+                <View>
+                    {['Pending', 'In Progress', 'Trial', 'Completed', 'Overdue', 'Cancelled'].map((statusOption) => {
+                        const isSelected = order.status === statusOption;
+                        const activeColor = getStatusColor(statusOption);
+                        return (
                             <TouchableOpacity
                                 key={statusOption}
                                 onPress={async () => {
-                                    await updateOrder(order.id, { status: statusOption as any });
                                     setStatusModalVisible(false);
+                                    await updateOrder(order.id, { status: statusOption as any });
                                 }}
                                 style={{
-                                    paddingVertical: 12,
+                                    paddingVertical: 16,
+                                    paddingHorizontal: 24,
                                     borderBottomWidth: 1,
-                                    borderBottomColor: Colors.border,
+                                    borderBottomColor: '#F3F4F6',
                                     flexDirection: 'row',
                                     alignItems: 'center',
-                                    justifyContent: 'space-between'
+                                    justifyContent: 'space-between',
+                                    backgroundColor: isSelected ? activeColor + '10' : 'transparent',
                                 }}
                             >
-                                <Text style={{ fontFamily: 'Inter-Medium', fontSize: 16, color: Colors.textPrimary }}>
-                                    {statusOption}
-                                </Text>
-                                {order.status === statusOption && (
-                                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <View style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 5,
+                                        backgroundColor: activeColor,
+                                        shadowColor: activeColor,
+                                        shadowOpacity: 0.5,
+                                        shadowRadius: 4,
+                                        elevation: 2
+                                    }} />
+                                    <Text style={{
+                                        fontFamily: isSelected ? 'Inter-Bold' : 'Inter-Medium',
+                                        fontSize: 16,
+                                        color: isSelected ? Colors.textPrimary : Colors.textSecondary
+                                    }}>
+                                        {statusOption}
+                                    </Text>
+                                </View>
+                                {isSelected && (
+                                    <View style={{
+                                        backgroundColor: activeColor + '20',
+                                        borderRadius: 12,
+                                        padding: 4
+                                    }}>
+                                        <Check size={16} color={activeColor} strokeWidth={3} />
+                                    </View>
                                 )}
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                        );
+                    })}
                 </View>
-            </Modal>
+            </ReusableBottomDrawer>
             {/* Item Detail Modal */}
             <Modal
                 visible={!!selectedItem}

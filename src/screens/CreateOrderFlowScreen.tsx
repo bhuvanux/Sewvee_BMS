@@ -61,6 +61,7 @@ import * as Sharing from 'expo-sharing';
 import SignatureScreen from 'react-native-signature-canvas';
 import { transcribeAudio } from '../services/geminiService';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
+import { generateCustomerCopyPDF } from '../services/pdfService';
 import { useNavigation } from '@react-navigation/native';
 // Skia drawing temporarily disabled due to version compatibility
 
@@ -69,6 +70,7 @@ import { useNavigation } from '@react-navigation/native';
 import CustomerSelectionModal from '../components/CustomerSelectionModal';
 import OrderSuccessModal from '../components/OrderSuccessModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
+import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
 
 // Liquid Progress Component
 const LiquidProgress = ({ current, total }: { current: number, total: number }) => {
@@ -309,8 +311,9 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
     };
 
     const handleTypeSelect = (typeName: string) => {
+        // Reset measurements when type changes to prevent cross-contamination
         onChange({
-            currentOutfit: { ...state.currentOutfit, type: typeName }
+            currentOutfit: { ...state.currentOutfit, type: typeName, measurements: {} }
         });
     };
 
@@ -503,6 +506,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                 });
 
                 // Add missing options from defaults
+                // REMOVED: To respect user deletions in Manage Outfits.
+                /*
                 if (defSub?.options) {
                     defSub.options.forEach((defOpt: any) => {
                         if (!mergedOptions.find((o: any) => o.name === defOpt.name || o.id === defOpt.id)) {
@@ -510,6 +515,7 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                         }
                     });
                 }
+                */
 
                 return {
                     ...(defSub || {}),
@@ -520,6 +526,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
             });
 
             // Add missing sub-categories from defaults
+            // REMOVED: To respect user deletions in Manage Outfits.
+            /*
             if (defCat?.subCategories) {
                 defCat.subCategories.forEach((defSub: any) => {
                     if (!mergedSubCats.find((s: any) => s.name === defSub.name || s.id === defSub.id)) {
@@ -527,6 +535,7 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                     }
                 });
             }
+            */
 
             return {
                 ...(defCat || {}),
@@ -537,11 +546,17 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         });
 
         // 2. Add missing categories from defaults (in case of app updates)
+        // REMOVED: User reported that this overrides their custom configuration (e.g. 5 categories vs 7).
+        // if (dbCats && dbCats.length > 0) { ... } -> Skip this step.
+        // Only inject defaults if the DB has absolutely no categories? 
+        // No, if DB has an outfit entry, we trust its structure.
+        /*
         (defaults || []).forEach(defCat => {
             if (!result.find(c => c.name === defCat.name || c.id === defCat.id)) {
                 result.push(defCat);
             }
         });
+        */
 
         return result;
     };
@@ -1091,15 +1106,15 @@ const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compa
                 );
 
                 // Attach listener BEFORE setting state to ensure we catch updates
-                newSound.setOnPlaybackStatusUpdate((status) => {
+                newSound.setOnPlaybackStatusUpdate(async (status) => {
                     if (status.isLoaded) {
                         // Sync state with reality
                         setIsPlaying(status.isPlaying);
 
                         if (status.didJustFinish) {
                             setIsPlaying(false);
-                            newSound.setPositionAsync(0);
-                            // sound.stopAsync() is not needed if position is 0 and not playing
+                            await newSound.stopAsync();
+                            await newSound.setPositionAsync(0);
                         }
                     }
                 });
@@ -2033,7 +2048,15 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 // ... existing code ...
 
 const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep }: any) => {
-    return <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} />;
+    return (
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+        >
+            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} />
+        </KeyboardAvoidingView>
+    );
 };
 
 
@@ -2127,6 +2150,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const { customers, outfits, addOrder, updateOrder, addCustomer, updateCustomer, orders } = useData();
     const { user } = useAuth();
+    const { showToast } = useToast();
 
     const editOrderId = route.params?.editOrderId;
     // Define editItemIndex here at the top
@@ -2173,56 +2197,16 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         if (!createdOrder) return;
 
         try {
-            const html = `
-                <html>
-                  <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-                  </head>
-                  <body style="font-family: Helvetica, Arial, sans-serif; padding: 20px;">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                      <h1 style="margin: 0; color: #000;">Sewvee Mini</h1>
-                      <p style="margin: 5px 0; color: #666;">Estimate / Order Copy</p>
-                    </div>
-                    
-                    <div style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
-                        <h2 style="margin: 0;">Order #${createdOrder.billNo || createdOrder.id}</h2>
-                        <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
-                    </div>
-                    
-                    <div style="margin-bottom: 20px;">
-                        <strong>Customer:</strong> ${createdOrder.customerName}<br/>
-                        <strong>Items:</strong> ${createdOrder.items?.length || 0}
-                    </div>
-                    
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                        <tr style="background-color: #f8f9fa;">
-                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Description</th>
-                            <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Amount</th>
-                        </tr>
-                        ${createdOrder.items?.map((item: any) => `
-                        <tr>
-                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name}</td>
-                            <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">₹${item.price}</td>
-                        </tr>
-                        `).join('')}
-                    </table>
-                    
-                    <div style="text-align: right;">
-                        <p style="margin: 5px 0;"><strong>Total: ₹${createdOrder.total?.toLocaleString('en-IN')}</strong></p>
-                        <p style="margin: 5px 0; color: #666;">Advance: ₹${createdOrder.advance?.toLocaleString('en-IN')}</p>
-                        <p style="margin: 5px 0; color: #dc2626;"><strong>Balance: ₹${createdOrder.balance?.toLocaleString('en-IN')}</strong></p>
-                    </div>
-                    
-                    <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">
-                        Generated via Sewvee Mini App
-                    </div>
-                  </body>
-                </html>
-            `;
+            // Prepare company data from user profile
+            // Fallback to minimal data if not fully available
+            const companyData = {
+                name: user?.boutiqueName || user?.name || 'My Boutique',
+                address: user?.address || '',
+                phone: user?.mobile || user?.phone || '',
+                gstin: user?.gstin || ''
+            };
 
-            await Print.printAsync({
-                html,
-            });
+            await generateCustomerCopyPDF(createdOrder, companyData);
         } catch (error) {
             console.log('Print error:', error);
             showAlert('Error', 'Could not print order.');
@@ -2532,7 +2516,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             // "Current Item" in accordion indicates it is part of the order.
 
             if (!state.selectedCustomer && !state.customerName) {
-                showAlert('Missing Customer', 'Please select or add a customer before creating an order.');
+                // showAlert('Missing Customer', 'Please select or add a customer before creating an order.');
+                if (!state.selectedCustomer) {
+                    // Modified: User requested a dark toast instead of modal/drawer
+                    showToast('This order does not have a customer attached. Please select or add a customer.', 'dark');
+                    // setMissingCustomerDrawerVisible(true);
+                    return;
+                }
                 setLoading(false);
                 return;
             }
@@ -2759,6 +2749,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 }}
                 customers={customers}
             />
+
+
+
             {successModalVisible && (
                 <OrderSuccessModal
                     visible={successModalVisible}

@@ -63,7 +63,7 @@ const AddCustomerScreen = ({ navigation }: any) => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.container}
         >
             <View style={styles.content}>
@@ -75,7 +75,7 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter customer name"
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor="#6B7280"
                                 value={name}
                                 onChangeText={setName}
                             />
@@ -89,7 +89,7 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter 10-digit mobile number"
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor="#6B7280"
                                 value={mobile}
                                 onChangeText={(val) => setMobile(val.replace(/[^0-9]/g, '').slice(0, 10))}
                                 keyboardType="phone-pad"
@@ -105,7 +105,7 @@ const AddCustomerScreen = ({ navigation }: any) => {
                             <TextInput
                                 style={styles.input}
                                 placeholder="City, Area or Full Address"
-                                placeholderTextColor={Colors.textSecondary}
+                                placeholderTextColor="#6B7280"
                                 value={location}
                                 onChangeText={setLocation}
                             />

@@ -469,9 +469,7 @@ export const generateCustomerCopyPDF = async (orderData: any, companyData: any) 
             ${normalizeItems(orderData).map((item: any, index: number) => `
               <tr>
                 <td>${index + 1}</td>
-                <td>${item.name}
-                ${item.description ? `<br/><span style="font-size: 10px; color: #6B7280;">${item.description}</span>` : ''}
-                </td>
+                <td>${item.name}</td>
                 <td style="text-align: center;">${item.qty || item.quantity}</td>
                 <td style="text-align: right;">₹${(parseFloat(item.rate) || 0).toFixed(2)}</td>
                 <td style="text-align: right;">₹${(parseFloat(item.amount) || 0).toFixed(2)}</td>

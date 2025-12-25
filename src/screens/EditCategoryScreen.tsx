@@ -14,12 +14,14 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory, OutfitSubCategory, OutfitOption } from '../types';
 import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
+import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
 
 const EditCategoryScreen = ({ navigation, route }: any) => {
     const { outfitId, categoryId, categoryName } = route.params;
@@ -84,13 +86,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             if (modalType === 'subcategory') {
                 if (editMode && targetId) {
                     updatedSubCategories = updatedSubCategories.map(sc =>
-                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: editImage || null } : sc
+                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: editImage || undefined } : sc
                     );
                 } else {
                     updatedSubCategories.push({
                         id: Date.now().toString(),
                         name: inputName.trim(),
-                        image: editImage || null,
+                        image: editImage || undefined,
                         options: []
                     });
                 }
@@ -102,13 +104,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
                     if (editMode && targetId) {
                         updatedOptions = updatedOptions.map(opt =>
-                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: editImage || null } : opt
+                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: editImage || undefined } : opt
                         );
                     } else {
                         updatedOptions.push({
                             id: Date.now().toString(),
                             name: inputName.trim(),
-                            image: editImage || null
+                            image: editImage || undefined
                         });
                     }
                     subCat.options = updatedOptions;
@@ -182,15 +184,30 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     };
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-        });
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+            });
 
-        if (!result.canceled) {
-            setEditImage(result.assets[0].uri);
+            if (!result.canceled && result.assets[0].uri) {
+                // Resize and compress
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    result.assets[0].uri,
+                    [{ resize: { width: 512 } }],
+                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+
+                if (manipResult.base64) {
+                    setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
+                }
+            }
+        } catch (error) {
+            console.error('Image Error:', error);
+            setAlertConfig({ title: 'Image Error', message: 'Failed to process image.' });
+            setAlertVisible(true);
         }
     };
 
@@ -303,97 +320,43 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 <Text style={styles.fabText}>Add Sub Category</Text>
             </TouchableOpacity>
 
-            <Modal
-                animationType="fade"
-                transparent={true}
+            <ReusableBottomDrawer
                 visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+                onClose={() => setModalVisible(false)}
+                title={`${editMode ? 'Edit' : 'Add'} ${modalType === 'subcategory' ? 'Sub Category' : 'Option'}`}
             >
-                {Platform.OS === 'ios' ? (
-                    <KeyboardAvoidingView
-                        behavior="padding"
-                        style={styles.modalOverlay}
-                    >
-                        <View style={styles.modalContent}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>
-                                    {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub Category' : 'Option'}
-                                </Text>
-                                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                    <X size={24} color={Colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1, paddingHorizontal: 20 }}
+                >
+                    <View style={styles.inputContainer}>
+                        <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+                            {editImage ? (
+                                <Image source={{ uri: editImage }} style={styles.pickedImage} />
+                            ) : (
+                                <View style={styles.placeholderImage}>
+                                    <Camera size={24} color={Colors.textSecondary} />
+                                    <Text style={styles.imagePickerText}>Add Image</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
 
-                            <View style={styles.inputContainer}>
-                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                    {editImage ? (
-                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                    ) : (
-                                        <View style={styles.placeholderImage}>
-                                            <Camera size={24} color={Colors.textSecondary} />
-                                            <Text style={styles.imagePickerText}>Add Image</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-
-                                <Text style={styles.label}>Name</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={inputName}
-                                    onChangeText={setInputName}
-                                    placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                                    placeholderTextColor={Colors.textSecondary}
-                                    autoFocus
-                                />
-                            </View>
-
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                                <Text style={styles.saveBtnText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </KeyboardAvoidingView>
-                ) : (
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalContent}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>
-                                    {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub Category' : 'Option'}
-                                </Text>
-                                <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                    <X size={24} color={Colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.inputContainer}>
-                                <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                    {editImage ? (
-                                        <Image source={{ uri: editImage }} style={styles.pickedImage} />
-                                    ) : (
-                                        <View style={styles.placeholderImage}>
-                                            <Camera size={24} color={Colors.textSecondary} />
-                                            <Text style={styles.imagePickerText}>Add Image</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-
-                                <Text style={styles.label}>Name</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={inputName}
-                                    onChangeText={setInputName}
-                                    placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                                    placeholderTextColor={Colors.textSecondary}
-                                    autoFocus
-                                />
-                            </View>
-
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                                <Text style={styles.saveBtnText}>Save</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={styles.label}>Name</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={inputName}
+                            onChangeText={setInputName}
+                            placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
+                            placeholderTextColor={Colors.textSecondary}
+                            autoFocus
+                        />
                     </View>
-                )}
-            </Modal>
+
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                        <Text style={styles.saveBtnText}>Save</Text>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </ReusableBottomDrawer>
 
             <AlertModal
                 visible={alertVisible}
