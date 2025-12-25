@@ -329,7 +329,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 height={500}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}
                 >
                     <ScrollView
