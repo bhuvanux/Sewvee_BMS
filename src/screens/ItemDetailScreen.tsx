@@ -262,9 +262,9 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
 
             {/* Image Preview Modal */}
             {previewImageUri && (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'black', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }]}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 1010, padding: 10 }} onPress={() => setPreviewImageUri(null)}>
-                        <X size={30} color="white" />
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }]}>
+                    <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 1010, padding: 10, backgroundColor: '#f0f0f0', borderRadius: 20 }} onPress={() => setPreviewImageUri(null)}>
+                        <X size={30} color="black" />
                     </TouchableOpacity>
                     <Image source={{ uri: previewImageUri }} style={{ width: width, height: '80%' }} resizeMode="contain" />
                 </View>

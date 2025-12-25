@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, Dimensions, Share, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Modal, TextInput, Dimensions, Share, ActivityIndicator, KeyboardAvoidingView, Linking } from 'react-native';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
 import {
     ChevronDown, Printer, Share2, HelpCircle, ArrowLeft, Trash2, Edit2, ChevronRight,
@@ -173,30 +173,38 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         });
     }, [navigation, order]);
 
-    const handleShare = async () => {
-        if (isSharing) return;
-        setIsSharing(true);
-        try {
-            const companyData = {
-                name: company?.name || 'My Boutique',
-                address: company?.address || 'Your Address Here',
-                phone: company?.phone || 'Your Phone Here',
-                gstin: company?.gstin || '',
-                billSignature: company?.billSignature || null,
-                billTerms: company?.billTerms || null
-            };
-            const customer = customers.find(c => c.id === order.customerId);
-            const enrichedOrder = {
-                ...order,
-                customerDisplayId: customer?.displayId || '---'
-            };
-            await generateInvoicePDF(enrichedOrder, companyData);
-            await generateInvoicePDF(enrichedOrder, companyData);
-        } catch (error: any) {
-            setAlertConfig({ title: 'Share Failed', message: error.message || 'Could not generate PDF for WhatsApp' });
+    const handleWhatsAppShare = async () => {
+        const customer = customers.find(c => c.id === order.customerId);
+        let mobile = order.customerMobile || customer?.mobile || '';
+
+        // Basic cleaning
+        mobile = mobile.replace(/\s+/g, '').replace(/-/g, '');
+        if (!mobile) {
+            setAlertConfig({ title: 'No Mobile', message: 'Customer mobile number is missing.' });
             setAlertVisible(true);
-        } finally {
-            setIsSharing(false);
+            return;
+        }
+
+        // Append country code if missing (Basic assumption for India, can be improved)
+        if (!mobile.startsWith('+') && mobile.length === 10) {
+            mobile = '+91' + mobile; // Assuming India for now based on currency
+        }
+
+        const balance = order.total - order.advance;
+        const status = balance > 0 ? 'Pending' : 'Paid';
+        const link = `whatsapp://send?phone=${mobile}&text=Hello ${order.customerName}, Here is your order details for Order #${order.billNo}. Total: ₹${order.total}, Paid: ₹${order.advance}, Balance: ₹${balance}. Status: ${status}. Thank you for your business!`;
+
+        try {
+            const supported = await Linking.canOpenURL(link);
+            if (supported) {
+                await Linking.openURL(link);
+            } else {
+                setAlertConfig({ title: 'WhatsApp Not Found', message: 'Could not open WhatsApp. Please check if it is installed.' });
+                setAlertVisible(true);
+            }
+        } catch (err) {
+            setAlertConfig({ title: 'Error', message: 'An error occurred while trying to open WhatsApp.' });
+            setAlertVisible(true);
         }
     };
 
@@ -431,13 +439,13 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                         ) : (
                             <>
                                 <Printer size={20} color={Colors.primary} />
-                                <Text style={styles.secondaryBtnText}>Print Invoice</Text>
+                                <Text style={styles.secondaryBtnText}>Print / Share</Text>
                             </>
                         )}
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.primaryBtn, { flex: 1 }, isSharing && { opacity: 0.7 }]}
-                        onPress={handleShare}
+                        onPress={handleWhatsAppShare}
                         disabled={isPrinting || isSharing}
                     >
                         {isSharing ? (
@@ -483,9 +491,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                                             <Text style={{ fontSize: 12, fontFamily: 'Inter-Medium', color: Colors.textSecondary }}>x{item.qty}</Text>
                                         </View>
                                     </View>
-                                    {item.description ? (
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>{item.description}</Text>
-                                    ) : null}
+                                    {/* Description hidden in list view */}
                                 </View>
                                 <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{item.amount}</Text>
                             </View>

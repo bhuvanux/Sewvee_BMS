@@ -56,6 +56,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import SignatureScreen from 'react-native-signature-canvas';
 import { transcribeAudio } from '../services/geminiService';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
@@ -664,8 +666,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                         </View>
                     </View>
 
-                    <ScrollView contentContainerStyle={{ padding: 12, gap: 12 }}>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                        <View style={{ gap: 12 }}>
                             {nestedOptions.map((opt: any) => {
                                 const fullValue = `${activeSubCategory.name} - ${opt.name}`;
                                 const isSelected = selectedValue === fullValue;
@@ -674,25 +676,36 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                     <TouchableOpacity
                                         key={opt.id}
                                         style={[
-                                            styles.optionCardSplit,
-                                            isSelected && styles.optionCardSelected
+                                            styles.optionListItem,
+                                            isSelected && styles.optionListItemSelected
                                         ]}
                                         onPress={() => handleLevel3Selection(activeSubCategory.name, opt.name)}
                                     >
-                                        {/* No images for Level 3 yet, just text or placeholder */}
-                                        <View style={[styles.optionPlaceholderSplit, { backgroundColor: isSelected ? '#F0FDF4' : '#F3F4F6' }]}>
-                                            {isSelected ? <Check size={24} color={Colors.primary} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.textSecondary, opacity: 0.3 }} />}
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                            {/* Image or Icon */}
+                                            <View style={styles.optionListImageContainer}>
+                                                {opt.image ? (
+                                                    <Image source={{ uri: opt.image }} style={styles.optionListImage} />
+                                                ) : (
+                                                    <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
+                                                )}
+                                            </View>
+
+                                            {/* Text */}
+                                            <Text
+                                                style={[
+                                                    styles.optionListText,
+                                                    isSelected && styles.optionListTextSelected
+                                                ]}
+                                            >
+                                                {opt.name}
+                                            </Text>
                                         </View>
 
-                                        <Text
-                                            numberOfLines={2}
-                                            style={[
-                                                styles.optionTextSplit,
-                                                isSelected && styles.optionTextSelected
-                                            ]}
-                                        >
-                                            {opt.name}
-                                        </Text>
+                                        {/* Right Side: Radio/Check */}
+                                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                            {isSelected && <View style={styles.radioInner} />}
+                                        </View>
                                     </TouchableOpacity>
                                 );
                             })}
@@ -807,15 +820,11 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
     // Use actual customer history or empty
     const historyData = state.selectedCustomer?.measurementHistory || [];
 
-    // Filter by current type if desired, or show all? 
-    // Usually better to show relevant ones first.
-    // Let's sort: exact type match first, then by date.
+    // Filter by measurement type relevant to current outfit
     const sortedHistory = [...historyData].sort((a: any, b: any) => {
         if (a.type === state.currentOutfit.type && b.type !== state.currentOutfit.type) return -1;
         if (a.type !== state.currentOutfit.type && b.type === state.currentOutfit.type) return 1;
-        // Date sort (assuming string dd MMM yyyy - might need parsing if format varies, but standardizing helps)
-        // Simple fallback: newest (top of list) is index 0. Reversing standard JS sort stability isn't guaranteed
-        return 0;
+        return 0; // Simple fallback sort
     });
 
     const applyHistory = (data: any) => {
@@ -837,14 +846,44 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
         });
     };
 
+    const toggleOptional = (key: string) => {
+        const currentVal = state.currentOutfit.measurements?.[key] === 'Yes';
+        updateMeasurement(key, currentVal ? '' : 'Yes');
+    };
+
+    // Measurement Configuration
+    const SECTIONS = [
+        {
+            title: "Body",
+            fields: ["Upper Chest", "Middle Chest", "Waist", "Hip"]
+        },
+        {
+            title: "Shoulder & Neck",
+            fields: ["Shoulder Back", "Shoulder Front", "Front Neck", "Back Neck"]
+        },
+        {
+            title: "Sleeve",
+            fields: ["Sleeve Length", "Sleeve Breadth"]
+        },
+        {
+            title: "Others",
+            fields: ["Arm Length", "Arm Round", "Points", "Slit", "Seat"]
+        },
+        {
+            title: "Pant",
+            fields: ["Pant Length", "Pant Breadth"]
+        }
+    ];
+
+    const OPTIONAL_ITEMS = ["Piping", "Tassels", "Right-side Hook", "Saree Mudi"];
+
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={80}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 300, gap: 24 }} keyboardShouldPersistTaps="handled">
 
-            {/* Measurements Card - History Inside Header */}
-            <View style={[styles.card, { paddingBottom: 24 }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Measurements</Text>
-
+                {/* Header / History Link */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: -8 }}>
+                    <Text style={styles.sectionTitle}>Measurements</Text>
                     {historyData.length > 0 && (
                         <TouchableOpacity onPress={() => setHistoryVisible(true)}>
                             <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
@@ -854,95 +893,192 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                     )}
                 </View>
 
-                <View style={styles.measurementsGrid}>
-                    {['Height', 'Waist', 'Seat', 'Thigh', 'Knee', 'Bottom', 'Zip Length', 'Total Round'].map((m) => (
-                        <View key={m} style={styles.measurementField}>
-                            <Text style={styles.fieldLabel}>{m}</Text>
-                            <View style={styles.measurementInputWrapper}>
-                                <TextInput
-                                    style={styles.measurementInput}
-                                    keyboardType="numeric"
-                                    value={state.currentOutfit.measurements?.[m] || ''}
-                                    onChangeText={(val) => updateMeasurement(m, val)}
-                                />
-                                <Text style={styles.unitSuffix}>in</Text>
+                {/* Sections Loop */}
+                {SECTIONS.map((section, idx) => (
+                    <View key={idx}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                                <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Inter-Bold' }}>{idx + 1}</Text>
                             </View>
+                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>{section.title}</Text>
+                            <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB', marginLeft: 12 }} />
                         </View>
-                    ))}
-                </View>
-            </View>
 
-            {/* History Modal */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                            {section.fields.map((m) => (
+                                <View key={m} style={{ width: '48%' }}>
+                                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textSecondary, marginBottom: 4 }}>{m}</Text>
+                                    <View style={{
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        borderWidth: 1,
+                                        borderColor: '#E5E7EB',
+                                        borderRadius: 8,
+                                        backgroundColor: 'white',
+                                        height: 44,
+                                        paddingHorizontal: 12
+                                    }}>
+                                        <TextInput
+                                            style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}
+                                            keyboardType="numeric"
+                                            value={state.currentOutfit.measurements?.[m] || ''}
+                                            onChangeText={(val) => updateMeasurement(m, val)}
+                                        />
+                                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textSecondary }}>in</Text>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                ))}
+
+                {/* Optional Section */}
+                <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                        <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>Optional</Text>
+                        <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB', marginLeft: 12 }} />
+                    </View>
+
+                    <View style={{
+                        backgroundColor: '#F9FAFB',
+                        borderWidth: 1,
+                        borderColor: '#E5E7EB',
+                        borderRadius: 12,
+                        padding: 16,
+                        flexDirection: 'row',
+                        flexWrap: 'wrap',
+                        gap: 16
+                    }}>
+                        {OPTIONAL_ITEMS.map((item) => {
+                            const isChecked = state.currentOutfit.measurements?.[item] === 'Yes';
+                            return (
+                                <TouchableOpacity
+                                    key={item}
+                                    style={{
+                                        width: '45%',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 10,
+                                        opacity: 1 // Always fully opaque
+                                    }}
+                                    onPress={() => toggleOptional(item)}
+                                >
+                                    <View style={{
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: 6,
+                                        borderWidth: 2,
+                                        borderColor: isChecked ? Colors.primary : '#D1D5DB',
+                                        backgroundColor: isChecked ? Colors.primary : 'white',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        {isChecked && <Check size={16} color="white" strokeWidth={3} />}
+                                    </View>
+                                    <Text style={{
+                                        fontFamily: isChecked ? 'Inter-SemiBold' : 'Inter-Medium',
+                                        fontSize: 15,
+                                        color: isChecked ? Colors.textPrimary : Colors.textSecondary
+                                    }}>{item}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+            </ScrollView>
+
+            {/* History Bottom Sheet */}
             <Modal
                 visible={historyVisible}
                 transparent={true}
-                animationType="fade"
+                animationType="slide"
                 onRequestClose={() => setHistoryVisible(false)}
             >
                 <TouchableOpacity
-                    style={styles.modalOverlay}
+                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
                     activeOpacity={1}
                     onPress={() => setHistoryVisible(false)}
                 >
                     <TouchableOpacity
                         activeOpacity={1}
-                        style={styles.historyModalContent}
+                        style={{
+                            backgroundColor: Colors.white,
+                            borderTopLeftRadius: 24,
+                            borderTopRightRadius: 24,
+                            paddingBottom: 40,
+                            maxHeight: '60%',
+                            width: '100%',
+                            ...Shadow.large
+                        }}
                     >
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Measurement History</Text>
-                            <TouchableOpacity onPress={() => setHistoryVisible(false)}>
-                                <X size={24} color={Colors.textSecondary} />
-                            </TouchableOpacity>
+                        <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                            <View style={{ width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginBottom: 12 }} />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>Measurement History</Text>
+                                <TouchableOpacity onPress={() => setHistoryVisible(false)} style={{ padding: 4 }}>
+                                    <X size={24} color={Colors.textSecondary} />
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
-                        <View style={styles.tableHeader}>
-                            <Text style={[styles.tableHeadText, { flex: 1 }]}>Date</Text>
-                            <Text style={[styles.tableHeadText, { flex: 1 }]}>Type</Text>
-                            <Text style={[styles.tableHeadText, { width: 60, textAlign: 'center' }]}>Action</Text>
-                        </View>
+                        <View style={{ padding: 16 }}>
+                            <View style={{ flexDirection: 'row', marginBottom: 8, paddingHorizontal: 4 }}>
+                                <Text style={[styles.tableHeadText, { flex: 1 }]}>Date</Text>
+                                <Text style={[styles.tableHeadText, { flex: 1 }]}>Type</Text>
+                                <Text style={[styles.tableHeadText, { width: 60, textAlign: 'center' }]}>Action</Text>
+                            </View>
 
-                        <ScrollView style={{ maxHeight: 300 }}>
-                            {sortedHistory.length > 0 ? (
-                                sortedHistory.map((item: any) => (
-                                    <View key={item.id} style={styles.tableRow}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.tableCellDate}>{item.date}</Text>
+                            <ScrollView style={{ maxHeight: 300 }}>
+                                {sortedHistory.length > 0 ? (
+                                    sortedHistory.map((item: any) => (
+                                        <View key={item.id} style={styles.tableRow}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.tableCellDate}>{item.date}</Text>
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.tableCellText}>{item.type}</Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.applyBtn}
+                                                onPress={() => applyHistory(item.data)}
+                                            >
+                                                <Text style={styles.applyBtnText}>Apply</Text>
+                                            </TouchableOpacity>
                                         </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.tableCellText}>{item.type}</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.applyBtn}
-                                            onPress={() => applyHistory(item.data)}
-                                        >
-                                            <Text style={styles.applyBtnText}>Apply</Text>
-                                        </TouchableOpacity>
+                                    ))
+                                ) : (
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Text style={{ color: Colors.textSecondary }}>No history available.</Text>
                                     </View>
-                                ))
-                            ) : (
-                                <View style={{ padding: 20, alignItems: 'center' }}>
-                                    <Text style={{ color: Colors.textSecondary }}>No history available.</Text>
-                                </View>
-                            )}
-                        </ScrollView>
+                                )}
+                            </ScrollView>
+                        </View>
                     </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
-        </ScrollView>
+        </KeyboardAvoidingView>
     );
-};
-
-// --- New Components ---
+};// --- New Components ---
 
 const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compact?: boolean, onShowAlert?: (title: string, message: string) => void }) => {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
 
+    // Initial load and status subscription
+
+    // Cleanup when sound changes
+    useEffect(() => {
+        return () => {
+            sound?.unloadAsync();
+        };
+    }, [sound]);
+
     const playSound = async () => {
         try {
             if (sound) {
                 if (isPlaying) {
-                    await sound.stopAsync();
+                    await sound.pauseAsync();
+                    // State update handled by listener, but optimistic update helps UI responsiveness
                     setIsPlaying(false);
                 } else {
                     await sound.playAsync();
@@ -953,29 +1089,29 @@ const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compa
                     { uri },
                     { shouldPlay: true }
                 );
-                setSound(newSound);
-                setIsPlaying(true);
 
+                // Attach listener BEFORE setting state to ensure we catch updates
                 newSound.setOnPlaybackStatusUpdate((status) => {
                     if (status.isLoaded) {
+                        // Sync state with reality
+                        setIsPlaying(status.isPlaying);
+
                         if (status.didJustFinish) {
                             setIsPlaying(false);
                             newSound.setPositionAsync(0);
+                            // sound.stopAsync() is not needed if position is 0 and not playing
                         }
                     }
                 });
+
+                setSound(newSound);
+                setIsPlaying(true);
             }
         } catch (error) {
             console.log("Error playing sound", error);
             if (onShowAlert) onShowAlert("Error", "Could not play audio.");
         }
     };
-
-    useEffect(() => {
-        return () => {
-            sound?.unloadAsync();
-        };
-    }, [sound]);
 
     return (
         <TouchableOpacity
@@ -1249,16 +1385,26 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     const handleWidthChange = (min: number, max: number) => {
         setPenWidth({ min, max });
-        // NOTE: Older 'changeMinWidth' methods caused crashes.
-        // We use JS Injection to update the signature pad directly without triggering a re-render
-        // that would wipe the existing strokes.
-        const js = `
-            if (window.signaturePad) {
-                window.signaturePad.minWidth = ${min};
-                window.signaturePad.maxWidth = ${max};
+        // Use component API if available to avoid reload
+        if (signatureRef.current) {
+            // @ts-ignore - method exists on wrapper but might not be in types
+            if (typeof signatureRef.current.changePenSize === 'function') {
+                // @ts-ignore
+                signatureRef.current.changePenSize(min, max);
+            } else {
+                // Fallback to JS injection if wrapper method not found
+                // This method might clear canvas depending on implementation, 
+                // but it is the backup. 
+                // The 'changePenSize' is standard in recent versions.
+                const js = `
+                    if (window.signaturePad) {
+                        window.signaturePad.minWidth = ${min};
+                        window.signaturePad.maxWidth = ${max};
+                    }
+                `;
+                signatureRef.current.webview?.injectJavaScript(js);
             }
-        `;
-        signatureRef.current?.webview?.injectJavaScript(js);
+        }
     };
 
     return (
@@ -1385,8 +1531,6 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                             imageType="image/png"
                             trimWhitespace={false}
                             dataURL={initialSketchData || undefined}
-                            minWidth={penWidth.min}
-                            maxWidth={penWidth.max}
                         />
 
                         {/* EXPLICIT TOOLBAR (2 Rows) */}
@@ -1415,13 +1559,13 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
                                 {/* Sizes */}
                                 <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#F9FAFB', padding: 6, borderRadius: 10, borderWidth: 1, borderColor: '#F3F4F6' }}>
-                                    <TouchableOpacity onPress={() => handleWidthChange(2, 4)} style={{ padding: 8, backgroundColor: penWidth.min === 2 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 2 ? Shadow.subtle : {} }}>
-                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: 'black', opacity: penWidth.min === 2 ? 1 : 0.3 }} />
+                                    <TouchableOpacity onPress={() => handleWidthChange(0.5, 2.5)} style={{ padding: 8, backgroundColor: penWidth.min === 0.5 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 0.5 ? Shadow.subtle : {} }}>
+                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: 'black', opacity: penWidth.min === 0.5 ? 1 : 0.3 }} />
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => handleWidthChange(5, 8)} style={{ padding: 8, backgroundColor: penWidth.min === 5 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 5 ? Shadow.subtle : {} }}>
-                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'black', opacity: penWidth.min === 5 ? 1 : 0.3 }} />
+                                    <TouchableOpacity onPress={() => handleWidthChange(4, 6)} style={{ padding: 8, backgroundColor: penWidth.min === 4 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 4 ? Shadow.subtle : {} }}>
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'black', opacity: penWidth.min === 4 ? 1 : 0.3 }} />
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => handleWidthChange(10, 15)} style={{ padding: 8, backgroundColor: penWidth.min === 10 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 10 ? Shadow.subtle : {} }}>
+                                    <TouchableOpacity onPress={() => handleWidthChange(10, 14)} style={{ padding: 8, backgroundColor: penWidth.min === 10 ? '#fff' : 'transparent', borderRadius: 8, ...penWidth.min === 10 ? Shadow.subtle : {} }}>
                                         <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: 'black', opacity: penWidth.min === 10 ? 1 : 0.3 }} />
                                     </TouchableOpacity>
                                 </View>
@@ -1488,7 +1632,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                     <Text style={styles.subLabel}>Customer Notes</Text>
                 </View>
                 <TextInput
-                    style={[styles.input, { height: 80, textAlignVertical: 'top', paddingTop: 12 }]}
+                    style={[styles.input, { height: 120, textAlignVertical: 'top', paddingTop: 12 }]}
                     multiline
                     placeholder="Add specific instructions, preferences, or details..."
                     value={state.currentOutfit.notes}
@@ -2025,7 +2169,67 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
     const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
 
-    const onConfirmDelete = () => {
+    const handlePrintOrder = async () => {
+        if (!createdOrder) return;
+
+        try {
+            const html = `
+                <html>
+                  <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+                  </head>
+                  <body style="font-family: Helvetica, Arial, sans-serif; padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                      <h1 style="margin: 0; color: #000;">Sewvee Mini</h1>
+                      <p style="margin: 5px 0; color: #666;">Estimate / Order Copy</p>
+                    </div>
+                    
+                    <div style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
+                        <h2 style="margin: 0;">Order #${createdOrder.billNo || createdOrder.id}</h2>
+                        <p style="margin: 5px 0;">Date: ${new Date().toLocaleDateString()}</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <strong>Customer:</strong> ${createdOrder.customerName}<br/>
+                        <strong>Items:</strong> ${createdOrder.items?.length || 0}
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Description</th>
+                            <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Amount</th>
+                        </tr>
+                        ${createdOrder.items?.map((item: any) => `
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name}</td>
+                            <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">₹${item.price}</td>
+                        </tr>
+                        `).join('')}
+                    </table>
+                    
+                    <div style="text-align: right;">
+                        <p style="margin: 5px 0;"><strong>Total: ₹${createdOrder.total?.toLocaleString('en-IN')}</strong></p>
+                        <p style="margin: 5px 0; color: #666;">Advance: ₹${createdOrder.advance?.toLocaleString('en-IN')}</p>
+                        <p style="margin: 5px 0; color: #dc2626;"><strong>Balance: ₹${createdOrder.balance?.toLocaleString('en-IN')}</strong></p>
+                    </div>
+                    
+                    <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #999;">
+                        Generated via Sewvee Mini App
+                    </div>
+                  </body>
+                </html>
+            `;
+
+            await Print.printAsync({
+                html,
+            });
+        } catch (error) {
+            console.log('Print error:', error);
+            showAlert('Error', 'Could not print order.');
+        }
+    };
+
+    const handleConfirmDelete = () => {
         if (itemToDeleteIndex !== null) {
             handleDeleteItem(itemToDeleteIndex);
             setDeleteSheetVisible(false);
@@ -2477,13 +2681,20 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
             {/* Content */}
             {/* Content Area */}
-            <View style={{ flex: 1 }}>
-                {currentStep === 0 && <Step1BasicInfo state={state} onChange={updateState} customers={customers} outfits={outfits} openCustomerModal={() => setCustomerModalVisible(true)} editItemIndex={editItemIndex} onShowAlert={showAlert} />}
-                {currentStep === 1 && <StepStitching state={state} onChange={updateState} outfits={outfits} />}
-                {currentStep === 2 && <StepMeasurements state={state} onChange={updateState} />}
-                {currentStep === 3 && <Step3Media state={state} onChange={updateState} onShowAlert={showAlert} />}
-                {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} />}
-            </View>
+            {/* Content Area */}
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+            >
+                <View style={{ flex: 1 }}>
+                    {currentStep === 0 && <Step1BasicInfo state={state} onChange={updateState} customers={customers} outfits={outfits} openCustomerModal={() => setCustomerModalVisible(true)} editItemIndex={editItemIndex} onShowAlert={showAlert} />}
+                    {currentStep === 1 && <StepStitching state={state} onChange={updateState} outfits={outfits} />}
+                    {currentStep === 2 && <StepMeasurements state={state} onChange={updateState} />}
+                    {currentStep === 3 && <Step3Media state={state} onChange={updateState} onShowAlert={showAlert} />}
+                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} />}
+                </View>
+            </KeyboardAvoidingView>
 
             {/* Footer Buttons */}
             {/* Footer Buttons */}
@@ -2552,7 +2763,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 <OrderSuccessModal
                     visible={successModalVisible}
                     order={createdOrder}
-                    onPrint={() => { }}
+                    onPrint={handlePrintOrder}
                     onWhatsapp={() => { }}
                     onClose={() => {
                         setSuccessModalVisible(false);
@@ -2567,7 +2778,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             <BottomConfirmationSheet
                 visible={deleteSheetVisible}
                 onClose={() => setDeleteSheetVisible(false)}
-                onConfirm={onConfirmDelete}
+                onConfirm={handleConfirmDelete}
                 title="Delete Item"
                 description="Are you sure you want to delete this item?"
                 confirmText="Delete"

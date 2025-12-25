@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth, COLLECTIONS } from '../config/firebase';
+import { COLLECTIONS, getAuthPassword } from '../config/firebase';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword } from '@react-native-firebase/auth';
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
 
 interface AuthContextType {
@@ -39,7 +40,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const OLD_PIN_SUFFIX = "_SV2025";
 
     useEffect(() => {
-        const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+        const auth = getAuth();
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             console.log('AuthContext: onAuthStateChanged', firebaseUser ? `User: ${firebaseUser.uid}` : 'No User');
 
             if (firebaseUser) {
@@ -85,13 +87,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const login = async (email: string, pass: string) => {
+        const auth = getAuth();
         try {
             // Try standard login first
-            await auth().signInWithEmailAndPassword(email, pass);
+            await signInWithEmailAndPassword(auth, email, pass);
         } catch (error: any) {
             // Fallback for legacy email/password accounts that had the suffix
             if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                await auth().signInWithEmailAndPassword(email, pass + OLD_PIN_SUFFIX);
+                await signInWithEmailAndPassword(auth, email, pass + OLD_PIN_SUFFIX);
             } else {
                 throw error;
             }
@@ -129,9 +132,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // 1. Authenticate with Firebase Auth using the Universal Master Password
         let authenticated = false;
+        const auth = getAuth();
         try {
             console.log('Login: Attempting master password auth');
-            await auth().signInWithEmailAndPassword(email, MASTER_AUTH_PASS);
+            await signInWithEmailAndPassword(auth, email, MASTER_AUTH_PASS);
             authenticated = true;
             console.log('Login: Master Auth SUCCESS');
         } catch (error: any) {
@@ -147,11 +151,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 for (const attemptPass of legacyAttempts) {
                     try {
                         console.log(`Login: Trying legacy password: ${attemptPass.includes(OLD_PIN_SUFFIX) ? 'Suffix' : 'Plain'}`);
-                        await auth().signInWithEmailAndPassword(email, attemptPass);
-                        const userObj = auth().currentUser;
+                        await signInWithEmailAndPassword(auth, email, attemptPass);
+                        const userObj = auth.currentUser;
                         if (userObj) {
                             console.log('Login: Legacy login success, migrating to Master Password...');
-                            await userObj.updatePassword(MASTER_AUTH_PASS);
+                            await updatePassword(userObj, MASTER_AUTH_PASS);
                             authenticated = true;
                             break;
                         }
@@ -183,7 +187,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const signup = async (email: string, pass: string, name: string, phone: string) => {
         // Use deterministic password for Auth, store plain PIN in Firestore
-        const { user: newUser } = await auth().createUserWithEmailAndPassword(email, getAuthPassword(email));
+        const auth = getAuth();
+        const { user: newUser } = await createUserWithEmailAndPassword(auth, email, getAuthPassword(email));
         if (newUser) {
             await setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
                 name,
@@ -283,7 +288,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const confirmOtp = async (verificationId: string, code: string) => {
         if (code === activeOtp || (USE_MOCK_OTP && code === '123456')) {
-            const currentUser = auth().currentUser;
+            const auth = getAuth();
+            const currentUser = auth.currentUser;
             if (currentUser) {
                 await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
                     isPhoneVerified: true
@@ -328,7 +334,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
     const changePin = async (oldPin: string, newPin: string) => {
-        const currentUser = auth().currentUser;
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
         if (!currentUser) throw new Error('User not authenticated');
 
         const userDoc = await getDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid));
@@ -346,19 +353,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const resetPassword = async (email: string) => {
-        await auth().sendPasswordResetEmail(email);
+        const auth = getAuth();
+        await sendPasswordResetEmail(auth, email);
     };
 
     const logout = async () => {
+        const auth = getAuth();
         try {
-            await auth().signOut();
+            await signOut(auth);
         } catch (error) {
             console.error('Logout Error:', error);
         }
     };
 
     const saveCompany = async (companyData: any) => {
-        const currentUser = auth().currentUser;
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
         if (!currentUser) throw new Error('User not authenticated');
 
         try {

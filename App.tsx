@@ -15,6 +15,7 @@ import Toast from './src/components/Toast';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Ignore all logs for a cleaner demo experience
+LogBox.ignoreLogs(['Expo AV has been deprecated']);
 // LogBox.ignoreAllLogs();
 
 SplashScreen.preventAutoHideAsync();

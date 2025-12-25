@@ -30,7 +30,10 @@ import {
     ListFilter,
     Search,
     MoreVertical,
-    MoreHorizontal
+    MoreHorizontal,
+    Clock,
+    CheckCircle2,
+    X,
 } from 'lucide-react-native';
 import { useData } from '../context/DataContext';
 import { useNavigation } from '@react-navigation/native';
@@ -44,39 +47,15 @@ const PaymentsScreen = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { payments, orders, addPayment, deletePayment, updatePayment } = useData();
+    const [filterStatus, setFilterStatus] = useState<'History' | 'Pending' | 'Paid'>('History');
+    const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+
+    // Modal State
     const [modalVisible, setModalVisible] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState('History'); // History, Pending, Paid
-    const scrollRef = useRef<ScrollView>(null);
-    const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-    const handleTabChange = (tab: string) => {
-        logEvent('payments_tab_switch', { tab });
-
-        let index = 0;
-        if (tab === 'Pending') index = 1;
-        if (tab === 'Paid') index = 2;
-
-        setActiveTab(tab);
-        scrollRef.current?.scrollTo({
-            x: index * SCREEN_WIDTH,
-            animated: true
-        });
-    };
-
-    const handleScroll = (event: any) => {
-        const offsetX = event.nativeEvent.contentOffset.x;
-        const index = Math.round(offsetX / SCREEN_WIDTH);
-        const tabs = ['History', 'Pending', 'Paid'];
-        const newTab = tabs[index];
-        if (newTab && newTab !== activeTab) {
-            setActiveTab(newTab);
-        }
-    };
 
     // Success Modal state
-    // Alert State
     const [alertVisible, setAlertVisible] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
 
@@ -100,8 +79,6 @@ const PaymentsScreen = () => {
         newDate.setMonth(newDate.getMonth() + increment);
         setCurrentDate(newDate);
     };
-
-    // Use centralized parseDate from dateUtils
 
     const displayPayments = useMemo(() => {
         return payments.filter(p => {
@@ -144,13 +121,13 @@ const PaymentsScreen = () => {
     }), [filteredOrders, payments]);
 
     const totals = useMemo(() => {
-        if (activeTab === 'History') {
+        if (filterStatus === 'History') {
             const total = displayPayments.reduce((sum, p) => sum + p.amount, 0);
             const cash = displayPayments.filter(p => p.mode === 'Cash').reduce((sum, p) => sum + p.amount, 0);
             const upi = displayPayments.filter(p => p.mode === 'UPI' || p.mode === 'GPay').reduce((sum, p) => sum + p.amount, 0);
             return { total, cash, upi, advance: total, balance: 0 };
         } else {
-            const targetOrders = activeTab === 'Pending' ? pendingOrders : paidOrders;
+            const targetOrders = filterStatus === 'Pending' ? pendingOrders : paidOrders;
             const total = targetOrders.reduce((sum, o) => sum + o.total, 0);
 
             const stats = targetOrders.reduce((acc, o) => {
@@ -163,7 +140,7 @@ const PaymentsScreen = () => {
 
             return { total, advance: stats.paid, balance: stats.balance };
         }
-    }, [activeTab, displayPayments, pendingOrders, paidOrders, payments]);
+    }, [filterStatus, displayPayments, pendingOrders, paidOrders, payments]);
 
     const handleSavePayment = async () => {
         if (!selectedOrderId || !amount) {
@@ -334,8 +311,24 @@ const PaymentsScreen = () => {
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity style={styles.filterBtn}>
-                        <ListFilter size={20} color={Colors.textPrimary} />
+                    <TouchableOpacity
+                        style={[styles.filterBtn, filterStatus !== 'History' && { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary }]}
+                        onPress={() => setFilterSheetVisible(true)}
+                    >
+                        <ListFilter size={20} color={filterStatus !== 'History' ? Colors.primary : Colors.textPrimary} />
+                        {filterStatus !== 'History' && (
+                            <View style={{
+                                position: 'absolute',
+                                top: -4,
+                                right: -4,
+                                width: 10,
+                                height: 10,
+                                borderRadius: 5,
+                                backgroundColor: Colors.primary,
+                                borderWidth: 2,
+                                borderColor: Colors.white
+                            }} />
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -368,78 +361,104 @@ const PaymentsScreen = () => {
                         <Text style={{ color: totals.balance > 0 ? Colors.danger : Colors.success }}>₹{totals.balance.toLocaleString()}</Text>
                     </Text>
                 </View>
+
+                {filterStatus !== 'History' && (
+                    <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', color: Colors.textSecondary, fontSize: 13 }}>Showing: </Text>
+                        <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.textPrimary, fontSize: 13 }}>{filterStatus} Orders</Text>
+                            <TouchableOpacity onPress={() => setFilterStatus('History')}>
+                                <X size={14} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
             </View>
 
-            {/* Tabs */}
-            <View style={styles.tabBar}>
-                {['History', 'Pending', 'Paid'].map(tab => (
-                    <TouchableOpacity
-                        key={tab}
-                        style={[styles.tab, activeTab === tab && styles.activeTab]}
-                        onPress={() => handleTabChange(tab)}
-                    >
-                        <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            {/* Content List */}
+            {filterStatus === 'History' ? (
+                <FlatList
+                    data={displayPayments}
+                    renderItem={renderPaymentItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <ReceiptIndianRupee size={48} color={Colors.border} />
+                            <Text style={styles.emptyText}>No payments recorded this month</Text>
+                        </View>
+                    }
+                />
+            ) : (
+                <FlatList
+                    data={filterStatus === 'Pending' ? pendingOrders : paidOrders}
+                    renderItem={renderOrderItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <ReceiptIndianRupee size={48} color={Colors.border} />
+                            <Text style={styles.emptyText}>No {filterStatus.toLowerCase()} bills found</Text>
+                        </View>
+                    }
+                />
+            )}
 
-            {/* Content List as Pager */}
-            <ScrollView
-                ref={scrollRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={handleScroll}
-                style={{ flex: 1 }}
+            {/* Filter Sheet */}
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={filterSheetVisible}
+                onRequestClose={() => setFilterSheetVisible(false)}
             >
-                {/* History Tab */}
-                <View style={{ width: SCREEN_WIDTH }}>
-                    <FlatList
-                        data={displayPayments}
-                        renderItem={renderPaymentItem}
-                        keyExtractor={item => item.id}
-                        contentContainerStyle={styles.listContent}
-                        ListEmptyComponent={
-                            <View style={styles.emptyContainer}>
-                                <ReceiptIndianRupee size={48} color={Colors.border} />
-                                <Text style={styles.emptyText}>No payments recorded this month</Text>
-                            </View>
-                        }
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity
+                        style={{ flex: 1 }}
+                        activeOpacity={1}
+                        onPress={() => setFilterSheetVisible(false)}
                     />
-                </View>
+                    <View style={styles.bottomSheet}>
+                        <View style={styles.bottomSheetHeader}>
+                            <Text style={styles.bottomSheetTitle}>Filter Status</Text>
+                            <TouchableOpacity onPress={() => setFilterSheetVisible(false)}>
+                                <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>Done</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                {/* Pending Tab */}
-                <View style={{ width: SCREEN_WIDTH }}>
-                    <FlatList
-                        data={pendingOrders}
-                        renderItem={renderOrderItem}
-                        keyExtractor={item => item.id}
-                        contentContainerStyle={styles.listContent}
-                        ListEmptyComponent={
-                            <View style={styles.emptyContainer}>
-                                <ReceiptIndianRupee size={48} color={Colors.border} />
-                                <Text style={styles.emptyText}>No pending bills found</Text>
-                            </View>
-                        }
-                    />
+                        {['History', 'Pending', 'Paid'].map((status) => (
+                            <TouchableOpacity
+                                key={status}
+                                style={[styles.optionItem, status === filterStatus && { backgroundColor: '#F9FAFB' }]}
+                                onPress={() => {
+                                    setFilterStatus(status as any);
+                                    setFilterSheetVisible(false);
+                                }}
+                            >
+                                <View style={[styles.optionIcon, {
+                                    backgroundColor: status === filterStatus ? Colors.primary + '20' : '#F3F4F6'
+                                }]}>
+                                    {status === 'History' && <ReceiptIndianRupee size={20} color={status === filterStatus ? Colors.primary : Colors.textSecondary} />}
+                                    {status === 'Pending' && <Clock size={20} color={status === filterStatus ? Colors.primary : Colors.textSecondary} />}
+                                    {status === 'Paid' && <CheckCircle2 size={20} color={status === filterStatus ? Colors.primary : Colors.textSecondary} />}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.optionLabel, status === filterStatus && { color: Colors.primary }]}>
+                                        {status === 'History' ? 'All Transactions' : status + ' Bills'}
+                                    </Text>
+                                    <Text style={styles.optionDesc}>
+                                        {status === 'History' && 'View all payments received'}
+                                        {status === 'Pending' && 'Orders with balance due'}
+                                        {status === 'Paid' && 'Fully paid orders'}
+                                    </Text>
+                                </View>
+                                {status === filterStatus && (
+                                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary }} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
-
-                {/* Paid Tab */}
-                <View style={{ width: SCREEN_WIDTH }}>
-                    <FlatList
-                        data={paidOrders}
-                        renderItem={renderOrderItem}
-                        keyExtractor={item => item.id}
-                        contentContainerStyle={styles.listContent}
-                        ListEmptyComponent={
-                            <View style={styles.emptyContainer}>
-                                <ReceiptIndianRupee size={48} color={Colors.border} />
-                                <Text style={styles.emptyText}>No paid bills found</Text>
-                            </View>
-                        }
-                    />
-                </View>
-            </ScrollView>
+            </Modal>
 
             {/* Payment Modal */}
             <Modal
@@ -546,9 +565,9 @@ const PaymentsScreen = () => {
                 </KeyboardAvoidingView>
             </Modal>
 
-            {/* Payment Options Custom Sheet */}
+            {/* Payment Options Custom Sheet (Animated) */}
             <Modal
-                animationType="fade"
+                animationType="slide"
                 transparent={true}
                 visible={paymentOptionsVisible}
                 onRequestClose={() => setPaymentOptionsVisible(false)}
@@ -1057,6 +1076,12 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Bold',
         fontSize: 16,
         color: Colors.white,
+    },
+    optionDesc: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginTop: 2,
     }
 });
 

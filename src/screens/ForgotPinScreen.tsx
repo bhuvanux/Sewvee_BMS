@@ -140,7 +140,6 @@ const ForgotPinScreen = ({ navigation }: any) => {
                 visible={alertConfig.visible}
                 title={alertConfig.title}
                 message={alertConfig.message}
-                type={alertConfig.type}
                 confirmText={alertConfig.confirmText}
                 onConfirm={alertConfig.onConfirm}
                 onClose={() => setAlertConfig(prev => ({ ...prev, visible: false, onConfirm: undefined, confirmText: undefined }))}

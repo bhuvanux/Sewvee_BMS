@@ -119,7 +119,6 @@ const ResetPinScreen = ({ route, navigation }: any) => {
                 visible={alertConfig.visible}
                 title={alertConfig.title}
                 message={alertConfig.message}
-                type={alertConfig.type}
                 onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
             />
         </KeyboardAvoidingView>

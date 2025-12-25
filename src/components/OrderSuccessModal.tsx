@@ -1,16 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Dimensions, Animated } from 'react-native';
-import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Check, X, Printer, Share2 } from 'lucide-react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
+import { Colors, Spacing, Shadow } from '../constants/theme';
+import { Check, X, Printer } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 interface OrderSuccessModalProps {
     visible: boolean;
     onClose: () => void;
     onPrint: () => void;
     onWhatsapp: () => void;
-    order: any; // Ideally Order type, but using any to avoid import issues for now, or importing Order
+    order: any;
 }
 
 const OrderSuccessModal = ({
@@ -21,18 +21,20 @@ const OrderSuccessModal = ({
     order
 }: OrderSuccessModalProps) => {
     // Animation Refs
-    const scaleAnim = React.useRef(new Animated.Value(0)).current;
+    const slideAnim = React.useRef(new Animated.Value(height)).current;
 
     React.useEffect(() => {
         if (visible) {
-            // Reset and Animate
-            scaleAnim.setValue(0);
-            Animated.spring(scaleAnim, {
-                toValue: 1,
-                friction: 5,   // low friction = boucy
-                tension: 40,   // spring tension
+            // Slide Up
+            Animated.spring(slideAnim, {
+                toValue: 0,
                 useNativeDriver: true,
+                friction: 8,
+                tension: 40
             }).start();
+        } else {
+            // Reset (though modal usually unmounts/hides, good practice)
+            slideAnim.setValue(height);
         }
     }, [visible]);
 
@@ -42,148 +44,129 @@ const OrderSuccessModal = ({
         <Modal
             visible={visible}
             transparent={true}
-            animationType="fade"
+            animationType="fade" // Fade the background, slide the content manually
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <View style={styles.container}>
-                    {/* Icon Header */}
-                    <View style={styles.header}>
-                        <Animated.View style={[styles.iconCircle, { transform: [{ scale: scaleAnim }] }]}>
-                            <Check size={40} color={Colors.white} strokeWidth={4} />
-                        </Animated.View>
-                        <Text style={styles.title}>Order created{'\n'}successfully!</Text>
+                {/* Background Tap to Close */}
+                <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
 
+                <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
+
+                    {/* Header Handle */}
+                    <View style={styles.handle} />
+
+                    <View style={styles.content}>
+                        {/* Success Icon */}
+                        <View style={styles.iconCircle}>
+                            <Check size={32} color={Colors.white} strokeWidth={4} />
+                        </View>
+
+                        <Text style={styles.title}>Order Created Successfully!</Text>
+                        <Text style={styles.subTitle}>Order #{order.billNo || order.id || '-'}</Text>
+
+                        <View style={styles.divider} />
+
+                        {/* Details Table */}
+                        <ScrollView style={styles.detailsContainer} showsVerticalScrollIndicator={false}>
+                            <DetailRow label="Customer" value={order.customerName} />
+                            <DetailRow label="Total Amount" value={`₹${order.total?.toLocaleString('en-IN')}`} isBold />
+                            <DetailRow label="Advance Paid" value={`₹${order.advance?.toLocaleString('en-IN')}`} />
+                            <DetailRow label="Balance Due" value={`₹${order.balance?.toLocaleString('en-IN')}`} color={Colors.danger} />
+
+                            {order.deliveryDate && (
+                                <DetailRow label="Delivery Date" value={order.deliveryDate} />
+                            )}
+                        </ScrollView>
+
+                        {/* Actions */}
+                        <View style={styles.footer}>
+                            <TouchableOpacity style={styles.printBtn} onPress={onPrint}>
+                                <Printer size={20} color={Colors.white} style={{ marginRight: 8 }} />
+                                <Text style={styles.printBtnText}>Print Customer Copy</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+                                <Text style={styles.closeBtnText}>Close</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
-
-                    {/* Details Table */}
-                    <ScrollView style={styles.detailsContainer}>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Order ID:</Text>
-                            <Text style={styles.value}>{order.billNo || order.id || '-'}</Text>
-                        </View>
-                        <View style={styles.divider} />
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Order Date & Time:</Text>
-                            <Text style={styles.value}>
-                                {order.date && typeof order.date === 'string'
-                                    ? order.date.split('T')[0]
-                                    : (order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '-')}
-                                {order.time ? ` - ${order.time}` : ''}
-                            </Text>
-                        </View>
-                        <View style={styles.divider} />
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Customer Name:</Text>
-                            <Text style={styles.value}>{order.customerName}</Text>
-                        </View>
-                        <View style={styles.divider} />
-
-                        {/* Use the first item's dates if available, or general dates */}
-                        {order.deliveryDate && (
-                            <>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Delivery Date:</Text>
-                                    <Text style={styles.value}>{order.deliveryDate}</Text>
-                                </View>
-                                <View style={styles.divider} />
-                            </>
-                        )}
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Amount :</Text>
-                            <Text style={[styles.value, { fontFamily: 'Inter-Bold', color: '#111827' }]}>
-                                ₹{order.total?.toLocaleString('en-IN')}
-                            </Text>
-                        </View>
-                        <View style={styles.divider} />
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Advance Paid:</Text>
-                            <Text style={[styles.value, { color: Colors.textSecondary }]}>
-                                ₹{order.advance?.toLocaleString('en-IN')}
-                            </Text>
-                        </View>
-                        <View style={styles.divider} />
-
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Pending Amount:</Text>
-                            <Text style={[styles.value, { color: Colors.textSecondary }]}>
-                                ₹{order.balance?.toLocaleString('en-IN')}
-                            </Text>
-                        </View>
-                        <View style={styles.divider} />
-                    </ScrollView>
-
-                    {/* Actions */}
-                    <View style={styles.footer}>
-                        <TouchableOpacity style={[styles.btn, styles.printBtn]} onPress={onPrint}>
-                            <Text style={styles.printBtnText}>Print Customer Copy</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={[styles.btn, styles.closeBtn]} onPress={onClose}>
-                            <Text style={styles.closeBtnText}>Close</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                </Animated.View>
             </View>
         </Modal>
     );
 };
 
+const DetailRow = ({ label, value, isBold, color }: { label: string, value: string, isBold?: boolean, color?: string }) => (
+    <View style={styles.row}>
+        <Text style={styles.label}>{label}</Text>
+        <Text style={[
+            styles.value,
+            isBold && { fontFamily: 'Inter-Bold', fontSize: 16 },
+            color ? { color } : {}
+        ]}>{value}</Text>
+    </View>
+);
+
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: Spacing.md
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
     },
     container: {
         backgroundColor: Colors.white,
-        borderRadius: 24,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         width: '100%',
-        maxWidth: 400,
-        maxHeight: '90%',
-        padding: 24,
+        maxHeight: '85%',
+        paddingBottom: 34, // Safe area padding
         ...Shadow.large,
+    },
+    handle: {
+        width: 48,
+        height: 5,
+        backgroundColor: '#E5E7EB',
+        borderRadius: 2.5,
+        alignSelf: 'center',
+        marginTop: 12,
+        marginBottom: 8
+    },
+    content: {
+        padding: 24,
         alignItems: 'center'
     },
-    header: {
-        alignItems: 'center',
-        marginBottom: 24,
-        width: '100%'
-    },
     iconCircle: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#00C805', // Bright Green
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#059669', // Emerald 600
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 16
+        marginBottom: 16,
+        ...Shadow.medium
     },
     title: {
         fontFamily: 'Inter-Bold',
-        fontSize: 24,
+        fontSize: 22,
         color: '#111827',
-        textAlign: 'center',
-        marginBottom: 12,
-        lineHeight: 32
-    },
-    subTitleContainer: {
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20
+        marginBottom: 4,
+        textAlign: 'center'
     },
     subTitle: {
         fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: '#6B7280',
-        textAlign: 'center'
+        fontSize: 14,
+        color: Colors.textSecondary,
+        marginBottom: 20
+    },
+    divider: {
+        width: '100%',
+        height: 1,
+        backgroundColor: '#F3F4F6',
+        marginBottom: 20
     },
     detailsContainer: {
         width: '100%',
@@ -193,66 +176,51 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 12
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F9FAFB'
     },
     label: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: '#111827',
-        flex: 1
+        fontFamily: 'Inter-Medium',
+        fontSize: 15,
+        color: Colors.textSecondary,
     },
     value: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: '#4B5563',
-        textAlign: 'right',
-        flex: 1
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#E5E7EB',
-        width: '100%'
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
+        color: Colors.textPrimary,
     },
     footer: {
-        flexDirection: 'row',
-        gap: 12,
         width: '100%',
-        marginTop: 8
-    },
-    btn: {
-        flex: 1,
-        height: 44,
-        borderRadius: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-    },
-    whatsappBtn: {
-        backgroundColor: '#F97316', // Orange as per design
-        borderColor: '#F97316'
-    },
-    whatsappBtnText: {
-        color: Colors.white,
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 13
+        gap: 12
     },
     printBtn: {
-        backgroundColor: Colors.white,
-        borderColor: '#E5E7EB'
+        backgroundColor: Colors.primary,
+        height: 50,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...Shadow.small
     },
     printBtnText: {
-        color: '#374151',
+        color: Colors.white,
         fontFamily: 'Inter-SemiBold',
-        fontSize: 13
+        fontSize: 16
     },
     closeBtn: {
         backgroundColor: Colors.white,
-        borderColor: '#E5E7EB'
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        height: 50,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     closeBtnText: {
-        color: '#374151',
+        color: Colors.textPrimary,
         fontFamily: 'Inter-SemiBold',
-        fontSize: 13
+        fontSize: 16
     }
 });
 

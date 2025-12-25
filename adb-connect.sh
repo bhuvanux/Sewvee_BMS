@@ -49,10 +49,19 @@ fi
 if adb devices | grep -q "$PHONE_IP:$ADB_PORT.*device"; then
     echo "✅ Already connected to $PHONE_IP:$ADB_PORT"
 else
-    echo "🔄 Establishing connection..."
-    adb tcpip $ADB_PORT
-    sleep 2
+    echo "🔄 Establishing connection (trying direct connect)..."
+    # Try connecting first (if device is already in TCPIP mode)
     adb connect $PHONE_IP:$ADB_PORT
+    
+    # Check if successful
+    if adb devices | grep -q "$PHONE_IP:$ADB_PORT.*device"; then
+        echo "✅ Connected successfully!"
+    else
+        echo "⚠️  Direct connect failed. Attempting to switch to TCP/IP mode (requires USB)..."
+        adb tcpip $ADB_PORT
+        sleep 2
+        adb connect $PHONE_IP:$ADB_PORT
+    fi
 fi
 
 # Wait for device to be online

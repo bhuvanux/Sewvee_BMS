@@ -284,7 +284,10 @@ const DashboardScreen = ({ navigation }: any) => {
                                 </View>
                                 <View>
                                     <Text style={styles.recentName}>{order.customerName}</Text>
-                                    <Text style={styles.recentDate}>{formatDate(order.date)} • <Text style={{ fontFamily: 'Inter-Bold', color: Colors.primary }}>#{order.billNo}</Text></Text>
+                                    <Text style={styles.recentDate}>
+                                        {formatDate(order.date || order.createdAt || new Date().toISOString())} •
+                                        <Text style={{ fontFamily: 'Inter-Bold', color: Colors.primary }}> #{order.billNo}</Text>
+                                    </Text>
                                 </View>
                             </View>
                             <View style={styles.recentRight}>

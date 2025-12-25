@@ -13,7 +13,9 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { CheckCircle2, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { auth, firestore, COLLECTIONS } from '../config/firebase';
+import { getAuth } from '@react-native-firebase/auth';
+import { getFirestore, doc, updateDoc } from '@react-native-firebase/firestore';
+import { COLLECTIONS } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
 
 const VerifyOtpScreen = ({ route, navigation }: any) => {
@@ -220,7 +222,6 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
                 visible={modalConfig.visible}
                 title={modalConfig.title}
                 message={modalConfig.message}
-                type={modalConfig.type}
                 onClose={modalConfig.onClose}
             />
         </KeyboardAvoidingView >

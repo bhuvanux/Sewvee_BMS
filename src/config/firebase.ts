@@ -1,6 +1,6 @@
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
-import analytics from '@react-native-firebase/analytics';
+import { getAuth } from '@react-native-firebase/auth';
+import { getFirestore } from '@react-native-firebase/firestore';
+import { getAnalytics, logEvent as firebaseLogEvent } from '@react-native-firebase/analytics';
 import { Platform } from 'react-native';
 
 // Firebase is auto-initialized from google-services.json on Android
@@ -9,6 +9,10 @@ import { Platform } from 'react-native';
 
 // Environment Toggle - Update this for Production Builds
 export const IS_STAGING = false;
+
+// Constant Master Password for Firebase Auth
+export const MASTER_AUTH_PASS = "Sewvee_Auth_Secure_2025";
+export const getAuthPassword = (email: string) => MASTER_AUTH_PASS;
 
 // Centralized Collection Names with Staging Logic
 export const COLLECTIONS = {
@@ -20,13 +24,15 @@ export const COLLECTIONS = {
     OUTFITS: IS_STAGING ? 'staging_outfits' : 'outfits'
 };
 
-// Export the modules directly (they auto-initialize when first used)
-export { auth, firestore, analytics };
+// Export the modular getters
+export const auth = () => getAuth();
+export const firestore = () => getFirestore();
+export const analytics = () => getAnalytics();
 
 export const logEvent = async (eventName: string, params?: object) => {
     try {
         console.log(`[Analytics] Event: ${eventName}`, params);
-        await analytics().logEvent(eventName, params);
+        await firebaseLogEvent(getAnalytics(), eventName, params);
     } catch (error) {
         console.error(`[Analytics] Error logging ${eventName}:`, error);
     }
@@ -35,13 +41,18 @@ export const logEvent = async (eventName: string, params?: object) => {
 export const logScreenView = async (screenName: string) => {
     try {
         console.log(`[Analytics] Screen: ${screenName}`);
-        await analytics().logScreenView({
-            screen_name: screenName,
-            screen_class: screenName,
+        // logScreenView is deprecated in v14+, using logEvent('screen_view', ...) instead
+        await firebaseLogEvent(getAnalytics(), 'screen_view', {
+            firebase_screen: screenName,
+            firebase_screen_class: screenName,
         });
     } catch (error) {
         console.error(`[Analytics] Error logging screen ${screenName}:`, error);
     }
 };
 
-export default { auth, firestore, analytics };
+export default {
+    get auth() { return getAuth(); },
+    get firestore() { return getFirestore(); },
+    get analytics() { return getAnalytics(); }
+};

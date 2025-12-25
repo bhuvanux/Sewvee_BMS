@@ -20,12 +20,13 @@ const OrdersListScreen = ({ navigation }: any) => {
     const { orders } = useData();
     const insets = useSafeAreaInsets();
     const [search, setSearch] = useState('');
-    const [filterStatus, setFilterStatus] = useState<'All' | 'Paid' | 'Due' | 'Partial'>('All');
+    const [filterOrderStatus, setFilterOrderStatus] = useState<'All' | 'Pending' | 'In Progress' | 'Completed' | 'Cancelled'>('All');
+    const [filterPaymentStatus, setFilterPaymentStatus] = useState<'All' | 'Paid' | 'Unpaid'>('All');
     const [sortBy, setSortBy] = useState<'DateDesc' | 'DateAsc' | 'AmountDesc' | 'AmountAsc'>('DateDesc');
     const [isFilterVisible, setIsFilterVisible] = useState(false);
 
     const [currentDate, setCurrentDate] = useState(new Date());
-    const monthName = currentDate.toLocaleString('default', { month: 'short', year: '2-digit' }); // Compact date
+    const monthName = currentDate.toLocaleString('default', { month: 'short', year: '2-digit' });
 
     const changeMonth = (increment: number) => {
         const newDate = new Date(currentDate);
@@ -33,21 +34,30 @@ const OrdersListScreen = ({ navigation }: any) => {
         setCurrentDate(newDate);
     };
 
+    const isFilterActive = filterOrderStatus !== 'All' || filterPaymentStatus !== 'All' || sortBy !== 'DateDesc';
+
     const filteredOrders = orders.filter(o => {
-        // First filter by month
+        // 1. Filter by Month
         const oDate = parseDate(o.date);
-
         const isSameMonth = oDate.getMonth() === currentDate.getMonth() && oDate.getFullYear() === currentDate.getFullYear();
-
         if (!isSameMonth) return false;
 
-        // Filter by status
-        if (filterStatus !== 'All' && o.status !== filterStatus) return false;
+        // 2. Filter by Order Status
+        if (filterOrderStatus !== 'All' && o.status !== filterOrderStatus) return false;
 
-        // Then filter by search query
-        return (o.billNo?.includes(search) ?? false) ||
-            (o.customerName?.toLowerCase().includes(search.toLowerCase()) ?? false);
+        // 3. Filter by Payment Status
+        if (filterPaymentStatus !== 'All') {
+            const isPaid = o.balance <= 0;
+            if (filterPaymentStatus === 'Paid' && !isPaid) return false;
+            if (filterPaymentStatus === 'Unpaid' && isPaid) return false;
+        }
+
+        // 4. Filter by Search Query
+        const query = search.toLowerCase();
+        return (o.billNo?.toLowerCase().includes(query) ?? false) ||
+            (o.customerName?.toLowerCase().includes(query) ?? false);
     }).sort((a, b) => {
+        // Sort Logic
         const dateA = a.date ? parseDate(a.date).getTime() : 0;
         const dateB = b.date ? parseDate(b.date).getTime() : 0;
 
@@ -88,8 +98,10 @@ const OrdersListScreen = ({ navigation }: any) => {
                 <View style={styles.amountArea}>
                     <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
                         <Text style={styles.amount}>₹{item.total}</Text>
-                        {item.balance > 0 && (
+                        {item.balance > 0 ? (
                             <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
+                        ) : (
+                            <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
                         )}
                     </View>
                     <ChevronRight size={18} color={Colors.textSecondary} />
@@ -105,10 +117,7 @@ const OrdersListScreen = ({ navigation }: any) => {
             case 'Overdue': return Colors.danger;
             case 'Cancelled': return '#6B7280'; // Gray
             case 'Completed': return Colors.success;
-            case 'Paid': return Colors.success;
-            case 'Partial': return '#F59E0B'; // Amber
             case 'Pending': return '#F59E0B'; // Amber
-            case 'Due': return Colors.danger;
             default: return '#6B7280';
         }
     };
@@ -135,6 +144,19 @@ const OrdersListScreen = ({ navigation }: any) => {
                         onPress={() => setIsFilterVisible(true)}
                     >
                         <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
+                        {isFilterActive && (
+                            <View style={{
+                                position: 'absolute',
+                                top: -4,
+                                right: -4,
+                                width: 10,
+                                height: 10,
+                                borderRadius: 5,
+                                backgroundColor: Colors.primary,
+                                borderWidth: 2,
+                                borderColor: Colors.white
+                            }} />
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -197,24 +219,45 @@ const OrdersListScreen = ({ navigation }: any) => {
                         </View>
 
                         <View style={styles.modalBody}>
+                            {/* 1. Order Status */}
                             <View style={styles.filterGroup}>
                                 <Text style={styles.groupLabel}>Order Status</Text>
                                 <View style={styles.chipGrid}>
-                                    {['All', 'Paid', 'Partial', 'Due'].map(status => (
+                                    {['All', 'Pending', 'In Progress', 'Completed', 'Cancelled'].map(status => (
                                         <TouchableOpacity
                                             key={status}
-                                            style={[styles.filterChip, filterStatus === status && styles.filterChipActive]}
-                                            onPress={() => setFilterStatus(status as any)}
+                                            style={[styles.filterChip, filterOrderStatus === status && styles.filterChipActive]}
+                                            onPress={() => setFilterOrderStatus(status as any)}
                                         >
-                                            <Text style={[styles.filterChipText, filterStatus === status && styles.filterChipTextActive]}>
+                                            <Text style={[styles.filterChipText, filterOrderStatus === status && styles.filterChipTextActive]}>
                                                 {status}
                                             </Text>
-                                            {filterStatus === status && <Check size={14} color={Colors.white} style={{ marginLeft: 4 }} />}
+                                            {filterOrderStatus === status && <Check size={14} color={Colors.white} style={{ marginLeft: 4 }} />}
                                         </TouchableOpacity>
                                     ))}
                                 </View>
                             </View>
 
+                            {/* 2. Payment Status */}
+                            <View style={styles.filterGroup}>
+                                <Text style={styles.groupLabel}>Payment Status</Text>
+                                <View style={styles.chipGrid}>
+                                    {['All', 'Paid', 'Unpaid'].map(status => (
+                                        <TouchableOpacity
+                                            key={status}
+                                            style={[styles.filterChip, filterPaymentStatus === status && styles.filterChipActive]}
+                                            onPress={() => setFilterPaymentStatus(status as any)}
+                                        >
+                                            <Text style={[styles.filterChipText, filterPaymentStatus === status && styles.filterChipTextActive]}>
+                                                {status}
+                                            </Text>
+                                            {filterPaymentStatus === status && <Check size={14} color={Colors.white} style={{ marginLeft: 4 }} />}
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {/* 3. Sort By */}
                             <View style={styles.filterGroup}>
                                 <Text style={styles.groupLabel}>Sort By</Text>
                                 <View style={styles.chipGrid}>
