@@ -10,10 +10,16 @@ import {
     TouchableWithoutFeedback,
     Platform,
     Keyboard,
-    LayoutAnimation
+    LayoutAnimation,
+    UIManager
 } from 'react-native';
 import { Colors, Shadow } from '../constants/theme';
 import { X } from 'lucide-react-native';
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -112,7 +118,7 @@ const ReusableBottomDrawer = ({
             onRequestClose={handleClose}
             statusBarTranslucent
         >
-            <View style={styles.overlayWrapper}>
+            <View style={[styles.overlayWrapper, { paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 }]}>
                 {/* Backdrop with Fade */}
                 <TouchableWithoutFeedback onPress={handleClose}>
                     <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]} />
@@ -147,10 +153,7 @@ const ReusableBottomDrawer = ({
                             {children}
                         </View>
 
-                        {/* Manual Keyboard Spacer for Android */}
-                        {Platform.OS === 'android' && (
-                            <View style={{ height: keyboardHeight }} />
-                        )}
+                        {/* Manual Spacer Removed - We use container padding now */}
                     </View>
                 </Animated.View>
             </View>
