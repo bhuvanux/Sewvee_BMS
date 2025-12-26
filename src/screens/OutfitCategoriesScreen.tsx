@@ -189,9 +189,13 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                     const manipResult = await ImageManipulator.manipulateAsync(
                         asset.uri,
                         [{ resize: { width: 1080 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
                     );
-                    setEditImage(manipResult.uri);
+                    if (manipResult.base64) {
+                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
+                    } else {
+                        setEditImage(manipResult.uri);
+                    }
                 } catch (e) {
                     setEditImage(asset.uri);
                 }
@@ -290,7 +294,6 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                                         {editImage ? (
                                             <View style={styles.inlinePickedImageContainer}>
                                                 <Image
-                                                    key={editImage || 'new'}
                                                     source={{ uri: editImage }}
                                                     style={styles.inlinePickedImage}
                                                     resizeMode="cover"
@@ -576,9 +579,9 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
+        backgroundColor: '#F1F5F9', // Slightly darker slate
+        borderWidth: 1.5,
+        borderColor: '#CBD5E1', // Darker border
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
@@ -597,8 +600,9 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     inlinePickedImage: {
-        width: '100%',
-        height: '100%',
+        width: 80,
+        height: 80,
+        borderRadius: 12, // Ensure it matches container
     },
     inlineImageOverlay: {
         position: 'absolute',
