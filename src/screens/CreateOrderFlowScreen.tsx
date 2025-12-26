@@ -2326,11 +2326,11 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const validateStep = (step: number) => {
         if (step === 0) {
             if (!state.selectedCustomer && !state.customerName) {
-                showAlert('Missing Customer', 'Please select a customer.');
+                showToast('Please select a customer', 'warning');
                 return false;
             }
             if (!state.currentOutfit.type) {
-                showAlert('Missing Outfit Type', 'Please select an outfit type.');
+                showToast('Please select an outfit type', 'warning');
                 return false;
             }
         }
@@ -2541,9 +2541,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             if (!state.selectedCustomer && !state.customerName) {
                 // showAlert('Missing Customer', 'Please select or add a customer before creating an order.');
                 if (!state.selectedCustomer) {
-                    // Modified: User requested a dark toast instead of modal/drawer
-                    showToast('This order does not have a customer attached. Please select or add a customer.', 'dark');
-                    // setMissingCustomerDrawerVisible(true);
+                    showToast('This order does not have a customer attached. Please select or add a customer.', 'warning');
                     return;
                 }
                 setLoading(false);
@@ -2569,13 +2567,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             const totalValue = finalItems.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
 
             if (finalItems.length === 0) {
-                showAlert('Empty Order', 'Please add at least one item to the order.');
+                showToast('Please add at least one item to the order.', 'warning');
                 setLoading(false);
                 return;
             }
 
             if (totalValue <= 0) {
-                showAlert('Invalid Amount', 'Total order value cannot be zero.');
+                showToast('Total order value cannot be zero.', 'warning');
                 setLoading(false);
                 return;
             }
@@ -2933,7 +2931,7 @@ const styles = StyleSheet.create({
     nextBtn: {
         flex: 1,
         flexDirection: 'row',
-        backgroundColor: Colors.primary,
+        backgroundColor: '#0F172A', // Darker theme to differentiate better
         height: 50,
         borderRadius: 12,
         alignItems: 'center',

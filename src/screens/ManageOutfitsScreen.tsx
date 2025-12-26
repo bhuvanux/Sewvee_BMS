@@ -16,7 +16,7 @@ import {
     Image
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -255,81 +255,81 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 </View>
             </View>
 
+            <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
+                <Text style={styles.helperText}>
+                    Manage and customize the types of outfits you offer.
+                </Text>
+
+                {isFormVisible && (
+                    <View style={styles.inlineFormContainer}>
+                        <View style={styles.inlineFormHeader}>
+                            <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
+                            <TouchableOpacity onPress={closeForm}>
+                                <X size={20} color={Colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.inlineFormBody}>
+                            {/* Image Picker */}
+                            <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                                {editImage ? (
+                                    <View style={styles.inlinePickedImageContainer}>
+                                        <Image
+                                            key={editImage}
+                                            source={{ uri: editImage }}
+                                            style={styles.inlinePickedImage}
+                                            resizeMode="cover"
+                                        />
+                                        <View style={styles.inlineImageOverlay}>
+                                            <Edit2 size={16} color="white" />
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <View style={styles.inlineImagePlaceholder}>
+                                        <Camera size={20} color={Colors.textSecondary} />
+                                        <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            <View style={styles.inlineInputWrapper}>
+                                <Text style={styles.inlineLabel}>Outfit Name</Text>
+                                <TextInput
+                                    style={styles.inlineInput}
+                                    value={editName}
+                                    onChangeText={setEditName}
+                                    placeholder="e.g. Kurta, Blouse"
+                                    placeholderTextColor={Colors.textSecondary}
+                                />
+                            </View>
+                        </View>
+
+                        <View style={styles.inlineFormFooter}>
+                            <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                                <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                                <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+            </View>
+
             <FlatList
                 data={outfits}
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContent}
-                ListHeaderComponent={
-                    <>
-                        <Text style={styles.helperText}>
-                            Manage and customize the types of outfits you offer.
-                        </Text>
-                        {isFormVisible && (
-                            <View style={styles.inlineFormContainer}>
-                                <View style={styles.inlineFormHeader}>
-                                    <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
-                                    <TouchableOpacity onPress={closeForm}>
-                                        <X size={20} color={Colors.textSecondary} />
-                                    </TouchableOpacity>
-                                </View>
-
-                                <View style={styles.inlineFormBody}>
-                                    {/* Image Picker */}
-                                    <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                                        {editImage ? (
-                                            <View style={styles.inlinePickedImageContainer}>
-                                                <Image
-                                                    key={editImage}
-                                                    source={{ uri: editImage }}
-                                                    style={styles.inlinePickedImage}
-                                                    resizeMode="cover"
-                                                />
-                                                <View style={styles.inlineImageOverlay}>
-                                                    <Edit2 size={16} color="white" />
-                                                </View>
-                                            </View>
-                                        ) : (
-                                            <View style={styles.inlineImagePlaceholder}>
-                                                <Camera size={20} color={Colors.textSecondary} />
-                                                <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
-
-                                    <View style={styles.inlineInputWrapper}>
-                                        <Text style={styles.inlineLabel}>Outfit Name</Text>
-                                        <TextInput
-                                            style={styles.inlineInput}
-                                            value={editName}
-                                            onChangeText={setEditName}
-                                            placeholder="e.g. Kurta, Blouse"
-                                            placeholderTextColor={Colors.textSecondary}
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={styles.inlineFormFooter}>
-                                    <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                                        <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                                        <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-                    </>
-                }
                 ListEmptyComponent={
                     !isFormVisible ? (
                         <View style={styles.emptyContainer}>
                             <View style={styles.emptyIconBox}>
-                                <Shirt size={32} color={Colors.primary} />
+                                <Layers size={32} color={Colors.primary} />
                             </View>
-                            <Text style={styles.emptyTitle}>No Outfits Added</Text>
+                            <Text style={styles.emptyTitle}>No Outfits Yet</Text>
                             <Text style={styles.emptySubtitle}>
-                                Add your first outfit type (e.g. Blouse, Kurta) to get started with orders.
+                                Add your first outfit type to get started.
                             </Text>
                         </View>
                     ) : null
