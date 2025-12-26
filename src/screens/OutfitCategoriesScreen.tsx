@@ -635,17 +635,18 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     photoReadyContainer: {
-        backgroundColor: '#F3F4F6', // Clear grey
-        borderWidth: 1,
-        borderColor: Colors.border,
+        backgroundColor: '#E2E8F0', // Darker grey for visibility
+        borderWidth: 2, // Thicker border
+        borderColor: '#94A3B8', // High contrast slate border
         justifyContent: 'center',
         alignItems: 'center',
     },
     photoReadyText: {
-        fontSize: 10,
-        fontFamily: 'Inter-SemiBold',
-        color: Colors.textSecondary,
+        fontSize: 11, // Slightly larger
+        fontFamily: 'Inter-Bold', // Bolder
+        color: '#475569', // Darker slate
         marginTop: 4,
+        textAlign: 'center',
     },
     inlineImageOverlay: {
         position: 'absolute',
