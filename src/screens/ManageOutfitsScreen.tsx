@@ -241,59 +241,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         </View>
     );
 
-    const InlineForm = () => (
-        <View style={styles.inlineFormContainer}>
-            <View style={styles.inlineFormHeader}>
-                <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
-                <TouchableOpacity onPress={closeForm}>
-                    <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-            </View>
 
-            <View style={styles.inlineFormBody}>
-                {/* Image Picker */}
-                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <Image
-                                source={{ uri: editImage }}
-                                style={styles.inlinePickedImage}
-                                resizeMode="cover"
-                            />
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
-
-                <View style={styles.inlineInputWrapper}>
-                    <Text style={styles.inlineLabel}>Outfit Name</Text>
-                    <TextInput
-                        style={styles.inlineInput}
-                        value={editName}
-                        onChangeText={setEditName}
-                        placeholder="e.g. Kurta, Blouse"
-                        placeholderTextColor={Colors.textSecondary}
-                    />
-                </View>
-            </View>
-
-            <View style={styles.inlineFormFooter}>
-                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                    <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
 
     return (
         <View style={styles.container}>
@@ -315,9 +263,61 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 ListHeaderComponent={
                     <>
                         <Text style={styles.helperText}>
-                            Manage the types of outfits you create orders for. Toggle visibility to hide them from the selection list.
+                            Manage and customize the types of outfits you offer.
                         </Text>
-                        {isFormVisible && <InlineForm />}
+                        {isFormVisible && (
+                            <View style={styles.inlineFormContainer}>
+                                <View style={styles.inlineFormHeader}>
+                                    <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
+                                    <TouchableOpacity onPress={closeForm}>
+                                        <X size={20} color={Colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.inlineFormBody}>
+                                    {/* Image Picker */}
+                                    <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                                        {editImage ? (
+                                            <View style={styles.inlinePickedImageContainer}>
+                                                <Image
+                                                    source={{ uri: editImage }}
+                                                    style={styles.inlinePickedImage}
+                                                    resizeMode="cover"
+                                                />
+                                                <View style={styles.inlineImageOverlay}>
+                                                    <Edit2 size={16} color="white" />
+                                                </View>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.inlineImagePlaceholder}>
+                                                <Camera size={20} color={Colors.textSecondary} />
+                                                <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <View style={styles.inlineInputWrapper}>
+                                        <Text style={styles.inlineLabel}>Outfit Name</Text>
+                                        <TextInput
+                                            style={styles.inlineInput}
+                                            value={editName}
+                                            onChangeText={setEditName}
+                                            placeholder="e.g. Kurta, Blouse"
+                                            placeholderTextColor={Colors.textSecondary}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.inlineFormFooter}>
+                                    <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                                        <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                                        <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
                     </>
                 }
                 ListEmptyComponent={

@@ -3,6 +3,7 @@
 # -----------------------------
 # CONFIG
 # -----------------------------
+# ⚠️  UPDATE THIS IP if your phone's IP changes (Settings > About Phone > Status > IP Address)
 PHONE_IP="192.168.1.44"
 ADB_PORT=5555
 JAVA_HOME_PATH="/opt/homebrew/opt/openjdk@17"

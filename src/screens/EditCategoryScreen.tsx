@@ -308,61 +308,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         </View>
     );
 
-    const InlineForm = () => (
-        <View style={styles.inlineFormContainer}>
-            <View style={styles.inlineFormHeader}>
-                <Text style={styles.inlineFormTitle}>
-                    {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub-Category' : 'Option'}
-                </Text>
-                <TouchableOpacity onPress={closeForm}>
-                    <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-            </View>
 
-            <View style={styles.inlineFormBody}>
-                {/* Image Picker */}
-                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <Image
-                                source={{ uri: editImage }}
-                                style={styles.inlinePickedImage}
-                                resizeMode="cover"
-                            />
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
-
-                <View style={styles.inlineInputWrapper}>
-                    <Text style={styles.inlineLabel}>Name</Text>
-                    <TextInput
-                        style={styles.inlineInput}
-                        value={inputName}
-                        onChangeText={setInputName}
-                        placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                        placeholderTextColor={Colors.textSecondary}
-                    />
-                </View>
-            </View>
-
-            <View style={styles.inlineFormFooter}>
-                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                    <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
 
     return (
         <View style={styles.container}>
@@ -389,7 +335,61 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         <Text style={styles.helperText}>
                             Add sub-categories and their specific options to build the design layout.
                         </Text>
-                        {isFormVisible && <InlineForm />}
+                        {isFormVisible && (
+                            <View style={styles.inlineFormContainer}>
+                                <View style={styles.inlineFormHeader}>
+                                    <Text style={styles.inlineFormTitle}>
+                                        {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub-Category' : 'Option'}
+                                    </Text>
+                                    <TouchableOpacity onPress={closeForm}>
+                                        <X size={20} color={Colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.inlineFormBody}>
+                                    {/* Image Picker */}
+                                    <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                                        {editImage ? (
+                                            <View style={styles.inlinePickedImageContainer}>
+                                                <Image
+                                                    source={{ uri: editImage }}
+                                                    style={styles.inlinePickedImage}
+                                                    resizeMode="cover"
+                                                />
+                                                <View style={styles.inlineImageOverlay}>
+                                                    <Edit2 size={16} color="white" />
+                                                </View>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.inlineImagePlaceholder}>
+                                                <Camera size={20} color={Colors.textSecondary} />
+                                                <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+
+                                    <View style={styles.inlineInputWrapper}>
+                                        <Text style={styles.inlineLabel}>Name</Text>
+                                        <TextInput
+                                            style={styles.inlineInput}
+                                            value={inputName}
+                                            onChangeText={setInputName}
+                                            placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
+                                            placeholderTextColor={Colors.textSecondary}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.inlineFormFooter}>
+                                    <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                                        <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                                        <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
                     </>
                 }
                 ListEmptyComponent={
