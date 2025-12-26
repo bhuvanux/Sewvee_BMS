@@ -189,13 +189,9 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                     const manipResult = await ImageManipulator.manipulateAsync(
                         asset.uri,
                         [{ resize: { width: 1080 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
                     );
-                    if (manipResult.base64) {
-                        setEditImage(`data:image/jpeg;base64,${manipResult.base64}`);
-                    } else {
-                        setEditImage(manipResult.uri);
-                    }
+                    setEditImage(manipResult.uri);
                 } catch (e) {
                     setEditImage(asset.uri);
                 }
@@ -294,6 +290,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                                         {editImage ? (
                                             <View style={styles.inlinePickedImageContainer}>
                                                 <Image
+                                                    key={editImage}
                                                     source={{ uri: editImage }}
                                                     style={styles.inlinePickedImage}
                                                     resizeMode="cover"
