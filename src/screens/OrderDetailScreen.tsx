@@ -151,7 +151,6 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 }
             });
         } catch (error) {
-            console.log('Audio Error:', error);
             setAlertConfig({ title: 'Error', message: 'Could not play audio note' });
             setAlertVisible(true);
         }

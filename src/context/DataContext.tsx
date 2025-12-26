@@ -147,7 +147,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const unsubCustomers = onSnapshot(
             query(collection(db, COLLECTIONS.CUSTOMERS), where('ownerId', '==', user.uid)),
             snapshot => {
-                console.log(`[DataContext] Customers snapshot update. Size: ${snapshot?.size}`);
                 if (snapshot) {
                     const data = snapshot.docs.map((docSnap: any) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
                     // Sort A-Z by name
@@ -370,7 +369,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const deleteOrder = async (id: string) => {
-        console.log('[DataContext] Attempting to delete order:', id);
         try {
             const db = getFirestore();
             const orderRef = doc(db, COLLECTIONS.ORDERS, id);
@@ -388,7 +386,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             // Cascade: Delete Payments & Calculate Total Paid
             const q = query(collection(db, COLLECTIONS.PAYMENTS), where('orderId', '==', id));
             const pSnap = await getDocs(q);
-            console.log(`[DataContext] Found ${pSnap.size} payments to delete`);
 
             let totalPaidForOrder = 0;
             pSnap.forEach((docSnap: any) => {
@@ -408,7 +405,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             await batch.commit();
-            console.log('[DataContext] Order delete batch committed successfully');
         } catch (error) {
             console.error('[DataContext] Delete order error:', error);
             throw new Error('Failed to delete order: ' + (error instanceof Error ? error.message : 'Unknown error'));

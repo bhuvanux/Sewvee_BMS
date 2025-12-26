@@ -31,7 +31,6 @@ export const analytics = () => getAnalytics();
 
 export const logEvent = async (eventName: string, params?: object) => {
     try {
-        console.log(`[Analytics] Event: ${eventName}`, params);
         await firebaseLogEvent(getAnalytics(), eventName, params);
     } catch (error) {
         console.error(`[Analytics] Error logging ${eventName}:`, error);
@@ -40,7 +39,6 @@ export const logEvent = async (eventName: string, params?: object) => {
 
 export const logScreenView = async (screenName: string) => {
     try {
-        console.log(`[Analytics] Screen: ${screenName}`);
         // logScreenView is deprecated in v14+, using logEvent('screen_view', ...) instead
         await firebaseLogEvent(getAnalytics(), 'screen_view', {
             firebase_screen: screenName,

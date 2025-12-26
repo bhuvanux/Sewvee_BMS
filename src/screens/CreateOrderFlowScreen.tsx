@@ -1140,7 +1140,6 @@ const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compa
                 setIsPlaying(true);
             }
         } catch (error) {
-            console.log("Error playing sound", error);
             if (onShowAlert) onShowAlert("Error", "Could not play audio.");
         }
     };
@@ -1298,7 +1297,6 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
             setEditorVisible(true);
             setViewerVisible(false); // Close viewer, open editor
         } catch (error) {
-            console.log("Error reading image for edit:", error);
             if (onShowAlert) onShowAlert("Error", "Could not load image for editing");
         }
     };
@@ -1330,7 +1328,6 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
             setEditorVisible(false);
             setSelectedImage(null);
         } catch (error) {
-            console.log("Error saving edited image:", error);
             if (onShowAlert) onShowAlert("Error", "Could not save edit");
         }
     };
@@ -2232,7 +2229,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             setPreviewHtml(html);
             setPreviewVisible(true);
         } catch (error) {
-            console.log('Preview error:', error);
             showAlert('Error', 'Could not generate preview.');
         }
     };
@@ -2513,7 +2509,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         });
 
         try {
-            console.log("Starting transcription for:", uri);
             let text = "";
 
             try {
@@ -2524,7 +2519,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 text = ""; // Continue even if transcription fails, don't crash the save
             }
 
-            console.log("Transcription result:", text);
 
             // Append to existing notes
             const currentNotes = state.currentOutfit.notes || '';

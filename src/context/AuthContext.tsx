@@ -42,7 +42,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            console.log('AuthContext: onAuthStateChanged', firebaseUser ? `User: ${firebaseUser.uid}` : 'No User');
 
             if (firebaseUser) {
                 try {
@@ -120,13 +119,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             throw new Error('Internal error: Email not associated with this phone');
         }
 
-        console.log(`Login: Attempting login for ${email} (Phone: ${phone})`);
-        console.log(`Login: Input PIN: ${pin}, Stored PIN in Firestore: ${storedPin || 'None'}`);
 
         // 1. First Verify if the PIN matches our Firestore record (if it exists)
         // This is the source of truth for the user's intended 4-digit code.
         if (storedPin && storedPin !== pin) {
-            console.log('Login: PIN mismatch in Firestore check');
             throw new Error('Incorrect PIN');
         }
 
@@ -134,12 +130,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         let authenticated = false;
         const auth = getAuth();
         try {
-            console.log('Login: Attempting master password auth');
             await signInWithEmailAndPassword(auth, email, MASTER_AUTH_PASS);
             authenticated = true;
-            console.log('Login: Master Auth SUCCESS');
         } catch (error: any) {
-            console.log(`Login: Master Auth failed (Code: ${error.code}). Attempting legacy migration...`);
 
             // Only try legacy if it's a password related error
             if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -150,17 +143,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
                 for (const attemptPass of legacyAttempts) {
                     try {
-                        console.log(`Login: Trying legacy password: ${attemptPass.includes(OLD_PIN_SUFFIX) ? 'Suffix' : 'Plain'}`);
                         await signInWithEmailAndPassword(auth, email, attemptPass);
                         const userObj = auth.currentUser;
                         if (userObj) {
-                            console.log('Login: Legacy login success, migrating to Master Password...');
                             await updatePassword(userObj, MASTER_AUTH_PASS);
                             authenticated = true;
                             break;
                         }
                     } catch (e) {
-                        console.log(`Login: Legacy attempt failed: ${attemptPass}`);
                     }
                 }
             } else {
@@ -175,7 +165,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // 2. Once Auth is successful, verify the 4-digit PIN against Firestore
         // This is now the ONLY dynamic check for 'Universal' PIN logic.
         if (storedPin !== pin) {
-            console.log('Login: PIN mismatch');
             throw new Error('Incorrect PIN');
         }
 
@@ -216,7 +205,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
         if (USE_MOCK_OTP) {
-            console.log('[MOCK OTP] code:', otpCode);
             setActiveOtp('123456'); // Keep 123456 for manual testing if mock is on
             return "MOCK_VERIFICATION_ID";
         }
@@ -232,7 +220,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             const url = `https://www.fast2sms.com/dev/whatsapp/v24.0/${PHONE_NUMBER_ID}/messages`;
 
-            console.log('Sending WhatsApp OTP (POST) to:', finalPhone);
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -268,7 +255,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             const result = await response.json();
-            console.log('Fast2SMS POST Response:', JSON.stringify(result));
 
             // Meta API returns messages array on success
             if (result.messages && result.messages.length > 0) {
@@ -302,7 +288,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const resetPinWithPhone = async (phone: string, newPin: string) => {
-        console.log(`ResetPIN: Attempting reset for phone ${phone}`);
         const db = getFirestore();
         const userSnapshot = await getDocs(query(
             collection(db, COLLECTIONS.USERS),
@@ -310,21 +295,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         ));
 
         if (userSnapshot.empty) {
-            console.log('ResetPIN: User not found in Firestore');
             throw new Error('User not found');
         }
 
         const userId = userSnapshot.docs[0].id;
         const email = userSnapshot.docs[0].data().email;
-        console.log(`ResetPIN: Found user ${userId} (${email})`);
 
         // 1. Update the PIN in Firestore (Primary source of truth for the 4-digit code)
         try {
-            console.log('ResetPIN: Updating Firestore PIN...');
             await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userId), {
                 pin: newPin
             });
-            console.log('ResetPIN: Firestore update SUCCESS');
         } catch (err: any) {
             console.error('ResetPIN: Firestore update FAILED', err);
             throw new Error('Could not update PIN. Please try again.');

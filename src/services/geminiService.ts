@@ -34,7 +34,6 @@ export const transcribeAudio = async (uri: string): Promise<string> => {
             default: mimeType = "audio/mp4";
         }
 
-        console.log(`Transcribing ${cleanUri} as ${mimeType}... (Size: ${Math.round(base64Audio.length / 1024)} KB)`);
 
         // 4. Initialize the model (using stable v1 for reliability)
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: "v1" });
