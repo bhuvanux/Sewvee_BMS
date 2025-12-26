@@ -19,6 +19,7 @@ import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Edit2, Trash2, ChevronRight, Image as ImageIcon, X, Camera, Plus, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as ExpoImage } from 'expo-image';
 
 // Removed: import { Image } from 'expo-image';
 import { useData } from '../context/DataContext';
@@ -266,63 +267,17 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             </View>
 
             <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
-                <Text style={styles.helperText}>
-                    Define global categories (e.g. Neck, Sleeve) that apply widely to many outfits.
-                </Text>
-
                 {isFormVisible && (
-                    <View style={styles.inlineFormContainer}>
-                        <View style={styles.inlineFormHeader}>
-                            <Text style={styles.inlineFormTitle}>{categoryId ? 'Edit Category' : 'Add New Category'}</Text>
-                            <TouchableOpacity onPress={closeForm}>
-                                <X size={20} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.inlineFormBody}>
-                            {/* Image Picker */}
-                            <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                                {editImage ? (
-                                    <View style={styles.inlinePickedImageContainer}>
-                                        <Image
-                                            key={editImage}
-                                            source={{ uri: editImage }}
-                                            style={styles.inlinePickedImage}
-                                            resizeMode="cover"
-                                        />
-                                        <View style={styles.inlineImageOverlay}>
-                                            <Edit2 size={16} color="white" />
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <View style={styles.inlineImagePlaceholder}>
-                                        <Camera size={20} color={Colors.textSecondary} />
-                                        <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <View style={styles.inlineInputWrapper}>
-                                <Text style={styles.inlineLabel}>Category Name</Text>
-                                <TextInput
-                                    style={styles.inlineInput}
-                                    value={categoryName}
-                                    onChangeText={setCategoryName}
-                                    placeholder="e.g. Neck, Sleeve, Back"
-                                    placeholderTextColor={Colors.textSecondary}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.inlineFormFooter}>
-                            <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                                <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                                <Text style={styles.inlineSaveBtnText}>Save Category</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    <CategoryForm
+                        visible={isFormVisible}
+                        categoryId={categoryId}
+                        categoryName={categoryName}
+                        editImage={editImage}
+                        setCategoryName={setCategoryName}
+                        pickImage={pickImage}
+                        handleSave={handleSave}
+                        closeForm={closeForm}
+                    />
                 )}
             </View>
 
@@ -376,6 +331,87 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
         </View>
     );
 };
+
+// --- STABLE FORM COMPONENTS ---
+
+interface CategoryFormProps {
+    visible: boolean;
+    categoryId: string | null;
+    categoryName: string;
+    editImage: string | null;
+    setCategoryName: (text: string) => void;
+    pickImage: () => void;
+    handleSave: () => void;
+    closeForm: () => void;
+}
+
+const CategoryForm = React.memo(({
+    visible,
+    categoryId,
+    categoryName,
+    editImage,
+    setCategoryName,
+    pickImage,
+    handleSave,
+    closeForm
+}: CategoryFormProps) => {
+    if (!visible) return null;
+
+    return (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>{categoryId ? 'Edit Category' : 'Add New Category'}</Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <ExpoImage
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                contentFit="cover"
+                                transition={0}
+                            />
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Category Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={categoryName}
+                        onChangeText={setCategoryName}
+                        placeholder="e.g. Neck, Sleeve, Back"
+                        placeholderTextColor={Colors.textSecondary}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>Save Category</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
 
 const styles = StyleSheet.create({
     container: {

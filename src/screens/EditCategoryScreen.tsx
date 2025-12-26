@@ -15,9 +15,10 @@ import {
     Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers, ChevronRight } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as ExpoImage } from 'expo-image';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory, OutfitSubCategory, OutfitOption } from '../types';
@@ -330,62 +331,17 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                     Add sub-categories and their specific options to build the design layout.
                 </Text>
 
-                {isFormVisible && (
-                    <View style={styles.inlineFormContainer}>
-                        <View style={styles.inlineFormHeader}>
-                            <Text style={styles.inlineFormTitle}>
-                                {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub-Category' : 'Option'}
-                            </Text>
-                            <TouchableOpacity onPress={closeForm}>
-                                <X size={20} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.inlineFormBody}>
-                            {/* Image Picker */}
-                            <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                                {editImage ? (
-                                    <View style={styles.inlinePickedImageContainer}>
-                                        <Image
-                                            key={editImage}
-                                            source={{ uri: editImage }}
-                                            style={styles.inlinePickedImage}
-                                            resizeMode="cover"
-                                        />
-                                        <View style={styles.inlineImageOverlay}>
-                                            <Edit2 size={16} color="white" />
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <View style={styles.inlineImagePlaceholder}>
-                                        <Camera size={20} color={Colors.textSecondary} />
-                                        <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <View style={styles.inlineInputWrapper}>
-                                <Text style={styles.inlineLabel}>Name</Text>
-                                <TextInput
-                                    style={styles.inlineInput}
-                                    value={inputName}
-                                    onChangeText={setInputName}
-                                    placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                                    placeholderTextColor={Colors.textSecondary}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.inlineFormFooter}>
-                            <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                                <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                                <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
+                <CategoryDetailForm
+                    visible={isFormVisible}
+                    editMode={editMode}
+                    modalType={modalType}
+                    inputName={inputName}
+                    editImage={editImage}
+                    setInputName={setInputName}
+                    pickImage={pickImage}
+                    handleSave={handleSave}
+                    closeForm={closeForm}
+                />
             </View>
 
             <FlatList
@@ -438,6 +394,91 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         </View>
     );
 };
+
+// --- STABLE FORM COMPONENTS ---
+
+interface CategoryDetailFormProps {
+    visible: boolean;
+    editMode: boolean;
+    modalType: 'subcategory' | 'option';
+    inputName: string;
+    editImage: string | null;
+    setInputName: (text: string) => void;
+    pickImage: () => void;
+    handleSave: () => void;
+    closeForm: () => void;
+}
+
+const CategoryDetailForm = React.memo(({
+    visible,
+    editMode,
+    modalType,
+    inputName,
+    editImage,
+    setInputName,
+    pickImage,
+    handleSave,
+    closeForm
+}: CategoryDetailFormProps) => {
+    if (!visible) return null;
+
+    return (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>
+                    {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub-Category' : 'Option'}
+                </Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <ExpoImage
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                contentFit="cover"
+                                transition={0}
+                            />
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={inputName}
+                        onChangeText={setInputName}
+                        placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
+                        placeholderTextColor={Colors.textSecondary}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
 
 const styles = StyleSheet.create({
     container: {

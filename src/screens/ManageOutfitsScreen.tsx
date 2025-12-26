@@ -19,6 +19,7 @@ import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as ExpoImage } from 'expo-image';
 
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,60 +261,16 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     Manage and customize the types of outfits you offer.
                 </Text>
 
-                {isFormVisible && (
-                    <View style={styles.inlineFormContainer}>
-                        <View style={styles.inlineFormHeader}>
-                            <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
-                            <TouchableOpacity onPress={closeForm}>
-                                <X size={20} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.inlineFormBody}>
-                            {/* Image Picker */}
-                            <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                                {editImage ? (
-                                    <View style={styles.inlinePickedImageContainer}>
-                                        <Image
-                                            key={editImage}
-                                            source={{ uri: editImage }}
-                                            style={styles.inlinePickedImage}
-                                            resizeMode="cover"
-                                        />
-                                        <View style={styles.inlineImageOverlay}>
-                                            <Edit2 size={16} color="white" />
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <View style={styles.inlineImagePlaceholder}>
-                                        <Camera size={20} color={Colors.textSecondary} />
-                                        <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <View style={styles.inlineInputWrapper}>
-                                <Text style={styles.inlineLabel}>Outfit Name</Text>
-                                <TextInput
-                                    style={styles.inlineInput}
-                                    value={editName}
-                                    onChangeText={setEditName}
-                                    placeholder="e.g. Kurta, Blouse"
-                                    placeholderTextColor={Colors.textSecondary}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.inlineFormFooter}>
-                            <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                                <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                                <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
+                <OutfitForm
+                    visible={isFormVisible}
+                    editId={editId}
+                    editName={editName}
+                    editImage={editImage}
+                    setEditName={setEditName}
+                    pickImage={pickImage}
+                    handleSave={handleSave}
+                    closeForm={closeForm}
+                />
             </View>
 
             <FlatList
@@ -393,6 +350,87 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         </View >
     );
 };
+
+// --- STABLE FORM COMPONENTS ---
+
+interface OutfitFormProps {
+    visible: boolean;
+    editId: string | null;
+    editName: string;
+    editImage: string | null;
+    setEditName: (text: string) => void;
+    pickImage: () => void;
+    handleSave: () => void;
+    closeForm: () => void;
+}
+
+const OutfitForm = React.memo(({
+    visible,
+    editId,
+    editName,
+    editImage,
+    setEditName,
+    pickImage,
+    handleSave,
+    closeForm
+}: OutfitFormProps) => {
+    if (!visible) return null;
+
+    return (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <ExpoImage
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                contentFit="cover"
+                                transition={0}
+                            />
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Outfit Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={editName}
+                        onChangeText={setEditName}
+                        placeholder="e.g. Kurta, Blouse"
+                        placeholderTextColor={Colors.textSecondary}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
 
 const styles = StyleSheet.create({
     container: {
