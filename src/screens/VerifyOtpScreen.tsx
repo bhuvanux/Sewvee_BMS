@@ -65,7 +65,6 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
             // but here we just want to ensure we trigger it if it wasn't triggered before.
             // Since this component mounts once, this is fine.
             sendOtp(targetPhone).catch(err => {
-                console.log('Auto-send OTP failed (possibly already sent or invalid):', err);
             });
         }
 

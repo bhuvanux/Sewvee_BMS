@@ -1549,7 +1549,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                             onOK={(sig) => {
                                 handleSketchOK(sig);
                             }}
-                            onEmpty={() => console.log('Empty')}
+                            onEmpty={() => { }}
                             descriptionText="Sketch here"
                             clearText=""
                             confirmText=""
@@ -1727,7 +1727,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                             <SignatureScreen
                                 ref={signatureRef}
                                 onOK={handleEditSave}
-                                onEmpty={() => console.log("Empty signature")}
+                                onEmpty={() => { }}
                                 descriptionText="Draw to highlight"
                                 clearText="Clear"
                                 confirmText="Save"
@@ -2137,7 +2137,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
                 if (onRecordingComplete) onRecordingComplete(uri, duration);
             }
         } catch (e) {
-            console.log(e);
+            // Silent error handling for navigation abort
         }
     }
 
@@ -2401,7 +2401,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             updateState({
                 selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
             });
-            console.log("Measurement history saved automatically.");
         } catch (e) {
             console.error("Failed to save measurement history", e);
         }

@@ -26,7 +26,6 @@ const CustomersScreen = ({ navigation }: any) => {
     // Wait, useAuth is better source for user
     const { user: authUser } = require('../context/AuthContext').useAuth();
 
-    console.log("CustomersScreen: Loaded customers count:", customers?.length);
     const insets = useSafeAreaInsets();
     const [search, setSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
