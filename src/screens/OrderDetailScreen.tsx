@@ -11,10 +11,7 @@ import { Audio } from 'expo-av';
 import { formatDate, getCurrentDate } from '../utils/dateUtils';
 import { Share, Platform } from 'react-native';
 import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
-import {
-    generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF,
-    normalizeItems, getCustomerCopyHTML, getTailorCopyHTML
-} from '../services/pdfService';
+import { getInvoiceHTML, getTailorCopyHTML, getCustomerCopyHTML, generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, printHTML, normalizeItems } from '../services/pdfService';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -369,17 +366,19 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     };
 
     const handleActualPrint = async () => {
-        setPreviewVisible(false);
+        try {
+            await printHTML(previewHtml);
+        } catch (error: any) {
+            showToast("Failed to print PDF", "error");
+        }
+    };
+
+    const handleActualShare = async () => {
         if (pdfType === 'customer') {
             await handleCustomerCopyActual();
         } else {
             await handleTailorCopyActual();
         }
-    };
-
-    const handleActualShare = async () => {
-        // For sharing, we can reuse the same print logic as it shares the file
-        await handleActualPrint();
     };
 
     const handleCustomerCopyActual = async () => {

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView, ActivityIndicator, Share } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
-import { ChevronLeft, Printer, Share2 } from 'lucide-react-native';
+import { ChevronLeft, Printer, Share2, X } from 'lucide-react-native';
 
 interface PDFPreviewModalProps {
     visible: boolean;
@@ -36,9 +36,10 @@ const PDFPreviewModal = ({
                         onPress={onClose}
                         activeOpacity={0.7}
                     >
-                        <ChevronLeft size={24} color={Colors.primary} />
-                        <Text style={styles.backText}>Go back to Sewvee App</Text>
+                        <ChevronLeft size={28} color={Colors.primary} />
                     </TouchableOpacity>
+
+                    <Text style={styles.headerTitle}>{title}</Text>
 
                     <View style={styles.headerActions}>
                         <TouchableOpacity style={styles.headerIcon} onPress={onPrint}>
@@ -67,9 +68,9 @@ const PDFPreviewModal = ({
 
                 {/* Footer Actions */}
                 <View style={styles.footer}>
-                    <TouchableOpacity style={[styles.footerBtn, styles.shareBtn]} onPress={onShare}>
-                        <Share2 size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                        <Text style={styles.shareBtnText}>Share PDF</Text>
+                    <TouchableOpacity style={[styles.footerBtn, styles.closeBtn]} onPress={onClose}>
+                        <X size={20} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+                        <Text style={styles.closeBtnText}>Close Preview</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={[styles.footerBtn, styles.printBtn]} onPress={onPrint}>
@@ -78,7 +79,7 @@ const PDFPreviewModal = ({
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
-        </Modal>
+        </Modal >
     );
 };
 
@@ -99,15 +100,13 @@ const styles = StyleSheet.create({
         ...Shadow.subtle,
     },
     backButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
+        padding: 8,
+        marginLeft: -8,
     },
-    backText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 15,
-        color: Colors.primary,
-        marginLeft: 4,
+    headerTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 17,
+        color: Colors.textPrimary,
     },
     headerActions: {
         flexDirection: 'row',
@@ -147,13 +146,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         ...Shadow.small,
     },
-    shareBtn: {
+    closeBtn: {
         backgroundColor: Colors.white,
         borderWidth: 1,
-        borderColor: Colors.primary,
+        borderColor: '#E5E7EB',
     },
-    shareBtnText: {
-        color: Colors.primary,
+    closeBtnText: {
+        color: Colors.textSecondary,
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
     },

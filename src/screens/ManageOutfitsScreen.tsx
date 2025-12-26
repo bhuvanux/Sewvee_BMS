@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -24,7 +24,93 @@ import { Image as ExpoImage } from 'expo-image';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit } from '../types';
+
+
+// --- STABLE FORM COMPONENTS ---
+
+interface OutfitFormProps {
+    visible: boolean;
+    editId: string | null;
+    editName: string;
+    editImage: string | null;
+    setEditName: (text: string) => void;
+    pickImage: () => void;
+    handleSave: () => void;
+    closeForm: () => void;
+}
+
+const OutfitForm = React.memo(({
+    visible,
+    editId,
+    editName,
+    editImage,
+    setEditName,
+    pickImage,
+    handleSave,
+    closeForm
+}: OutfitFormProps) => {
+    if (!visible) return null;
+    const editMode = editId !== null;
+
+    return (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>
+                    {editMode ? 'Edit' : 'Add'} Outfit
+                </Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
+                                <Check size={24} color={Colors.textSecondary} />
+                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
+                            </View>
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Outfit Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={editName}
+                        onChangeText={setEditName}
+                        placeholder="e.g. Silk Saree, Cotton Blouse"
+                        placeholderTextColor={Colors.textSecondary}
+                        autoFocus
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>{editMode ? 'Update Outfit' : 'Save Outfit'}</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
+
 import AlertModal from '../components/AlertModal';
+
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import BottomActionSheet from '../components/BottomActionSheet';
 
@@ -52,33 +138,32 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const [actionSheetVisible, setActionSheetVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<Outfit | null>(null);
 
-    const openAddForm = () => {
+    const openAddForm = useCallback(() => {
         setEditId(null);
         setEditName('');
         setEditImage(null);
         setIsFormVisible(true);
-    };
+    }, []);
 
-    const openEditForm = (outfit: Outfit) => {
+    const openEditForm = useCallback((outfit: Outfit) => {
         setEditId(outfit.id);
         setEditName(outfit.name);
         setEditImage(outfit.image || null);
         setIsFormVisible(true);
-        // Scroll to top to see form if editing
-    };
+    }, []);
 
-    const closeForm = () => {
+    const closeForm = useCallback(() => {
         setIsFormVisible(false);
         setEditId(null);
         setEditName('');
         setEditImage(null);
-    };
+    }, []);
 
-    const pickImage = async () => {
+    const pickImage = useCallback(async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: false, // Match New Order Flow exactly
+                allowsEditing: false,
                 quality: 1,
             });
 
@@ -98,9 +183,9 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         } catch (error) {
             console.error('Pick Image Error:', error);
         }
-    };
+    }, [setEditImage]);
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         Keyboard.dismiss();
         if (!editName.trim()) {
             setAlertConfig({ title: 'Missing Information', message: 'Please enter an outfit name.' });
@@ -111,7 +196,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
         // Optimistic Close
         setIsFormVisible(false);
 
-        // Process Image if URI is file-based (rare now since we do Base64 on pick, but keep for safety)
         let finalImage = editImage;
         if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
             try {
@@ -143,50 +227,48 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 });
             }
 
-            // Cleanup state after successful save
             setEditId(null);
             setEditName('');
             setEditImage(null);
 
         } catch (error: any) {
             console.error("Save Error:", error);
-            // Re-open if failed
             setIsFormVisible(true);
             setAlertConfig({ title: 'Error', message: error.message || 'Could not save outfit' });
             setAlertVisible(true);
         }
-    };
+    }, [editId, editName, editImage, updateOutfit, addOutfit]);
 
-    const handleDelete = (id: string, name: string) => {
+    const handleDelete = useCallback((id: string, name: string) => {
         setItemToDelete({ id, name });
         setDeleteSheetVisible(true);
-    };
+    }, []);
 
-    const confirmDelete = async () => {
+    const confirmDelete = useCallback(async () => {
         if (itemToDelete) {
             await deleteOutfit(itemToDelete.id);
             setDeleteSheetVisible(false);
             setItemToDelete(null);
         }
-    };
+    }, [itemToDelete, deleteOutfit]);
 
-    const handleConfigure = (outfit: Outfit) => {
+    const handleConfigure = useCallback((outfit: Outfit) => {
         navigation.navigate('OutfitCategories', {
             outfitId: outfit.id,
             outfitName: outfit.name
         });
-    };
+    }, [navigation]);
 
-    const toggleVisibility = async (id: string, currentStatus: boolean) => {
+    const toggleVisibility = useCallback(async (id: string, currentStatus: boolean) => {
         await updateOutfit(id, { isVisible: !currentStatus });
-    };
+    }, [updateOutfit]);
 
-    const openActionSheet = (item: Outfit) => {
+    const openActionSheet = useCallback((item: Outfit) => {
         setSelectedItem(item);
         setActionSheetVisible(true);
-    };
+    }, []);
 
-    const renderItem = ({ item }: { item: Outfit }) => (
+    const renderItem = useCallback(({ item }: { item: Outfit }) => (
         <View style={styles.itemRow}>
             {/* Left: Icon/Image */}
             <View style={styles.iconBox}>
@@ -240,7 +322,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
             </View>
         </View>
-    );
+    ), [handleConfigure, toggleVisibility, openActionSheet]);
 
 
 
@@ -351,84 +433,6 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     );
 };
 
-// --- STABLE FORM COMPONENTS ---
-
-interface OutfitFormProps {
-    visible: boolean;
-    editId: string | null;
-    editName: string;
-    editImage: string | null;
-    setEditName: (text: string) => void;
-    pickImage: () => void;
-    handleSave: () => void;
-    closeForm: () => void;
-}
-
-const OutfitForm = React.memo(({
-    visible,
-    editId,
-    editName,
-    editImage,
-    setEditName,
-    pickImage,
-    handleSave,
-    closeForm
-}: OutfitFormProps) => {
-    if (!visible) return null;
-
-    return (
-        <View style={styles.inlineFormContainer}>
-            <View style={styles.inlineFormHeader}>
-                <Text style={styles.inlineFormTitle}>{editId ? 'Edit Outfit' : 'Add New Outfit'}</Text>
-                <TouchableOpacity onPress={closeForm}>
-                    <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.inlineFormBody}>
-                {/* Image Picker */}
-                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.textSecondary} />
-                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
-                            </View>
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
-                        </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
-                        </View>
-                    )}
-                </TouchableOpacity>
-
-                <View style={styles.inlineInputWrapper}>
-                    <Text style={styles.inlineLabel}>Outfit Name</Text>
-                    <TextInput
-                        style={styles.inlineInput}
-                        value={editName}
-                        onChangeText={setEditName}
-                        placeholder="e.g. Kurta, Blouse"
-                        placeholderTextColor={Colors.textSecondary}
-                    />
-                </View>
-            </View>
-
-            <View style={styles.inlineFormFooter}>
-                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
-                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                    <Text style={styles.inlineSaveBtnText}>Save Outfit</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-});
 
 const styles = StyleSheet.create({
     container: {

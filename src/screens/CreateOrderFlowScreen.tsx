@@ -59,7 +59,7 @@ import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import SignatureScreen from 'react-native-signature-canvas';
-import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, getCustomerCopyHTML } from '../services/pdfService';
+import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, getCustomerCopyHTML, printHTML } from '../services/pdfService';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
 import { useNavigation } from '@react-navigation/native';
@@ -2238,8 +2238,15 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     };
 
     const handleActualPrint = async () => {
+        try {
+            await printHTML(previewHtml);
+        } catch (error) {
+            showAlert('Error', 'Failed to print PDF');
+        }
+    };
+
+    const handleActualShare = async () => {
         if (!createdOrder) return;
-        setPreviewVisible(false);
         try {
             const companyData = {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
@@ -2249,7 +2256,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             };
             await generateCustomerCopyPDF(createdOrder, companyData);
         } catch (error) {
-            showAlert('Error', 'Failed to print PDF');
+            showAlert('Error', 'Failed to share PDF');
         }
     };
 
@@ -2823,7 +2830,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 title="Customer Copy"
                 onClose={() => setPreviewVisible(false)}
                 onPrint={handleActualPrint}
-                onShare={handleActualPrint} // Sharing uses same logic
+                onShare={handleActualShare}
             />
         </View>
     );

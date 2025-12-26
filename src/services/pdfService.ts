@@ -488,6 +488,18 @@ export const generateCustomerCopyPDF = async (orderData: any, companyData: any) 
   return await finalizeAndSharePDF(htmlContent, `Customer_Copy_${safeBillNo}.pdf`, `Customer Copy #${orderData.billNo}`);
 };
 
+export const printHTML = async (html: string) => {
+  try {
+    await Print.printAsync({
+      html,
+      jobName: 'Back to Sewvee App'
+    });
+  } catch (error: any) {
+    console.error('[PDF] Print Error:', error);
+    throw error;
+  }
+};
+
 const finalizeAndSharePDF = async (html: string, filename: string, shareTitle: string) => {
   try {
     const { uri } = await Print.printToFileAsync({ html });
@@ -503,7 +515,7 @@ const finalizeAndSharePDF = async (html: string, filename: string, shareTitle: s
       await Sharing.shareAsync(finalUri, {
         UTI: '.pdf',
         mimeType: 'application/pdf',
-        dialogTitle: shareTitle
+        dialogTitle: 'Back to Sewvee App'
       });
     }
   } catch (error: any) {
