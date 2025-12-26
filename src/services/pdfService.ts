@@ -179,7 +179,6 @@ export const getInvoiceHTML = (orderData: any, companyData: any) => {
 };
 
 export const generateInvoicePDF = async (orderData: any, companyData: any) => {
-  console.log('[PDF] Request received to generate invoice for:', orderData.billNo);
   const htmlContent = getInvoiceHTML(orderData, companyData);
 
   const safeCustomerName = (orderData.customerName || 'Customer').replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -312,7 +311,6 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
 };
 
 export const generateTailorCopyPDF = async (orderData: any, companyData: any) => {
-  console.log('[PDF] Generating Tailor Copy for:', orderData.billNo);
 
   const rawItems = normalizeItems(orderData);
   const processedItems = await Promise.all(rawItems.map(async (item: any) => {
@@ -481,7 +479,6 @@ export const getCustomerCopyHTML = (orderData: any, companyData: any) => {
 };
 
 export const generateCustomerCopyPDF = async (orderData: any, companyData: any) => {
-  console.log('[PDF] Generating Customer Copy for:', orderData.billNo);
   const htmlContent = getCustomerCopyHTML(orderData, companyData);
   const safeBillNo = (orderData.billNo || 'Draft').replace(/[^a-z0-9]/gi, '_');
 
@@ -491,8 +488,7 @@ export const generateCustomerCopyPDF = async (orderData: any, companyData: any) 
 export const printHTML = async (html: string) => {
   try {
     await Print.printAsync({
-      html,
-      jobName: 'Back to Sewvee App'
+      html
     });
   } catch (error: any) {
     console.error('[PDF] Print Error:', error);
