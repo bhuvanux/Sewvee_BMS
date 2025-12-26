@@ -4,21 +4,20 @@ import {
     Text,
     StyleSheet,
     FlatList,
+    ScrollView,
     TouchableOpacity,
     Modal,
     TextInput,
     Alert,
+    Image,
     Platform,
     KeyboardAvoidingView,
-    ScrollView,
     Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-
-import { Image } from 'react-native';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory, OutfitSubCategory, OutfitOption } from '../types';
@@ -34,8 +33,8 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     const [currentOutfit, setCurrentOutfit] = useState<Outfit | null>(null);
     const [currentCategory, setCurrentCategory] = useState<OutfitCategory | null>(null);
 
-    // Modal State
-    const [modalVisible, setModalVisible] = useState(false);
+    // Form State (Inline instead of Modal)
+    const [isFormVisible, setIsFormVisible] = useState(false);
     const [modalType, setModalType] = useState<'subcategory' | 'option'>('subcategory');
     const [editMode, setEditMode] = useState(false);
     const [targetId, setTargetId] = useState<string | null>(null); // SubCategory ID or Option ID
@@ -80,14 +79,14 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         }
         if (!currentOutfit || !currentCategory) return;
 
-        // Optimistic Close: Close drawer immediately for better UX
-        setModalVisible(false);
+        // Optimistic Close: Close form immediately for better UX
+        setIsFormVisible(false);
 
         let updatedCategories = [...(currentOutfit.categories || [])];
         const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
         if (catIndex === -1) return;
 
-        // Process Image if new (file/content URI)
+        // Process Image if URI is file-based
         let finalImage = editImage;
         if (editImage && (editImage.startsWith('file:') || editImage.startsWith('content:'))) {
             try {
@@ -101,7 +100,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 }
             } catch (e) {
                 console.error('Image processing failed during save', e);
-                // Fallback or abort? Continuing with URI might break db, but likely better than crash.
             }
         }
 
@@ -149,7 +147,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
             await updateOutfit(outfitId, { categories: updatedCategories });
             setEditImage(null);
-            // setModalVisible(false); // Moved up
+            setIsFormVisible(false);
         } catch (error) {
             console.error('Save EditCategory Error:', error);
             // If save fails silently (since drawer is closed), maybe show a toast or global alert?
@@ -193,42 +191,57 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         setDeleteConfig(null);
     };
 
-    const openSubCatModal = (edit: boolean, subCat?: OutfitSubCategory) => {
+    const openSubCatForm = (edit: boolean, subCat?: OutfitSubCategory) => {
         setModalType('subcategory');
         setEditMode(edit);
         setTargetId(subCat?.id || null);
         setInputName(subCat?.name || '');
         setEditImage(subCat?.image || null);
-        setModalVisible(true);
+        setIsFormVisible(true);
     };
 
-    const openOptionModal = (subCatId: string, edit: boolean, option?: OutfitOption) => {
+    const openOptionForm = (subCatId: string, edit: boolean, option?: OutfitOption) => {
         setModalType('option');
         setParentId(subCatId);
         setEditMode(edit);
         setTargetId(option?.id || null);
         setInputName(option?.name || '');
         setEditImage(option?.image || null);
-        setModalVisible(true);
+        setIsFormVisible(true);
+    };
+
+    const closeForm = () => {
+        setIsFormVisible(false);
+        setEditMode(false);
+        setTargetId(null);
+        setParentId(null);
+        setInputName('');
+        setEditImage(null);
     };
 
     const pickImage = async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false, // Match
                 quality: 1,
             });
 
-            if (!result.canceled && result.assets[0].uri) {
-                // PREVIEW STRATEGY: Use original URI directly.
-                setEditImage(result.assets[0].uri);
+            if (!result.canceled && result.assets) {
+                const asset = result.assets[0];
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        asset.uri,
+                        [{ resize: { width: 1080 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+                    );
+                    setEditImage(manipResult.uri);
+                } catch (e) {
+                    setEditImage(asset.uri);
+                }
             }
         } catch (error) {
-            console.error('Image Error:', error);
-            setAlertConfig({ title: 'Image Error', message: 'Failed to process image.' });
-            setAlertVisible(true);
+            console.error('Pick Image Error:', error);
         }
     };
 
@@ -239,7 +252,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 <View style={styles.headerLeft}>
                     <View style={styles.iconBox}>
                         {item.image ? (
-                            <Image source={{ uri: item.image }} style={styles.itemImage} />
+                            <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
                         ) : (
                             <ImageIcon size={20} color={Colors.textSecondary} />
                         )}
@@ -249,7 +262,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 <View style={styles.headerActions}>
                     <TouchableOpacity
                         style={styles.actionBtn}
-                        onPress={() => openSubCatModal(true, item)}
+                        onPress={() => openSubCatForm(true, item)}
                     >
                         <Edit2 size={18} color={Colors.textSecondary} />
                     </TouchableOpacity>
@@ -272,7 +285,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         <TouchableOpacity
                             key={opt.id}
                             style={styles.chip}
-                            onPress={() => openOptionModal(item.id, true, opt)}
+                            onPress={() => openOptionForm(item.id, true, opt)}
                         >
                             <Text style={styles.chipText}>{opt.name}</Text>
                             <TouchableOpacity
@@ -285,12 +298,68 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                     ))}
                     <TouchableOpacity
                         style={styles.addChip}
-                        onPress={() => openOptionModal(item.id, false)}
+                        onPress={() => openOptionForm(item.id, false)}
                     >
                         <Plus size={14} color={Colors.primary} />
                         <Text style={styles.addChipText}>Option</Text>
                     </TouchableOpacity>
                 </View>
+            </View>
+        </View>
+    );
+
+    const InlineForm = () => (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>
+                    {editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub-Category' : 'Option'}
+                </Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={inputName}
+                        onChangeText={setInputName}
+                        placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
+                        placeholderTextColor={Colors.textSecondary}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -316,105 +385,37 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContent}
                 ListHeaderComponent={
-                    <Text style={styles.helperText}>
-                        Tap options to edit, long press to delete.
-                    </Text>
+                    <>
+                        <Text style={styles.helperText}>
+                            Add sub-categories and their specific options to build the design layout.
+                        </Text>
+                        {isFormVisible && <InlineForm />}
+                    </>
                 }
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <View style={styles.emptyIconBox}>
-                            <Layers size={32} color={Colors.primary} />
+                    !isFormVisible ? (
+                        <View style={styles.emptyContainer}>
+                            <View style={styles.emptyIconBox}>
+                                <Layers size={32} color={Colors.primary} />
+                            </View>
+                            <Text style={styles.emptyTitle}>No Sub-Categories</Text>
+                            <Text style={styles.emptySubtitle}>
+                                Add sub-categories (e.g. Back, Sleeve) to define options.
+                            </Text>
                         </View>
-                        <Text style={styles.emptyTitle}>No Sub-Categories</Text>
-                        <Text style={styles.emptySubtitle}>
-                            Add sub-categories (e.g. Back, Sleeve) to define options.
-                        </Text>
-                    </View>
+                    ) : null
                 }
             />
 
-            <TouchableOpacity
-                style={[styles.fab, { bottom: 24 + insets.bottom }]}
-                onPress={() => openSubCatModal(false)}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>Add Sub Category</Text>
-            </TouchableOpacity>
-
-            <Modal
-                visible={modalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={styles.modalOverlay}
+            {!isFormVisible && (
+                <TouchableOpacity
+                    style={[styles.fab, { bottom: 24 + insets.bottom }]}
+                    onPress={() => openSubCatForm(false)}
                 >
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{editMode ? 'Edit' : 'Add'} {modalType === 'subcategory' ? 'Sub Category' : 'Option'}</Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <X size={24} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.inputContainer}>
-                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                {editImage ? (
-                                    <View style={{
-                                        width: 80,
-                                        height: 80,
-                                        borderRadius: 12,
-                                        overflow: 'hidden',
-                                        backgroundColor: '#E2E8F0',
-                                        position: 'relative'
-                                    }}>
-                                        <Image
-                                            source={{ uri: editImage }}
-                                            style={{ width: '100%', height: '100%' }}
-                                            resizeMode="cover"
-                                        />
-                                        <View style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            bottom: 0,
-                                            backgroundColor: 'rgba(0,0,0,0.4)',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            zIndex: 1
-                                        }}>
-                                            <Edit2 size={20} color="white" />
-                                            <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <View style={styles.placeholderImage}>
-                                        <Camera size={24} color={Colors.textSecondary} />
-                                        <Text style={styles.imagePickerText}>Add Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <Text style={styles.label}>Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={inputName}
-                                onChangeText={setInputName}
-                                placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
-                                placeholderTextColor={Colors.textSecondary}
-                                autoFocus
-                            />
-                        </View>
-
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                            <Text style={styles.saveBtnText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
+                    <Plus size={24} color={Colors.white} />
+                    <Text style={styles.fabText}>Add Sub Category</Text>
+                </TouchableOpacity>
+            )}
 
             <AlertModal
                 visible={alertVisible}
@@ -684,6 +685,123 @@ const styles = StyleSheet.create({
     saveBtnText: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
+        color: Colors.white,
+    },
+    // Inline Form Styles
+    inlineFormContainer: {
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.medium,
+    },
+    inlineFormHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    inlineFormTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
+    },
+    inlineFormBody: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        marginBottom: 20,
+    },
+    inlineImagePicker: {
+        width: 80,
+        height: 80,
+    },
+    inlineImagePlaceholder: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inlineImagePlaceholderText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 10,
+        color: Colors.textSecondary,
+        marginTop: 4,
+    },
+    inlinePickedImageContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    inlinePickedImage: {
+        width: '100%',
+        height: '100%',
+    },
+    inlineImageOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inlineInputWrapper: {
+        flex: 1,
+    },
+    inlineLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginBottom: 4,
+    },
+    inlineInput: {
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 8,
+        padding: 10,
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        backgroundColor: '#FAFBFC',
+    },
+    inlineFormFooter: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    inlineCancelBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        alignItems: 'center',
+    },
+    inlineCancelBtnText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textSecondary,
+    },
+    inlineSaveBtn: {
+        flex: 2,
+        backgroundColor: Colors.primary,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    inlineSaveBtnText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
         color: Colors.white,
     },
     imagePickerBtn: {

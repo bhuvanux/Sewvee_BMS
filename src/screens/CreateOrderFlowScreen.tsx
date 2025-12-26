@@ -323,57 +323,75 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
     const isCustomerSelected = !!state.customerName || !!state.selectedCustomer;
 
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100, gap: 24 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100, gap: 28 }}>
 
-            {/* Customer Section - Clean Row */}
+            {/* Customer Section - Modern Card */}
             <View>
-                <Text style={styles.sectionTitleClean}>Customer</Text>
+                <Text style={styles.newSectionTitle}>Customer</Text>
                 <TouchableOpacity
-                    style={[styles.cleanRow, editItemIndex !== undefined && { opacity: 0.6 }]}
+                    style={[styles.customerCleanArea, editItemIndex !== undefined && { opacity: 0.6 }]}
                     onPress={editItemIndex === undefined ? openCustomerModal : () => onShowAlert('Editing Restricted', 'Cannot change customer while editing an item.')}
                     disabled={editItemIndex !== undefined}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-                            <User size={20} color={isCustomerSelected ? Colors.primary : "#6B7280"} strokeWidth={2} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                        <View style={styles.customerAvatarClean}>
+                            <User size={22} color={isCustomerSelected ? Colors.primary : "#94A3B8"} strokeWidth={2} />
                         </View>
-                        <View>
-                            <Text style={[styles.valueText, !isCustomerSelected && { color: Colors.textSecondary, fontFamily: 'Inter-Regular' }, { fontSize: 17, fontFamily: 'Inter-SemiBold', color: '#111827' }]}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.customerNameMain, !isCustomerSelected && { color: '#94A3B8', fontFamily: 'Inter-Regular' }]}>
                                 {displayCustomerName}
                             </Text>
                             {isCustomerSelected && !!displayCustomerMobile && (
-                                <Text style={{ fontFamily: 'Inter-Medium', fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+                                <Text style={styles.customerSubText}>
                                     {displayCustomerMobile}
                                 </Text>
                             )}
                         </View>
                     </View>
-                    {editItemIndex === undefined && <ChevronRight size={18} color={Colors.textSecondary} />}
                 </TouchableOpacity>
-                <View style={styles.dividerClean} />
+
+                {/* Order Type Section - Just below Customer */}
+                <View style={{ marginTop: 20 }}>
+                    <Text style={styles.modernLabel}>Order Type</Text>
+                    <View style={styles.chipGroup}>
+                        {['Stitching', 'Alteration'].map((t) => {
+                            const isSelected = state.orderType === t;
+                            return (
+                                <TouchableOpacity
+                                    key={t}
+                                    style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                    onPress={() => onChange({ orderType: t })}
+                                >
+                                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                                        {t}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
             </View>
 
-            {/* Dates Section - Clean Grid */}
+            {/* Dates Section - Modern Card Grid */}
             <View>
-                <Text style={styles.sectionTitleClean}>Dates</Text>
-                <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
                     <TouchableOpacity
-                        style={styles.datePill}
+                        style={styles.dateModernCard}
                         onPress={() => openCalendar('trialDate')}
                     >
-                        <Text style={styles.fieldLabelSmallClean}>{state.trialDate ? 'Trial' : 'Trial'}</Text>
-                        <Text style={[styles.dateInputText, !state.trialDate && { color: Colors.textSecondary }]}>
-                            {state.trialDate || 'Select Date'}
+                        <Text style={styles.modernLabel}>Trial Date</Text>
+                        <Text style={[styles.modernDateText, !state.trialDate && { color: '#94A3B8' }]}>
+                            {state.trialDate || 'Set Date'}
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.datePill}
+                        style={styles.dateModernCard}
                         onPress={() => openCalendar('deliveryDate')}
                     >
-                        <Text style={styles.fieldLabelSmallClean}>{state.deliveryDate ? 'Delivery' : 'Delivery'}</Text>
-                        <Text style={[styles.dateInputText, !state.deliveryDate && { color: Colors.textSecondary }]}>
-                            {state.deliveryDate || 'Select Date'}
+                        <Text style={styles.modernLabel}>Delivery Date</Text>
+                        <Text style={[styles.modernDateText, !state.deliveryDate && { color: '#94A3B8' }]}>
+                            {state.deliveryDate || 'Set Date'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -381,25 +399,24 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
             {/* Outfit Details - Clean Form */}
             <View>
-                <Text style={styles.sectionTitleClean}>Outfit Details</Text>
 
-                <View style={{ gap: 16, marginTop: 12 }}>
+                <View style={{ gap: 20 }}>
                     {/* Type & Qty Row */}
-                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.fieldLabelSmallClean}>Type</Text>
+                            <Text style={styles.modernLabel}>Outfit Type</Text>
                             <TouchableOpacity
-                                style={[styles.cleanDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F3F4F6' }]}
+                                style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
                                 onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => { }}
                                 disabled={editItemIndex !== undefined}
                             >
-                                <Text style={styles.dropdownText}>{state.currentOutfit.type}</Text>
-                                {editItemIndex === undefined && <ChevronDown size={16} color={Colors.textSecondary} />}
+                                <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
+                                {editItemIndex === undefined && <ChevronDown size={20} color="#64748B" />}
                             </TouchableOpacity>
                         </View>
 
-                        <View style={{ width: 120 }}>
-                            <Text style={styles.fieldLabelSmallClean}>Quantity</Text>
+                        <View style={{ width: 130 }}>
+                            <Text style={styles.modernLabel}>Quantity</Text>
                             <QuantityStepper
                                 value={state.currentOutfit.quantity || 1}
                                 onChange={handleQuantityChange}
@@ -409,17 +426,17 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
                     {/* Urgency */}
                     <View>
-                        <Text style={styles.fieldLabelSmallClean}>Urgency</Text>
-                        <View style={styles.cleanSegment}>
+                        <Text style={styles.modernLabel}>Order Urgency</Text>
+                        <View style={styles.chipGroup}>
                             {['Normal', 'Urgent'].map((u) => {
                                 const isSelected = state.urgency === u;
                                 return (
                                     <TouchableOpacity
                                         key={u}
-                                        style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
                                         onPress={() => onChange({ urgency: u })}
                                     >
-                                        <Text style={[styles.segmentText, isSelected && styles.segmentTextActive]}>
+                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
                                             {u}
                                         </Text>
                                     </TouchableOpacity>
@@ -428,19 +445,19 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         </View>
                     </View>
 
-                    {/* Usage/Fabric Source */}
+                    {/* Fabric Source */}
                     <View>
-                        <Text style={styles.fieldLabelSmall}>Fabric Source</Text>
-                        <View style={styles.cleanSegment}>
+                        <Text style={styles.modernLabel}>Fabric Source</Text>
+                        <View style={styles.chipGroup}>
                             {['Customer', 'Boutique'].map((s) => {
-                                const isSelected = state.fabricSource === s;
+                                const isSelected = state.currentOutfit.fabricSource === s;
                                 return (
                                     <TouchableOpacity
                                         key={s}
-                                        style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
-                                        onPress={() => onChange({ fabricSource: s })}
+                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                        onPress={() => onChange({ currentOutfit: { ...state.currentOutfit, fabricSource: s } })}
                                     >
-                                        <Text style={[styles.segmentText, isSelected && styles.segmentTextActive]}>
+                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
                                             {s}
                                         </Text>
                                     </TouchableOpacity>
@@ -2169,6 +2186,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         trialDate: null,
         deliveryDate: null,
         urgency: 'Normal', // Normal, Urgent
+        orderType: 'Stitching', // Stitching, Alteration
 
         // Cart and Current Item
         cart: [],
@@ -2278,6 +2296,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     trialDate: order.trialDate || null,
                     deliveryDate: order.deliveryDate || null,
                     urgency: (order as any).urgency || 'Normal',
+                    orderType: (order as any).orderType || 'Stitching',
                     cart: initialCart,
                     // If editing an item, pre-fill currentOutfit with that item's data
                     // Otherwise start fresh
@@ -3302,27 +3321,6 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: Colors.textPrimary,
     },
-    chip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        marginRight: 8,
-        marginBottom: 8
-    },
-    chipActive: {
-        backgroundColor: Colors.primary
-    },
-    chipText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textPrimary
-    },
-    chipTextActive: {
-        color: Colors.white,
-        fontFamily: 'Inter-SemiBold'
-    },
-
     headerTitle: {
         fontFamily: 'Inter-Bold',
         fontSize: 18,
@@ -3360,7 +3358,7 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         backgroundColor: 'rgba(16, 185, 129, 0.1)' // Very subtle fill if needed, or just rely on text
-        // Actually, for a ring effect we need SVG. For "Circle fill", maybe just text is enough as requested "compact as circle fill". 
+        // Actually, for a ring effect we need SVG. For "Circle fill", maybe just text is enough as requested "compact as circle fill".
         // Let's stick to the ring border + Text 2/4.
     },
     content: {
@@ -3753,45 +3751,11 @@ const styles = StyleSheet.create({
     },
 
 
-    // Stepper
-    stepperContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#F9FAFB',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        height: 44,
-        paddingHorizontal: 4
-    },
-    stepperBtn: {
-        width: 28,
-        height: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: Colors.white,
-        borderRadius: 8,
-        ...Shadow.subtle
-    },
-    stepperBtnText: {
-        fontSize: 18,
-        fontFamily: 'Inter-Bold',
-        color: Colors.textPrimary,
-        lineHeight: 20
-    },
-    stepperValue: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.textPrimary
-    },
-
-    // Calendar Modal
     calendarContainer: {
         backgroundColor: Colors.white,
         margin: 20,
-        borderRadius: 20,
-        padding: 20,
+        borderRadius: 24,
+        padding: 24,
         ...Shadow.large,
         width: '90%',
         maxWidth: 360
@@ -3800,85 +3764,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16
+        marginBottom: 20
     },
     calendarTitle: {
         fontFamily: 'Inter-Bold',
-        fontSize: 16,
-        color: Colors.textPrimary
-    },
-
-    // New Step 1 Styles
-    cleanRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12
-    },
-    dividerClean: {
-        height: 1,
-        backgroundColor: '#F3F4F6',
-        marginTop: 8
-    },
-    sectionTitleClean: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 15,
-        color: Colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 8
-    },
-    datePill: {
-        flex: 1,
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        padding: 12
-    },
-    fieldLabelSmallClean: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 12,
-        color: Colors.textSecondary,
-        marginBottom: 6
-    },
-    cleanDropdown: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 12,
-        padding: 12,
-        height: 48
-    },
-    cleanSegment: {
-        flexDirection: 'row',
-        backgroundColor: '#F3F4F6',
-        borderRadius: 12,
-        padding: 4,
-        gap: 4
-    },
-    segmentBtn: {
-        flex: 1,
-        paddingVertical: 8,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 8
-    },
-    segmentBtnActive: {
-        backgroundColor: Colors.white,
-        ...Shadow.subtle
-    },
-    segmentText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textSecondary
-    },
-    segmentTextActive: {
-        color: Colors.primary,
-        fontFamily: 'Inter-SemiBold'
+        fontSize: 18,
+        color: '#0F172A'
     },
     weekRow: {
         flexDirection: 'row',
@@ -3891,6 +3782,140 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 12,
         color: Colors.textSecondary
+    },
+    // --- Step 1 Refactor Styles ---
+    newSectionTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
+        marginBottom: 16,
+    },
+    customerCleanArea: {
+        paddingVertical: 16,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        backgroundColor: Colors.white,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        ...Shadow.subtle,
+    },
+    customerAvatarClean: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#F8FAFC',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    customerNameMain: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 17,
+        color: Colors.textPrimary,
+    },
+    customerSubText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: '#64748B',
+        marginTop: 2,
+    },
+    dateModernCard: {
+        flex: 1,
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        ...Shadow.subtle,
+    },
+    modernLabel: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 13,
+        color: '#64748B',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 8,
+    },
+    modernDateText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 17,
+        color: Colors.textPrimary,
+    },
+    modernDropdown: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: Colors.white,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 56,
+        ...Shadow.subtle,
+    },
+    modernDropdownText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+    },
+    chipGroup: {
+        flexDirection: 'row',
+        gap: 12,
+        flexWrap: 'wrap',
+    },
+    chipBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F0FDF9',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    chipBtnActive: {
+        backgroundColor: Colors.primary,
+        borderColor: Colors.primary,
+    },
+    chipText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: '#64748B',
+    },
+    chipTextActive: {
+        color: Colors.white,
+    },
+    stepperContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        height: 56,
+        paddingHorizontal: 8,
+        ...Shadow.subtle,
+    },
+    stepperBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+        borderRadius: 12,
+        ...Shadow.small,
+    },
+    stepperBtnText: {
+        fontSize: 20,
+        fontFamily: 'Inter-Bold',
+        color: Colors.primary,
+    },
+    stepperValue: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
     },
     daysGrid: {
         flexDirection: 'row',

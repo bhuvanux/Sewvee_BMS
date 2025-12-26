@@ -8,17 +8,19 @@ import {
     Modal,
     TextInput,
     Alert,
+    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Keyboard
+    Keyboard,
+    Image // Added Image from react-native
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Edit2, Trash2, ChevronRight, Image as ImageIcon, X, Camera, Plus, Layers } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-import { Image } from 'react-native';
+// Removed: import { Image } from 'expo-image';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory } from '../types';
@@ -33,8 +35,8 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
 
     const [currentOutfit, setCurrentOutfit] = useState<Outfit | null>(null);
 
-    // Modal State
-    const [modalVisible, setModalVisible] = useState(false);
+    // Form State (Inline instead of Modal)
+    const [isFormVisible, setIsFormVisible] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [categoryId, setCategoryId] = useState<string | null>(null);
     const [categoryName, setCategoryName] = useState('');
@@ -72,15 +74,15 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
         }
 
         // Optimistic Close
-        setModalVisible(false);
+        setIsFormVisible(false);
 
         let updatedCategories = [...(currentOutfit.categories || [])];
 
         // Process Image if new (file/content URI)
         try {
-            // Process Image if new file selected
+            // Process Image if new file selected (file-based)
             let imageToSave = editImage;
-            if (editImage && editImage.startsWith('file://')) {
+            if (editImage && (editImage.startsWith('file://') || editImage.startsWith('content://'))) {
                 try {
                     const manipResult = await ImageManipulator.manipulateAsync(
                         editImage,
@@ -91,8 +93,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                         imageToSave = `data:image/jpeg;base64,${manipResult.base64}`;
                     }
                 } catch (imgError) {
-                    Alert.alert('Error', 'Failed to process image.');
-                    return;
+                    console.error('Image processing failed on save:', imgError);
                 }
             }
 
@@ -125,7 +126,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 });
             }
 
-            setModalVisible(false);
+            setIsFormVisible(false);
             setCategoryId(null);
             setCategoryName('');
             setEditImage(null);
@@ -151,38 +152,52 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
         }
     };
 
-    const openAddModal = () => {
+    const openAddForm = () => {
         setEditMode(false);
         setCategoryName('');
         setEditImage(null);
-        setModalVisible(true);
+        setIsFormVisible(true);
     };
 
-    const openEditModal = (cat: OutfitCategory) => {
+    const openEditForm = (cat: OutfitCategory) => {
         setEditMode(true);
         setCategoryId(cat.id);
         setCategoryName(cat.name);
         setEditImage(cat.image || null);
-        setModalVisible(true);
+        setIsFormVisible(true);
+    };
+
+    const closeForm = () => {
+        setIsFormVisible(false);
+        setCategoryId(null);
+        setCategoryName('');
+        setEditImage(null);
+        setEditMode(false);
     };
 
     const pickImage = async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false, // Match
                 quality: 1,
             });
 
-            if (!result.canceled && result.assets[0].uri) {
-                // PREVIEW STRATEGY: Use original URI directly.
-                setEditImage(result.assets[0].uri);
+            if (!result.canceled && result.assets) {
+                const asset = result.assets[0];
+                try {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        asset.uri,
+                        [{ resize: { width: 1080 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+                    );
+                    setEditImage(manipResult.uri);
+                } catch (e) {
+                    setEditImage(asset.uri);
+                }
             }
         } catch (error) {
-            console.error('Image Error:', error);
-            setAlertConfig({ title: 'Image Error', message: 'Failed to process image.' });
-            setAlertVisible(true);
+            console.error('Pick Image Error:', error);
         }
     };
 
@@ -199,7 +214,11 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             >
                 <View style={styles.iconBox}>
                     {item.image ? (
-                        <Image source={{ uri: item.image }} style={styles.itemImage} />
+                        <Image
+                            source={{ uri: item.image }}
+                            style={styles.itemImage}
+                            resizeMode="cover"
+                        />
                     ) : (
                         <ImageIcon size={24} color={Colors.textSecondary} />
                     )}
@@ -215,7 +234,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
             <View style={styles.actions}>
                 <TouchableOpacity
                     style={styles.actionBtn}
-                    onPress={() => openEditModal(item)}
+                    onPress={() => openEditForm(item)}
                 >
                     <Edit2 size={18} color={Colors.textSecondary} />
                 </TouchableOpacity>
@@ -224,6 +243,60 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                     onPress={() => handleDelete(item.id, item.name)}
                 >
                     <Trash2 size={18} color={Colors.danger} />
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    const InlineForm = () => (
+        <View style={styles.inlineFormContainer}>
+            <View style={styles.inlineFormHeader}>
+                <Text style={styles.inlineFormTitle}>{editMode ? 'Edit Category' : 'Add New Category'}</Text>
+                <TouchableOpacity onPress={closeForm}>
+                    <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.inlineFormBody}>
+                {/* Image Picker */}
+                <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
+                    {editImage ? (
+                        <View style={styles.inlinePickedImageContainer}>
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                            <View style={styles.inlineImageOverlay}>
+                                <Edit2 size={16} color="white" />
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.inlineImagePlaceholder}>
+                            <Camera size={20} color={Colors.textSecondary} />
+                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.inlineInputWrapper}>
+                    <Text style={styles.inlineLabel}>Category Name</Text>
+                    <TextInput
+                        style={styles.inlineInput}
+                        value={categoryName}
+                        onChangeText={setCategoryName}
+                        placeholder="e.g. 3 Dot Blouse"
+                        placeholderTextColor={Colors.textSecondary}
+                    />
+                </View>
+            </View>
+
+            <View style={styles.inlineFormFooter}>
+                <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
+                    <Text style={styles.inlineCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
+                    <Text style={styles.inlineSaveBtnText}>Save Category</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -250,106 +323,37 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContent}
                 ListHeaderComponent={
-                    <Text style={styles.helperText}>
-                        Organize your outfit styles into categories (e.g. Back Styles, Sleeve Types).
-                    </Text>
+                    <>
+                        <Text style={styles.helperText}>
+                            Organize your outfit styles into categories (e.g. Back Styles, Sleeve Types).
+                        </Text>
+                        {isFormVisible && <InlineForm />}
+                    </>
                 }
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <View style={styles.emptyIconBox}>
-                            <Layers size={32} color={Colors.primary} />
+                    !isFormVisible ? (
+                        <View style={styles.emptyContainer}>
+                            <View style={styles.emptyIconBox}>
+                                <Layers size={32} color={Colors.primary} />
+                            </View>
+                            <Text style={styles.emptyTitle}>No Categories Added</Text>
+                            <Text style={styles.emptySubtitle}>
+                                Add categories to organize style variations for this outfit.
+                            </Text>
                         </View>
-                        <Text style={styles.emptyTitle}>No Categories Added</Text>
-                        <Text style={styles.emptySubtitle}>
-                            Add categories to organize style variations for this outfit.
-                        </Text>
-                    </View>
+                    ) : null
                 }
             />
 
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={openAddModal}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>Add Category</Text>
-            </TouchableOpacity>
-
-            <Modal
-                visible={modalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={styles.modalOverlay}
+            {!isFormVisible && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={openAddForm}
                 >
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{editMode ? 'Edit Category' : 'Add New Category'}</Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                                <X size={24} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.inputContainer}>
-                            {/* Image Picker */}
-                            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-                                {editImage ? (
-                                    <View style={{
-                                        width: 80,
-                                        height: 80,
-                                        borderRadius: 12,
-                                        overflow: 'hidden',
-                                        backgroundColor: '#E2E8F0',
-                                        position: 'relative'
-                                    }}>
-                                        <Image
-                                            source={{ uri: editImage }}
-                                            style={{ width: '100%', height: '100%' }}
-                                            resizeMode="cover"
-                                        />
-                                        <View style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            bottom: 0,
-                                            backgroundColor: 'rgba(0,0,0,0.4)',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            zIndex: 1
-                                        }}>
-                                            <Edit2 size={20} color="white" />
-                                            <Text style={{ color: 'white', fontSize: 10, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>Change</Text>
-                                        </View>
-                                    </View>
-                                ) : (
-                                    <View style={styles.placeholderImage}>
-                                        <Camera size={24} color={Colors.textSecondary} />
-                                        <Text style={styles.imagePickerText}>Add Photo</Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            <Text style={styles.label}>Category Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={categoryName}
-                                onChangeText={setCategoryName}
-                                placeholder="e.g. 3 Dot Blouse, Princess Cut"
-                                placeholderTextColor={Colors.textSecondary}
-                                autoFocus
-                            />
-                        </View>
-
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                            <Text style={styles.saveBtnText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
+                    <Plus size={24} color={Colors.white} />
+                    <Text style={styles.fabText}>Add Category</Text>
+                </TouchableOpacity>
+            )}
 
             <AlertModal
                 visible={alertVisible}
@@ -534,6 +538,123 @@ const styles = StyleSheet.create({
     saveBtnText: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
+        color: Colors.white,
+    },
+    // Inline Form Styles
+    inlineFormContainer: {
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.medium,
+    },
+    inlineFormHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    inlineFormTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
+    },
+    inlineFormBody: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        marginBottom: 20,
+    },
+    inlineImagePicker: {
+        width: 80,
+        height: 80,
+    },
+    inlineImagePlaceholder: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inlineImagePlaceholderText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 10,
+        color: Colors.textSecondary,
+        marginTop: 4,
+    },
+    inlinePickedImageContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    inlinePickedImage: {
+        width: '100%',
+        height: '100%',
+    },
+    inlineImageOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    inlineInputWrapper: {
+        flex: 1,
+    },
+    inlineLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginBottom: 4,
+    },
+    inlineInput: {
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 8,
+        padding: 10,
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        backgroundColor: '#FAFBFC',
+    },
+    inlineFormFooter: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    inlineCancelBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        alignItems: 'center',
+    },
+    inlineCancelBtnText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textSecondary,
+    },
+    inlineSaveBtn: {
+        flex: 2,
+        backgroundColor: Colors.primary,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    inlineSaveBtnText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
         color: Colors.white,
     },
     imagePickerBtn: {
