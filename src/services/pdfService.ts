@@ -88,7 +88,8 @@ export const generateInvoicePDF = async (orderData: any, companyData: any) => {
   const logoHtml = boutiqueName.substring(0, 2).toUpperCase();
   const isInitials = true;
 
-  const htmlContent = `
+  export const getInvoiceHTML = (orderData: any, companyData: any) => {
+    return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -184,104 +185,110 @@ export const generateInvoicePDF = async (orderData: any, companyData: any) => {
       </body>
     </html>
   `;
+  };
 
-  try {
-    console.log('[PDF] Generation started');
-    const { uri } = await Print.printToFileAsync({ html: htmlContent });
+  export const generateInvoicePDF = async (orderData: any, companyData: any) => {
+    console.log('[PDF] Request received to generate invoice for:', orderData.billNo);
+    const htmlContent = getInvoiceHTML(orderData, companyData);
 
-    // Construct filename
-    const safeCustomerName = (orderData.customerName || 'Customer').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const safeBillNo = orderData.billNo ? orderData.billNo.replace(/[^a-z0-9]/gi, '_') : 'Draft';
-    const filename = `Bill_${safeBillNo}_${safeCustomerName}.pdf`;
+    try {
+      console.log('[PDF] Generation started');
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
 
-    // Attempt rename by using the same directory as the generated file
-    // This is more robust than relying on FileSystem.cacheDirectory which returns null on some Android configs
-    let finalUri = uri;
+      // Construct filename
+      const safeCustomerName = (orderData.customerName || 'Customer').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const safeBillNo = orderData.billNo ? orderData.billNo.replace(/[^a-z0-9]/gi, '_') : 'Draft';
+      const filename = `Bill_${safeBillNo}_${safeCustomerName}.pdf`;
 
-    // Extract directory from original URI
-    const dir = uri.substring(0, uri.lastIndexOf('/') + 1);
+      // Attempt rename by using the same directory as the generated file
+      // This is more robust than relying on FileSystem.cacheDirectory which returns null on some Android configs
+      let finalUri = uri;
 
-    if (dir) {
-      const newUri = `${dir}${filename}`;
-      try {
-        // Use moveAsync from modern import
-        await FileSystem.moveAsync({
-          from: uri,
-          to: newUri
-        });
-        console.log('[PDF] Renamed to:', newUri);
-        finalUri = newUri;
-      } catch (renameErr) {
-        console.warn('[PDF] Rename failed, using original:', renameErr);
-        // Fallback to original URI if move fails
+      // Extract directory from original URI
+      const dir = uri.substring(0, uri.lastIndexOf('/') + 1);
+
+      if (dir) {
+        const newUri = `${dir}${filename}`;
+        try {
+          // Use moveAsync from modern import
+          await FileSystem.moveAsync({
+            from: uri,
+            to: newUri
+          });
+          console.log('[PDF] Renamed to:', newUri);
+          finalUri = newUri;
+        } catch (renameErr) {
+          console.warn('[PDF] Rename failed, using original:', renameErr);
+          // Fallback to original URI if move fails
+        }
+      } else {
+        console.warn('[PDF] Could not determine directory from URI:', uri);
       }
-    } else {
-      console.warn('[PDF] Could not determine directory from URI:', uri);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+
+      if (isAvailable) {
+        await Sharing.shareAsync(finalUri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice #${orderData.billNo}`
+        });
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not supported on this device');
+      }
+    } catch (error: any) {
+      console.error('[PDF] Error generating PDF:', error);
+      Alert.alert('PDF Error', error.message || 'Failed to generate PDF');
+      // Rethrow to let caller know
+      throw error;
     }
+  };
 
-    const isAvailable = await Sharing.isAvailableAsync();
+  export const generateTailorCopyPDF = async (orderData: any, companyData: any) => {
+    console.log('[PDF] Generating Tailor Copy for:', orderData.billNo);
 
-    if (isAvailable) {
-      await Sharing.shareAsync(finalUri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: `Invoice #${orderData.billNo}`
-      });
-    } else {
-      Alert.alert('Sharing Unavailable', 'Sharing is not supported on this device');
-    }
-  } catch (error: any) {
-    console.error('[PDF] Error generating PDF:', error);
-    Alert.alert('PDF Error', error.message || 'Failed to generate PDF');
-    // Rethrow to let caller know
-    throw error;
-  }
-};
-
-export const generateTailorCopyPDF = async (orderData: any, companyData: any) => {
-  console.log('[PDF] Generating Tailor Copy for:', orderData.billNo);
-
-  // Pre-process items to convert images to Base64
-  const rawItems = normalizeItems(orderData);
-  const processedItems = await Promise.all(rawItems.map(async (item: any) => {
-    if (item.images && item.images.length > 0) {
-      const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
-        try {
-          if (imgUri.startsWith('file://')) {
-            const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: FileSystem.EncodingType.Base64 });
-            return `data:image/jpeg;base64,${base64}`;
+    // Pre-process items to convert images to Base64
+    const rawItems = normalizeItems(orderData);
+    const processedItems = await Promise.all(rawItems.map(async (item: any) => {
+      if (item.images && item.images.length > 0) {
+        const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
+          try {
+            if (imgUri.startsWith('file://')) {
+              const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: FileSystem.EncodingType.Base64 });
+              return `data:image/jpeg;base64,${base64}`;
+            }
+            return imgUri;
+          } catch (e) {
+            console.log('Error converting image to base64:', e);
+            return null;
           }
-          return imgUri;
-        } catch (e) {
-          console.log('Error converting image to base64:', e);
-          return null;
-        }
-      }));
-      item.images = base64Images.filter(Boolean);
-    }
+        }));
+        item.images = base64Images.filter(Boolean);
+      }
 
-    if (item.sketches && item.sketches.length > 0) {
-      const base64Sketches = await Promise.all(item.sketches.map(async (sketchUri: string) => {
-        try {
-          if (sketchUri.startsWith('file://')) {
-            const base64 = await FileSystem.readAsStringAsync(sketchUri, { encoding: FileSystem.EncodingType.Base64 });
-            return `data:image/png;base64,${base64}`;
+      if (item.sketches && item.sketches.length > 0) {
+        const base64Sketches = await Promise.all(item.sketches.map(async (sketchUri: string) => {
+          try {
+            if (sketchUri.startsWith('file://')) {
+              const base64 = await FileSystem.readAsStringAsync(sketchUri, { encoding: FileSystem.EncodingType.Base64 });
+              return `data:image/png;base64,${base64}`;
+            }
+            return sketchUri;
+          } catch (e) {
+            console.log('Error converting sketch to base64:', e);
+            return null;
           }
-          return sketchUri;
-        } catch (e) {
-          console.log('Error converting sketch to base64:', e);
-          return null;
-        }
-      }));
-      item.sketches = base64Sketches.filter(Boolean);
-    }
-    return item;
-  }));
+        }));
+        item.sketches = base64Sketches.filter(Boolean);
+      }
+      return item;
+    }));
 
-  const boutiqueName = companyData.name || 'My Boutique';
-  const logoHtml = boutiqueName.substring(0, 2).toUpperCase();
+    const boutiqueName = companyData.name || 'My Boutique';
+    const logoHtml = boutiqueName.substring(0, 2).toUpperCase();
 
-  const htmlContent = `
+    export const getTailorCopyHTML = (orderData: any, companyData: any, processedItems: any[]) => {
+      return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -401,55 +408,122 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
       </body>
     </html>
   `;
+    };
 
-  const safeBillNo = (orderData.billNo || 'Draft').replace(/[^a-z0-9]/gi, '_');
-  const safeCustomerName = (orderData.customerName || 'Customer').replace(/[^a-z0-9]/gi, '_');
+    export const generateTailorCopyPDF = async (orderData: any, companyData: any) => {
+      console.log('[PDF] Generating Tailor Copy for:', orderData.billNo);
 
-  return await finalizeAndSharePDF(htmlContent, `Tailor_${safeBillNo}_${safeCustomerName}.pdf`, `Tailor Copy #${orderData.billNo}`);
-};
+      // Pre-process items to convert images to Base64
+      const rawItems = normalizeItems(orderData);
+      const processedItems = await Promise.all(rawItems.map(async (item: any) => {
+        if (item.images && item.images.length > 0) {
+          const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
+            try {
+              if (imgUri.startsWith('file://')) {
+                const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: FileSystem.EncodingType.Base64 });
+                return `data:image/jpeg;base64,${base64}`;
+              }
+              return imgUri;
+            } catch (e) {
+              console.log('Error converting image to base64:', e);
+              return null;
+            }
+          }));
+          item.images = base64Images.filter(Boolean);
+        }
 
-export const generateCustomerCopyPDF = async (orderData: any, companyData: any) => {
-  console.log('[PDF] Generating Customer Copy for:', orderData.billNo);
+        if (item.sketches && item.sketches.length > 0) {
+          const base64Sketches = await Promise.all(item.sketches.map(async (sketchUri: string) => {
+            try {
+              if (sketchUri.startsWith('file://')) {
+                const base64 = await FileSystem.readAsStringAsync(sketchUri, { encoding: FileSystem.EncodingType.Base64 });
+                return `data:image/png;base64,${base64}`;
+              }
+              return sketchUri;
+            } catch (e) {
+              console.log('Error converting sketch to base64:', e);
+              return null;
+            }
+          }));
+          item.sketches = base64Sketches.filter(Boolean);
+        }
+        return item;
+      }));
 
-  const htmlContent = `
+      const htmlContent = getTailorCopyHTML(orderData, companyData, processedItems);
+
+      const safeBillNo = (orderData.billNo || 'Draft').replace(/[^a-z0-9]/gi, '_');
+      const safeCustomerName = (orderData.customerName || 'Customer').replace(/[^a-z0-9]/gi, '_');
+
+      return await finalizeAndSharePDF(htmlContent, `Tailor_${safeBillNo}_${safeCustomerName}.pdf`, `Tailor Copy #${orderData.billNo}`);
+    };
+
+    export const getCustomerCopyHTML = (orderData: any, companyData: any) => {
+      return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
         <style>
           ${COMMON_STYLES}
+          .customer-info-box {
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 25px;
+            background-color: #F9FAFB;
+          }
+          .grid-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          }
+          .grid-item {
+            flex: 1;
+          }
+          .grid-item.center { text-align: center; }
+          .grid-item.right { text-align: right; }
+          .separator {
+            height: 1px;
+            background-color: #E5E7EB;
+            margin: 12px 0;
+          }
         </style>
       </head>
       <body>
         ${getBaseHeader(companyData, 'Customer Copy')}
 
-        <div class="info-row">
-          <div class="info-group">
-            <div class="info-label">Order No</div>
-            <div class="info-value">#${orderData.billNo}</div>
+        <div class="customer-info-box">
+          <div class="grid-row">
+            <div class="grid-item">
+              <div class="info-label">Order No</div>
+              <div class="info-value">#${orderData.billNo}</div>
+            </div>
+            <div class="grid-item center">
+              <div class="info-label">Order Date</div>
+              <div class="info-value">${formatDate(orderData.date || orderData.createdAt || new Date())}</div>
+            </div>
+            <div class="grid-item right">
+              <div class="info-label">Delivery Date</div>
+              <div class="info-value">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
+            </div>
           </div>
-          <div class="info-group">
-            <div class="info-label">Order Date</div>
-            <div class="info-value">${formatDate(orderData.date || orderData.createdAt || new Date())}</div>
-          </div>
-          <div class="info-group">
-            <div class="info-label">Delivery Date</div>
-            <div class="info-value">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
-          </div>
-        </div>
 
-        <div class="info-row">
-          <div class="info-group">
-            <div class="info-label">Customer ID</div>
-            <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
-          </div>
-          <div class="info-group">
-            <div class="info-label">Customer Name</div>
-            <div class="info-value">${orderData.customerName}</div>
-          </div>
-          <div class="info-group" style="text-align: right;">
-            <div class="info-label">Mobile</div>
-            <div class="info-value">${orderData.customerMobile}</div>
+          <div class="separator"></div>
+
+          <div class="grid-row">
+            <div class="grid-item">
+              <div class="info-label">Customer ID</div>
+              <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
+            </div>
+            <div class="grid-item center">
+              <div class="info-label">Customer Name</div>
+              <div class="info-value">${orderData.customerName}</div>
+            </div>
+            <div class="grid-item right">
+              <div class="info-label">Mobile</div>
+              <div class="info-value">${orderData.customerMobile}</div>
+            </div>
           </div>
         </div>
 
@@ -507,33 +581,38 @@ export const generateCustomerCopyPDF = async (orderData: any, companyData: any) 
       </body>
     </html>
   `;
+    };
 
-  const safeBillNo = (orderData.billNo || 'Draft').replace(/[^a-z0-9]/gi, '_');
+    export const generateCustomerCopyPDF = async (orderData: any, companyData: any) => {
+      console.log('[PDF] Generating Customer Copy for:', orderData.billNo);
+      const htmlContent = getCustomerCopyHTML(orderData, companyData);
 
-  return await finalizeAndSharePDF(htmlContent, `Customer_Copy_${safeBillNo}.pdf`, `Customer Copy #${orderData.billNo}`);
-};
+      const safeBillNo = (orderData.billNo || 'Draft').replace(/[^a-z0-9]/gi, '_');
 
-const finalizeAndSharePDF = async (html: string, filename: string, shareTitle: string) => {
-  try {
-    const { uri } = await Print.printToFileAsync({ html });
-    const dir = uri.substring(0, uri.lastIndexOf('/') + 1);
-    const finalUri = `${dir}${filename}`;
+      return await finalizeAndSharePDF(htmlContent, `Customer_Copy_${safeBillNo}.pdf`, `Customer Copy #${orderData.billNo}`);
+    };
 
-    await FileSystem.moveAsync({
-      from: uri,
-      to: finalUri
-    });
+    const finalizeAndSharePDF = async (html: string, filename: string, shareTitle: string) => {
+      try {
+        const { uri } = await Print.printToFileAsync({ html });
+        const dir = uri.substring(0, uri.lastIndexOf('/') + 1);
+        const finalUri = `${dir}${filename}`;
 
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(finalUri, {
-        UTI: '.pdf',
-        mimeType: 'application/pdf',
-        dialogTitle: shareTitle
-      });
-    }
-  } catch (error: any) {
-    console.error('[PDF] Error:', error);
-    Alert.alert('PDF Error', error.message || 'Failed to generate PDF');
-    throw error;
-  }
-};
+        await FileSystem.moveAsync({
+          from: uri,
+          to: finalUri
+        });
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(finalUri, {
+            UTI: '.pdf',
+            mimeType: 'application/pdf',
+            dialogTitle: shareTitle
+          });
+        }
+      } catch (error: any) {
+        console.error('[PDF] Error:', error);
+        Alert.alert('PDF Error', error.message || 'Failed to generate PDF');
+        throw error;
+      }
+    };

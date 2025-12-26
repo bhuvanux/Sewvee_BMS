@@ -16,7 +16,7 @@ import {
     Image
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers, Check } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image as ExpoImage } from 'expo-image';
@@ -390,12 +390,10 @@ const OutfitForm = React.memo(({
                 <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
                     {editImage ? (
                         <View style={styles.inlinePickedImageContainer}>
-                            <ExpoImage
-                                source={{ uri: editImage }}
-                                style={styles.inlinePickedImage}
-                                contentFit="cover"
-                                transition={0}
-                            />
+                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
+                                <Check size={24} color={Colors.primary} />
+                                <Text style={styles.photoReadyText}>Photo Ready</Text>
+                            </View>
                             <View style={styles.inlineImageOverlay}>
                                 <Edit2 size={16} color="white" />
                             </View>
@@ -691,7 +689,20 @@ const styles = StyleSheet.create({
     inlinePickedImage: {
         width: 80,
         height: 80,
-        borderRadius: 12, // Ensure it matches container
+        borderRadius: 8,
+    },
+    photoReadyContainer: {
+        backgroundColor: Colors.primary + '10', // Very light primary
+        borderWidth: 1,
+        borderColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    photoReadyText: {
+        fontSize: 10,
+        fontFamily: 'Inter-SemiBold',
+        color: Colors.primary,
+        marginTop: 4,
     },
     inlineImageOverlay: {
         position: 'absolute',

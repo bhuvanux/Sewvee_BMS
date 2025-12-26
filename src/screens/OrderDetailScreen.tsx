@@ -11,7 +11,12 @@ import { Audio } from 'expo-av';
 import { formatDate, getCurrentDate } from '../utils/dateUtils';
 import { Share, Platform } from 'react-native';
 import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
-import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, normalizeItems } from '../services/pdfService';
+import {
+    generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF,
+    normalizeItems, getCustomerCopyHTML, getTailorCopyHTML
+} from '../services/pdfService';
+import PDFPreviewModal from '../components/PDFPreviewModal';
+import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -39,6 +44,10 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const [activeTab, setActiveTab] = useState<'details' | 'items' | 'payments'>('details');
     const scrollRef = useRef<ScrollView>(null);
     const [editingPayment, setEditingPayment] = useState<any>(null);
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewHtml, setPreviewHtml] = useState('');
+    const [previewTitle, setPreviewTitle] = useState('');
+    const [pdfType, setPdfType] = useState<'customer' | 'tailor'>('customer');
 
     const handleEditPayment = (payment: any) => {
         setEditingPayment(payment);
@@ -340,11 +349,68 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         }
     };
 
-    const handleTailorCopy = async () => {
+    const handleCustomerCopy = async () => {
+        const companyData = {
+            name: company?.name || 'My Boutique',
+            address: company?.address || 'Your Address Here',
+            phone: company?.phone || 'Your Phone Here',
+        };
+        const customer = customers.find(c => c.id === order.customerId);
+        const enrichedOrder = {
+            ...order,
+            customerDisplayId: customer?.displayId || '---'
+        };
+
+        const html = getCustomerCopyHTML(enrichedOrder, companyData);
+        setPreviewHtml(html);
+        setPreviewTitle('Customer Copy');
+        setPdfType('customer');
+        setPreviewVisible(true);
+    };
+
+    const handleActualPrint = async () => {
+        setPreviewVisible(false);
+        if (pdfType === 'customer') {
+            await handleCustomerCopyActual();
+        } else {
+            await handleTailorCopyActual();
+        }
+    };
+
+    const handleActualShare = async () => {
+        // For sharing, we can reuse the same print logic as it shares the file
+        await handleActualPrint();
+    };
+
+    const handleCustomerCopyActual = async () => {
         if (isPrinting) return;
         setIsPrinting(true);
         try {
-            showToast("Printing PDF...", "info");
+            showToast("Preparing PDF...", "info");
+            const companyData = {
+                name: company?.name || 'My Boutique',
+                address: company?.address || 'Your Address Here',
+                phone: company?.phone || 'Your Phone Here',
+            };
+            const customer = customers.find(c => c.id === order.customerId);
+            const enrichedOrder = {
+                ...order,
+                customerDisplayId: customer?.displayId || '---'
+            };
+            await generateCustomerCopyPDF(enrichedOrder, companyData);
+        } catch (error: any) {
+            setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Customer Copy' });
+            setAlertVisible(true);
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
+    const handleTailorCopyActual = async () => {
+        if (isPrinting) return;
+        setIsPrinting(true);
+        try {
+            showToast("Preparing PDF...", "info");
             const customer = customers.find(c => c.id === order.customerId);
             const companyData = {
                 name: company?.name || 'My Boutique',
@@ -366,27 +432,49 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
         }
     };
 
-    const handleCustomerCopy = async () => {
-        if (isPrinting) return;
-        setIsPrinting(true);
+    const handleTailorCopy = async () => {
+        showToast("Generating preview...", "info");
         try {
-            showToast("Printing PDF...", "info");
+            const customer = customers.find(c => c.id === order.customerId);
             const companyData = {
                 name: company?.name || 'My Boutique',
                 address: company?.address || 'Your Address Here',
                 phone: company?.phone || 'Your Phone Here',
             };
-            const customer = customers.find(c => c.id === order.customerId);
-            const enrichedOrder = {
+
+            const orderWithCustomerInfo = {
                 ...order,
                 customerDisplayId: customer?.displayId || '---'
             };
-            await generateCustomerCopyPDF(enrichedOrder, companyData);
-        } catch (error: any) {
-            setAlertConfig({ title: 'Failed', message: error.message || 'Could not generate Customer Copy' });
-            setAlertVisible(true);
-        } finally {
-            setIsPrinting(false);
+
+            // Pre-process items for base64 (reused logic from generateTailorCopyPDF refactoring)
+            const rawItems = normalizeItems(orderWithCustomerInfo);
+            const processedItems = await Promise.all(rawItems.map(async (item: any) => {
+                if (item.images && item.images.length > 0) {
+                    const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
+                        try {
+                            if (imgUri.startsWith('file://')) {
+                                const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: FileSystem.EncodingType.Base64 });
+                                return `data:image/jpeg;base64,${base64}`;
+                            }
+                            return imgUri;
+                        } catch (e) {
+                            return null;
+                        }
+                    }));
+                    item.images = base64Images.filter(Boolean);
+                }
+                return item;
+            }));
+
+            const html = getTailorCopyHTML(orderWithCustomerInfo, companyData, processedItems);
+            setPreviewHtml(html);
+            setPreviewTitle('Tailor Copy');
+            setPdfType('tailor');
+            setPreviewVisible(true);
+        } catch (error) {
+            console.error("Preview error:", error);
+            showToast("Could not generate preview", "error");
         }
     };
 
@@ -697,6 +785,15 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     {renderPaymentHistory()}
                 </ScrollView>
             </ScrollView>
+
+            <PDFPreviewModal
+                visible={previewVisible}
+                html={previewHtml}
+                title={previewTitle}
+                onClose={() => setPreviewVisible(false)}
+                onPrint={handleActualPrint}
+                onShare={handleActualShare}
+            />
 
 
 
