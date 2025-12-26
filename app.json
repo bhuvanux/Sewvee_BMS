@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sewveemini.app"
+      "bundleIdentifier": "com.sewveeminiprod.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.sewveemini.app",
+      "package": "com.sewveeminiprod.app",
       "versionCode": 2,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
