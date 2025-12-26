@@ -59,9 +59,9 @@ import { Audio } from 'expo-av';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import SignatureScreen from 'react-native-signature-canvas';
-import { transcribeAudio } from '../services/geminiService';
+import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, getCustomerCopyHTML } from '../services/pdfService';
+import PDFPreviewModal from '../components/PDFPreviewModal';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
-import { generateCustomerCopyPDF } from '../services/pdfService';
 import { useNavigation } from '@react-navigation/native';
 // Skia drawing temporarily disabled due to version compatibility
 
@@ -2214,13 +2214,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     // Delete Confirmation State
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
     const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewHtml, setPreviewHtml] = useState('');
 
     const handlePrintOrder = async () => {
         if (!createdOrder) return;
 
         try {
-            // Prepare company data from user profile
-            // Fallback to minimal data if not fully available
             const companyData = {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
                 address: user?.address || '',
@@ -2228,10 +2228,28 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 gstin: user?.gstin || ''
             };
 
+            const html = getCustomerCopyHTML(createdOrder, companyData);
+            setPreviewHtml(html);
+            setPreviewVisible(true);
+        } catch (error) {
+            console.log('Preview error:', error);
+            showAlert('Error', 'Could not generate preview.');
+        }
+    };
+
+    const handleActualPrint = async () => {
+        if (!createdOrder) return;
+        setPreviewVisible(false);
+        try {
+            const companyData = {
+                name: user?.boutiqueName || user?.name || 'My Boutique',
+                address: user?.address || '',
+                phone: user?.mobile || user?.phone || '',
+                gstin: user?.gstin || ''
+            };
             await generateCustomerCopyPDF(createdOrder, companyData);
         } catch (error) {
-            console.log('Print error:', error);
-            showAlert('Error', 'Could not print order.');
+            showAlert('Error', 'Failed to print PDF');
         }
     };
 
@@ -2797,6 +2815,15 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 description="Are you sure you want to delete this item?"
                 confirmText="Delete"
                 type="danger"
+            />
+
+            <PDFPreviewModal
+                visible={previewVisible}
+                html={previewHtml}
+                title="Customer Copy"
+                onClose={() => setPreviewVisible(false)}
+                onPrint={handleActualPrint}
+                onShare={handleActualPrint} // Sharing uses same logic
             />
         </View>
     );

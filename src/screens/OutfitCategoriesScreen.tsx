@@ -372,8 +372,8 @@ const CategoryForm = React.memo(({
                     {editImage ? (
                         <View style={styles.inlinePickedImageContainer}>
                             <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.primary} />
-                                <Text style={styles.photoReadyText}>Photo Ready</Text>
+                                <Check size={24} color={Colors.textSecondary} />
+                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
                             </View>
                             <View style={styles.inlineImageOverlay}>
                                 <Edit2 size={16} color="white" />
@@ -635,16 +635,16 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     photoReadyContainer: {
-        backgroundColor: Colors.primary + '10', // Very light primary
+        backgroundColor: '#F3F4F6', // Clear grey
         borderWidth: 1,
-        borderColor: Colors.primary,
+        borderColor: Colors.border,
         justifyContent: 'center',
         alignItems: 'center',
     },
     photoReadyText: {
         fontSize: 10,
         fontFamily: 'Inter-SemiBold',
-        color: Colors.primary,
+        color: Colors.textSecondary,
         marginTop: 4,
     },
     inlineImageOverlay: {

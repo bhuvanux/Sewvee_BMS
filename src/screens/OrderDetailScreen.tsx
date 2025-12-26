@@ -454,7 +454,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
                         try {
                             if (imgUri.startsWith('file://')) {
-                                const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: FileSystem.EncodingType.Base64 });
+                                const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: 'base64' });
                                 return `data:image/jpeg;base64,${base64}`;
                             }
                             return imgUri;
