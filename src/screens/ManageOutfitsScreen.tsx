@@ -280,6 +280,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                                         {editImage ? (
                                             <View style={styles.inlinePickedImageContainer}>
                                                 <Image
+                                                    key={editImage || 'new'}
                                                     source={{ uri: editImage }}
                                                     style={styles.inlinePickedImage}
                                                     resizeMode="cover"
