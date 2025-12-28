@@ -154,20 +154,20 @@ const SettingsScreen = ({ navigation }: any) => {
                         icon={Share2}
                         title="Share App"
                         color="#8B5CF6"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('ShareApp')}
                     />
                     <SettingItem
                         icon={HelpCircle}
                         title="Help & Support"
                         color="#F59E0B"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('HelpSupport')}
                     />
                     <SettingItem
                         icon={Info}
-                        title="About Sewvee Mini"
+                        title="About Sewvee"
                         color="#6B7280"
                         value="v1.0.2"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('About')}
                         isLast={true}
                     />
                 </View>
@@ -179,8 +179,14 @@ const SettingsScreen = ({ navigation }: any) => {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-                <Text style={styles.footerText}>Handcrafted for Boutiques</Text>
-                <Text style={styles.versionText}>Powered by Sewvee</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={[styles.footerText, { fontStyle: 'italic', marginRight: 4 }]}>Handcrafted for</Text>
+                    <Text style={{ fontSize: 16, color: Colors.primary, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Didot-Italic' : 'serif' }}>Boutiques</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, color: Colors.textSecondary, opacity: 0.7 }}>Powered by</Text>
+                    <Text style={{ fontSize: 12, color: Colors.textPrimary, marginLeft: 4, letterSpacing: 1, fontFamily: 'Inter-Bold' }}>SEWVEE</Text>
+                </View>
             </View>
 
             <View style={{ height: 40 }} />

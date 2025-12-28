@@ -130,4 +130,6 @@ export interface Outfit {
     image?: string | null;
     isVisible: boolean;
     categories: OutfitCategory[];
+    order?: number;
+    createdAt?: string;
 }

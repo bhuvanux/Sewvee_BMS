@@ -54,7 +54,7 @@ const SignupScreen = ({ navigation }: any) => {
     return (
         <KeyboardAvoidingView
             style={styles.container}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <TouchableOpacity
                 style={styles.backBtn}
@@ -63,7 +63,7 @@ const SignupScreen = ({ navigation }: any) => {
                 <ArrowLeft size={24} color={Colors.textPrimary} />
             </TouchableOpacity>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.header}>
                     <Text style={styles.title}>Create Account</Text>
                     <Text style={styles.subtitle}>Join Sewvee and start managing your boutique professionally</Text>

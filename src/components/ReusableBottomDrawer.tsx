@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Colors, Shadow } from '../constants/theme';
 import { X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -38,48 +39,16 @@ const ReusableBottomDrawer = ({
     children,
     height = 'auto'
 }: ReusableBottomDrawerProps) => {
-    // Internal visibility state to keep Modal open during exit animation
-    const [isVisible, setIsVisible] = useState(visible);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-    // Animations
-    const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        if (visible) {
-            setIsVisible(true);
-            // Animate In
-            Animated.parallel([
-                Animated.timing(fadeAnim, {
-                    toValue: 1,
-                    duration: 300,
-                    useNativeDriver: true,
-                }),
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    useNativeDriver: true,
-                    damping: 20,
-                    stiffness: 90,
-                    mass: 0.8
-                })
-            ]).start();
-        } else if (isVisible) {
-            // If parent turns off visibility (e.g. after save), trigger close animation
-            handleClose();
-        }
-    }, [visible]);
+    const insets = useSafeAreaInsets();
 
     // Keyboard Listeners for Android
     useEffect(() => {
         if (Platform.OS === 'android') {
             const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-                // Configure animation to match keyboard if possible, or use LayoutAnimation
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 setKeyboardHeight(e.endCoordinates.height);
             });
             const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 setKeyboardHeight(0);
             });
 
@@ -90,73 +59,49 @@ const ReusableBottomDrawer = ({
         }
     }, []);
 
-    const handleClose = () => {
-        // Animate Out
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 200,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: SCREEN_HEIGHT,
-                duration: 250,
-                useNativeDriver: true,
-            })
-        ]).start(() => {
-            setIsVisible(false);
-            onClose();
-        });
-    };
-
-    if (!isVisible) return null;
-
     return (
         <Modal
             transparent
-            visible={isVisible}
-            animationType="none" // We handle animation manually
-            onRequestClose={handleClose}
+            visible={visible}
+            animationType="slide"
+            onRequestClose={onClose}
             statusBarTranslucent
         >
-            <View style={[styles.overlayWrapper, { paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 }]}>
-                {/* Backdrop with Fade */}
-                <TouchableWithoutFeedback onPress={handleClose}>
-                    <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]} />
+            <View style={[styles.overlayWrapper]}>
+                {/* Backdrop - Touchable to close */}
+                <TouchableWithoutFeedback onPress={onClose}>
+                    <View style={styles.backdrop} />
                 </TouchableWithoutFeedback>
 
-                {/* Drawer with Slide */}
-                <Animated.View
+                {/* Drawer Content */}
+                <View
                     style={[
                         styles.drawerContainer,
                         {
-                            transform: [{ translateY: slideAnim }],
-                            height: height as any
+                            height: height as any,
+                            marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+                            paddingBottom: Math.max(insets.bottom, 20)
                         }
                     ]}
                 >
-                    <View style={styles.drawerContent}>
-                        {/* Drag Handle Indicator */}
-                        <View style={styles.dragHandle} />
+                    {/* Drag Handle Indicator */}
+                    <View style={styles.dragHandle} />
 
-                        {/* Title Bar */}
-                        {title && (
-                            <View style={styles.header}>
-                                <Text style={styles.title}>{title}</Text>
-                                <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
-                                    <X size={24} color={Colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-                        )}
-
-                        {/* Content */}
-                        <View style={{ flex: 1 }}>
-                            {children}
+                    {/* Title Bar */}
+                    {title && (
+                        <View style={styles.header}>
+                            <Text style={styles.title}>{title}</Text>
+                            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                                <X size={24} color={Colors.textSecondary} />
+                            </TouchableOpacity>
                         </View>
+                    )}
 
-                        {/* Manual Spacer Removed - We use container padding now */}
+                    {/* Content */}
+                    <View>
+                        {children}
                     </View>
-                </Animated.View>
+                </View>
             </View>
         </Modal>
     );
@@ -177,12 +122,8 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 24,
         ...Shadow.large,
         width: '100%',
-        maxHeight: '90%', // Limit height regardless
-        overflow: 'hidden', // Ensure content doesn't bleed during radius clip
-    },
-    drawerContent: {
-        flex: 1,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 20, // Bottom safe area approximation
+        maxHeight: '90%', // Limit height
+        overflow: 'hidden',
     },
     dragHandle: {
         width: 40,

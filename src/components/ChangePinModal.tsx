@@ -14,6 +14,7 @@ import {
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { X, Lock, Check } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PinInput from './PinInput';
 
 interface ChangePinModalProps {
@@ -81,6 +82,8 @@ const ChangePinModal = ({ visible, onClose, onSuccess }: ChangePinModalProps) =>
         }
     };
 
+    const { bottom } = useSafeAreaInsets();
+
     return (
         <Modal
             visible={visible}
@@ -89,12 +92,12 @@ const ChangePinModal = ({ visible, onClose, onSuccess }: ChangePinModalProps) =>
             onRequestClose={handleClose}
         >
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                 style={{ flex: 1 }}
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={styles.overlay}>
-                        <View style={styles.container}>
+                        <View style={[styles.container, { paddingBottom: bottom + Spacing.xl }]}>
                             <View style={styles.header}>
                                 <Text style={styles.title}>Change App PIN</Text>
                                 <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>

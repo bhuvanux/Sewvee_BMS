@@ -5,10 +5,11 @@ import { Platform } from 'react-native';
 
 // Firebase is auto-initialized from google-services.json on Android
 // and GoogleService-Info.plist on iOS
+
 // No manual initialization needed with React Native Firebase!
 
 // Environment Toggle - Update this for Production Builds
-export const IS_STAGING = false;
+export const IS_STAGING = true;
 
 // Constant Master Password for Firebase Auth
 export const MASTER_AUTH_PASS = "Sewvee_Auth_Secure_2025";
@@ -31,7 +32,7 @@ export const analytics = () => getAnalytics();
 
 export const logEvent = async (eventName: string, params?: object) => {
     try {
-        console.log(`[Analytics] Event: ${eventName}`, params);
+
         await firebaseLogEvent(getAnalytics(), eventName, params);
     } catch (error) {
         console.error(`[Analytics] Error logging ${eventName}:`, error);
@@ -40,7 +41,7 @@ export const logEvent = async (eventName: string, params?: object) => {
 
 export const logScreenView = async (screenName: string) => {
     try {
-        console.log(`[Analytics] Screen: ${screenName}`);
+
         // logScreenView is deprecated in v14+, using logEvent('screen_view', ...) instead
         await firebaseLogEvent(getAnalytics(), 'screen_view', {
             firebase_screen: screenName,

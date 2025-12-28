@@ -84,10 +84,10 @@ const OnboardingScreen = ({ navigation }: any) => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { paddingTop: insets.top }]}
         >
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <TouchableOpacity
                     style={styles.logoutBtn}
                     onPress={() => logout()}

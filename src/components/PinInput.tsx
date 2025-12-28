@@ -48,6 +48,7 @@ const PinInput: React.FC<PinInputProps> = ({ value, onValueChange, length = 4 })
                         value={value[i] || ''}
                         secureTextEntry={true}
                         selectTextOnFocus={true}
+                        blurOnSubmit={false}
                     />
                 </View>
             ))}

@@ -1,0 +1,54 @@
+{
+    "project_info": {
+        "project_number": "608916231270",
+        "project_id": "sewvee-mini",
+        "storage_bucket": "sewvee-mini.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:608916231270:android:a0ead705b200a65cb6c9a7",
+                "android_client_info": {
+                    "package_name": "com.sewvee.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDNQNkTqieHs-tl9R6R5vhvXWiU0ZARK5s"
+                },
+                {
+                    "current_key": "AIzaSyDQ90lT9nGpPmDU-ZRYXx2UpvJM5WiUJ2Q"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        },
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:608916231270:android:76a0a7ee22aafbd5b6c9a7",
+                "android_client_info": {
+                    "package_name": "com.sewvee.app.staging"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDNQNkTqieHs-tl9R6R5vhvXWiU0ZARK5s"
+                },
+                {
+                    "current_key": "AIzaSyDQ90lT9nGpPmDU-ZRYXx2UpvJM5WiUJ2Q"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

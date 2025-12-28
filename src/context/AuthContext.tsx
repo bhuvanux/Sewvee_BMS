@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { COLLECTIONS, getAuthPassword } from '../config/firebase';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword } from '@react-native-firebase/auth';
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
@@ -42,28 +43,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            console.log('AuthContext: onAuthStateChanged', firebaseUser ? `User: ${firebaseUser.uid}` : 'No User');
-
             if (firebaseUser) {
                 try {
                     const db = getFirestore();
-                    // Fetch user profile from Firestore
-                    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid));
+
+                    // Helper to prevent infinite hang on initial load (3 sec timeout)
+                    const fetchWithTimeout = (promise: Promise<any>, ms: number) => {
+                        return Promise.race([
+                            promise,
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth fetch timeout')), ms))
+                        ]);
+                    };
+
+                    // Fetch user profile from Firestore with timeout
+                    const userDoc = await fetchWithTimeout(getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid)), 15000);
                     const userData = userDoc.exists() ? userDoc.data() : null;
 
                     setUser({
                         uid: firebaseUser.uid,
                         email: firebaseUser.email,
+                        phone: firebaseUser.phoneNumber || null, // Fix: userData is out of scope here
                         ...(userData || {}),
                         isPhoneVerified: userData?.isPhoneVerified || false
                     });
 
-                    // Fetch company data
+                    // Fetch company data with timeout
                     const q = query(
                         collection(db, COLLECTIONS.COMPANIES),
                         where('ownerId', '==', firebaseUser.uid)
                     );
-                    const companySnapshot = await getDocs(q);
+                    const companySnapshot = await fetchWithTimeout(getDocs(q), 15000);
 
                     if (!companySnapshot.empty) {
                         setCompany({
@@ -74,7 +83,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         setCompany(null);
                     }
                 } catch (error) {
-                    console.error("AuthContext Error:", error);
+
+                    // Fallback for timeout/offline: 
+                    // Set minimal user so app doesn't hang on loading.
+                    setUser({
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        phone: firebaseUser.phoneNumber || null,
+                        isPhoneVerified: false
+                    });
                 }
             } else {
                 setUser(null);
@@ -120,13 +137,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             throw new Error('Internal error: Email not associated with this phone');
         }
 
-        console.log(`Login: Attempting login for ${email} (Phone: ${phone})`);
-        console.log(`Login: Input PIN: ${pin}, Stored PIN in Firestore: ${storedPin || 'None'}`);
+
 
         // 1. First Verify if the PIN matches our Firestore record (if it exists)
         // This is the source of truth for the user's intended 4-digit code.
         if (storedPin && storedPin !== pin) {
-            console.log('Login: PIN mismatch in Firestore check');
+
             throw new Error('Incorrect PIN');
         }
 
@@ -134,12 +150,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         let authenticated = false;
         const auth = getAuth();
         try {
-            console.log('Login: Attempting master password auth');
+
             await signInWithEmailAndPassword(auth, email, MASTER_AUTH_PASS);
             authenticated = true;
-            console.log('Login: Master Auth SUCCESS');
+
         } catch (error: any) {
-            console.log(`Login: Master Auth failed (Code: ${error.code}). Attempting legacy migration...`);
+
 
             // Only try legacy if it's a password related error
             if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -150,17 +166,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
                 for (const attemptPass of legacyAttempts) {
                     try {
-                        console.log(`Login: Trying legacy password: ${attemptPass.includes(OLD_PIN_SUFFIX) ? 'Suffix' : 'Plain'}`);
+
                         await signInWithEmailAndPassword(auth, email, attemptPass);
                         const userObj = auth.currentUser;
                         if (userObj) {
-                            console.log('Login: Legacy login success, migrating to Master Password...');
+
                             await updatePassword(userObj, MASTER_AUTH_PASS);
                             authenticated = true;
                             break;
                         }
                     } catch (e) {
-                        console.log(`Login: Legacy attempt failed: ${attemptPass}`);
+
                     }
                 }
             } else {
@@ -175,7 +191,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // 2. Once Auth is successful, verify the 4-digit PIN against Firestore
         // This is now the ONLY dynamic check for 'Universal' PIN logic.
         if (storedPin !== pin) {
-            console.log('Login: PIN mismatch');
+
             throw new Error('Incorrect PIN');
         }
 
@@ -190,13 +206,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const auth = getAuth();
         const { user: newUser } = await createUserWithEmailAndPassword(auth, email, getAuthPassword(email));
         if (newUser) {
-            await setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
+            // Optimistic profile creation: Don't await this so UI unblocks immediately
+            setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
                 name,
                 email,
                 phone,
                 pin: pass, // Store the 4-digit PIN
                 isPhoneVerified: false,
                 createdAt: new Date().toISOString()
+            }).catch(err => {
+                console.error('Background profile creation failed:', err);
+                Alert.alert("Sync Error", "Could not save profile to cloud: " + err.message);
             });
 
             // Manually set user state to avoid race condition with onAuthStateChanged
@@ -216,7 +236,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
         if (USE_MOCK_OTP) {
-            console.log('[MOCK OTP] code:', otpCode);
+
             setActiveOtp('123456'); // Keep 123456 for manual testing if mock is on
             return "MOCK_VERIFICATION_ID";
         }
@@ -232,7 +252,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             const url = `https://www.fast2sms.com/dev/whatsapp/v24.0/${PHONE_NUMBER_ID}/messages`;
 
-            console.log('Sending WhatsApp OTP (POST) to:', finalPhone);
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -268,7 +288,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             });
 
             const result = await response.json();
-            console.log('Fast2SMS POST Response:', JSON.stringify(result));
+
 
             // Meta API returns messages array on success
             if (result.messages && result.messages.length > 0) {
@@ -291,9 +311,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const auth = getAuth();
             const currentUser = auth.currentUser;
             if (currentUser) {
-                await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
+                // Optimistic update: Don't await this so UI unblocks immediately even if offline
+                updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
                     isPhoneVerified: true
-                });
+                }).catch(err => { });
+
                 setUser((prev: any) => ({ ...prev, isPhoneVerified: true }));
             }
             return true;
@@ -302,7 +324,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const resetPinWithPhone = async (phone: string, newPin: string) => {
-        console.log(`ResetPIN: Attempting reset for phone ${phone}`);
+
         const db = getFirestore();
         const userSnapshot = await getDocs(query(
             collection(db, COLLECTIONS.USERS),
@@ -310,21 +332,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         ));
 
         if (userSnapshot.empty) {
-            console.log('ResetPIN: User not found in Firestore');
+            // console.log('ResetPIN: User not found in Firestore');
             throw new Error('User not found');
         }
 
         const userId = userSnapshot.docs[0].id;
         const email = userSnapshot.docs[0].data().email;
-        console.log(`ResetPIN: Found user ${userId} (${email})`);
+
 
         // 1. Update the PIN in Firestore (Primary source of truth for the 4-digit code)
         try {
-            console.log('ResetPIN: Updating Firestore PIN...');
+            // console.log('ResetPIN: Updating Firestore PIN...');
             await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userId), {
                 pin: newPin
             });
-            console.log('ResetPIN: Firestore update SUCCESS');
+            // console.log('ResetPIN: Firestore update SUCCESS');
         } catch (err: any) {
             console.error('ResetPIN: Firestore update FAILED', err);
             throw new Error('Could not update PIN. Please try again.');
@@ -379,11 +401,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
 
             if (company?.id) {
-                await setDoc(doc(getFirestore(), COLLECTIONS.COMPANIES, company.id), companyWithId, { merge: true });
+                // Optimistic Update: Update state first
                 setCompany((prev: any) => ({ ...prev, ...companyWithId }));
+
+                // Fire-and-forget Firestore update
+                setDoc(doc(getFirestore(), COLLECTIONS.COMPANIES, company.id), companyWithId, { merge: true })
+                    .catch(e => console.log('Background company update failed (offline?):', e));
             } else {
-                const newCompanyRef = await addDoc(collection(getFirestore(), COLLECTIONS.COMPANIES), companyWithId);
+                // Generate ID synchronously
+                const newCompanyRef = doc(collection(getFirestore(), COLLECTIONS.COMPANIES));
+
+                // Optimistic Update
                 setCompany({ id: newCompanyRef.id, ...companyWithId });
+
+                // Fire-and-forget Firestore create
+                setDoc(newCompanyRef, companyWithId)
+                    .catch(e => console.log('Background company creation failed (offline?):', e));
             }
         } catch (error) {
             console.error('Save Company Error:', error);

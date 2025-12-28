@@ -13,7 +13,7 @@ import { Share, Platform } from 'react-native';
 import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
 import { getInvoiceHTML, getTailorCopyHTML, getCustomerCopyHTML, generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, printHTML, normalizeItems } from '../services/pdfService';
 import PDFPreviewModal from '../components/PDFPreviewModal';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -151,7 +151,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 }
             });
         } catch (error) {
-            console.log('Audio Error:', error);
+
             setAlertConfig({ title: 'Error', message: 'Could not play audio note' });
             setAlertVisible(true);
         }
@@ -450,14 +450,38 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             const rawItems = normalizeItems(orderWithCustomerInfo);
             const processedItems = await Promise.all(rawItems.map(async (item: any) => {
                 if (item.images && item.images.length > 0) {
-                    const base64Images = await Promise.all(item.images.map(async (imgUri: string) => {
+                    const base64Images = await Promise.all(item.images.map(async (uri: string) => {
                         try {
-                            if (imgUri.startsWith('file://')) {
-                                const base64 = await FileSystem.readAsStringAsync(imgUri, { encoding: 'base64' });
-                                return `data:image/jpeg;base64,${base64}`;
+                            if (!uri) return null;
+
+                            // Handle remote http images - let expo-print handle them natively
+                            if (uri.startsWith('http') || uri.startsWith('https')) {
+                                return uri;
                             }
-                            return imgUri;
-                        } catch (e) {
+
+                            let targetUri = uri;
+
+                            // Normalize local URI: ensure it starts with file://
+                            if (!targetUri.startsWith('file://') && !targetUri.startsWith('content://')) {
+                                if (targetUri.startsWith('/')) {
+                                    targetUri = `file://${targetUri}`;
+                                }
+                            }
+
+                            // Verify existence first
+                            const info = await FileSystem.getInfoAsync(targetUri);
+                            if (!info.exists) {
+                                console.warn(`[PDF Preview] Image file missing: ${targetUri}`);
+                                Alert.alert('Preview Debug', `File not found: ${targetUri}`);
+                                return null;
+                            }
+
+                            const base64 = await FileSystem.readAsStringAsync(targetUri, { encoding: 'base64' });
+                            return `data:image/jpeg;base64,${base64}`;
+
+                        } catch (e: any) {
+                            console.warn('Preview Image Error:', e);
+                            Alert.alert('Preview Error', `Failed to load image: ${uri}\n${e.message}`);
                             return null;
                         }
                     }));
@@ -498,16 +522,26 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const renderOrderDetails = () => {
         const customer = customers.find(c => c.id === order.customerId);
 
-        const DetailRow = ({ label, value, isStatus = false }: { label: string, value: string | React.ReactNode, isStatus?: boolean }) => (
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
-                <Text style={{ fontFamily: 'Inter-Medium', fontSize: 14, color: Colors.textSecondary }}>{label}</Text>
-                {isStatus ? (
-                    value
-                ) : (
-                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 }}>{value || '-'}</Text>
-                )}
-            </View>
-        );
+        const DetailRow = ({ label, value, isStatus = false, onPress }: { label: string, value: string | React.ReactNode, isStatus?: boolean, onPress?: () => void }) => {
+            const Content = (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border }}>
+                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 14, color: Colors.textSecondary }}>{label}</Text>
+                    {isStatus ? (
+                        value
+                    ) : (
+                        <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textPrimary, textAlign: 'right', flex: 1, marginLeft: 16 }}>{value || '-'}</Text>
+                    )}
+                </View>
+            );
+
+            if (onPress) {
+                return <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{Content}</TouchableOpacity>;
+            }
+            return Content;
+        };
+
+        const isUrgent = (order as any).urgency === 'Urgent' || (order as any).urgency === 'Emergency';
+        const deliveryDateColor = isUrgent ? Colors.danger : Colors.textPrimary;
 
         return (
             <View style={{ gap: 24, paddingVertical: 8 }}>
@@ -515,30 +549,29 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     <DetailRow
                         label="Order Status"
                         isStatus
+                        onPress={() => setStatusModalVisible(true)}
                         value={
-                            <TouchableOpacity onPress={() => setStatusModalVisible(true)}>
-                                <View style={{
-                                    backgroundColor: getStatusColor(order.status || 'Pending') + '15',
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 6,
-                                    borderRadius: 12,
-                                    borderWidth: 1,
-                                    borderColor: getStatusColor(order.status || 'Pending') + '30',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 4
+                            <View style={{
+                                backgroundColor: getStatusColor(order.status || 'Pending') + '15',
+                                paddingHorizontal: 12,
+                                paddingVertical: 6,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: getStatusColor(order.status || 'Pending') + '30',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4
+                            }}>
+                                <Text style={{
+                                    color: getStatusColor(order.status || 'Pending'),
+                                    fontFamily: 'Inter-Bold',
+                                    fontSize: 12,
+                                    textTransform: 'uppercase'
                                 }}>
-                                    <Text style={{
-                                        color: getStatusColor(order.status || 'Pending'),
-                                        fontFamily: 'Inter-Bold',
-                                        fontSize: 12,
-                                        textTransform: 'uppercase'
-                                    }}>
-                                        {order.status || 'Pending'}
-                                    </Text>
-                                    <ChevronDown size={14} color={getStatusColor(order.status || 'Pending')} />
-                                </View>
-                            </TouchableOpacity>
+                                    {order.status || 'Pending'}
+                                </Text>
+                                <ChevronDown size={14} color={getStatusColor(order.status || 'Pending')} />
+                            </View>
                         }
                     />
                     <DetailRow label="Order ID" value={`#${order.billNo}`} />
@@ -547,18 +580,86 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     <DetailRow label="Name" value={order.customerName} />
                     <DetailRow label="Whatsapp Number" value={order.customerMobile} />
                     <DetailRow label="Ordered Date" value={formatDate(order.date || order.createdAt || new Date())} />
+                    {(order as any).urgency && <DetailRow label="Urgency" value={(order as any).urgency} />}
+                    {/* Delivery Date Moved from here to Item level */}
 
                     {/* Item Count */}
                     <DetailRow label="Total Items" value={displayItems.length.toString()} />
 
-                    {/* Item Breakdown with Delivery Date */}
-                    {displayItems.map((item: any, index: number) => (
-                        <DetailRow
-                            key={index}
-                            label={`${item.name} (${item.qty})`}
-                            value={order.deliveryDate ? formatDate(order.deliveryDate) : '-'}
-                        />
-                    ))}
+                    {/* Item Breakdown */}
+                    {displayItems && displayItems.length > 0 ? displayItems.map((item: any, index: number) => (
+                        <View key={index} style={{ flexDirection: 'column', gap: 4, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingVertical: 12 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 14, color: Colors.textSecondary }}>{`${item.name} (${item.qty})`}</Text>
+                                        {((order as any).urgency === 'Urgent' || (order as any).urgency === 'Emergency') && (
+                                            <View style={{ backgroundColor: '#FECACA', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                                <Text style={{ fontSize: 10, color: '#DC2626', fontFamily: 'Inter-Bold', textTransform: 'uppercase' }}>{(order as any).urgency}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    {order.deliveryDate && (
+                                        <Text style={{
+                                            fontFamily: 'Inter-SemiBold',
+                                            fontSize: 15,
+                                            color: (() => {
+                                                const safeParse = (str: string) => {
+                                                    if (!str) return new Date();
+                                                    if (str.includes('/')) {
+                                                        const [p1, p2, y] = str.split('/').map(Number);
+                                                        // if p1 > 12, it must be DD/MM
+                                                        if (p1 > 12) return new Date(y, p2 - 1, p1);
+                                                        return new Date(y, p2 - 1, p1);
+                                                    }
+                                                    return new Date(str);
+                                                };
+
+                                                const checkIsNear = (dStr: string) => {
+                                                    const now = new Date();
+                                                    now.setHours(0, 0, 0, 0);
+                                                    
+                                                    const target = safeParse(dStr);
+                                                    target.setHours(0, 0, 0, 0);
+                                                    
+                                                    const diffTime = target.getTime() - now.getTime();
+                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                    // Red if Near/Overdue (<= 3 days)
+                                                    return diffDays <= 3;
+                                                };
+                                                
+                                                const isNear = checkIsNear(order.deliveryDate as string);
+                                                return isNear ? Colors.danger : Colors.textPrimary;
+                                            })()
+
+                                                    const diffTime = target.getTime() - now.getTime();
+                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                                                    // Red if:
+                                                    // 1. In the past (diffDays < 0)
+                                                    // 2. Today (diffDays == 0)
+                                                    // 3. Within next 3 days (diffDays <= 3)
+                                                    return diffDays <= 3;
+                                                };
+
+                                                const isNear = checkIsNear(order.deliveryDate as string);
+                                                return (isUrgent || isNear) ? Colors.danger : Colors.textPrimary;
+                                            })()
+                                        }}>
+                                            {formatDate(order.deliveryDate)}
+                                        </Text>
+                                    )}
+                                    {item.totalCost && item.totalCost > 0 ? (
+                                        <Text style={{ fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>{`₹${item.totalCost}`}</Text>
+                                    ) : null}
+                                </View>
+                            </View>
+                        </View>
+                    )) : (
+                        <Text style={{ padding: 10, color: Colors.textSecondary, fontStyle: 'italic' }}>No items</Text>
+                    )}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                     <TouchableOpacity
@@ -590,140 +691,142 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                         )}
                     </TouchableOpacity>
                 </View>
-            </View>
+            </View >
         );
     };
 
-    const renderOrderItems = () => (
-        <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.sectionTitle}>Items ({displayItems.length})</Text>
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('CreateOrderFlow', { editOrderId: order.id, addNewItem: true })}
-                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
-                >
-                    <PlusCircle size={16} color={Colors.primary} style={{ marginRight: 4 }} />
-                    <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>Add Item</Text>
-                </TouchableOpacity>
+const renderOrderItems = () => (
+    <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={styles.sectionTitle}>Items ({displayItems.length})</Text>
+            <TouchableOpacity
+                onPress={() => navigation.navigate('CreateOrderFlow', { editOrderId: order.id, addNewItem: true })}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
+            >
+                <PlusCircle size={16} color={Colors.primary} style={{ marginRight: 4 }} />
+                <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>Add Item</Text>
+            </TouchableOpacity>
+        </View>
+
+        {displayItems.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>No items added yet</Text>
             </View>
-
-            {displayItems.length === 0 ? (
-                <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>No items added yet</Text>
-                </View>
-            ) : (
-                <View style={{ gap: 12 }}>
-                    {displayItems.map((item: any, index: any) => (
-                        <View key={index} style={{ backgroundColor: Colors.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                                <View style={{ flex: 1 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>{item.name}</Text>
-                                        <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                                            <Text style={{ fontSize: 12, fontFamily: 'Inter-Medium', color: Colors.textSecondary }}>x{item.qty}</Text>
-                                        </View>
+        ) : (
+            <View style={{ gap: 12 }}>
+                {displayItems.map((item: any, index: any) => (
+                    <View key={index} style={{ backgroundColor: Colors.white, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                            <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>{item.name}</Text>
+                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                                        <Text style={{ fontSize: 12, fontFamily: 'Inter-Medium', color: Colors.textSecondary }}>x{item.qty}</Text>
                                     </View>
-                                    {/* Description hidden in list view */}
                                 </View>
-                                <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{item.amount}</Text>
+                                {/* Description hidden in list view */}
                             </View>
+                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{item.amount}</Text>
+                        </View>
 
-                            <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 }} />
+                        <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 }} />
 
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <View style={{ flexDirection: 'row', gap: 16 }}>
-                                    <TouchableOpacity
-                                        onPress={() => navigation.navigate('ItemDetail', { item, orderId: order.id, itemIndex: index })}
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                    >
-                                        <Text style={{ fontSize: 13, color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>View Details</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <View style={{ flexDirection: 'row', gap: 16 }}>
-                                    <TouchableOpacity
-                                        onPress={() => navigation.navigate('CreateOrderFlow', { editOrderId: order.id, editItemIndex: index })}
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                    >
-                                        <Edit2 size={16} color={Colors.textSecondary} />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => handleDeleteItem(index)}>
-                                        <Trash2 size={16} color={Colors.danger} />
-                                    </TouchableOpacity>
-                                </View>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View style={{ flexDirection: 'row', gap: 16 }}>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('ItemDetail', { item, orderId: order.id, itemIndex: index })}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                >
+                                    <Text style={{ fontSize: 13, color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>View Details</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 16 }}>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('CreateOrderFlow', { editOrderId: order.id, editItemIndex: index })}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                >
+                                    <Edit2 size={16} color={Colors.textSecondary} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteItem(index)}>
+                                    <Trash2 size={16} color={Colors.danger} />
+                                </TouchableOpacity>
                             </View>
                         </View>
-                    ))}
-                </View>
-            )}
+                    </View>
+                ))}
+            </View>
+        )}
 
-            <View style={{ marginTop: 24, padding: 16, backgroundColor: Colors.white, borderRadius: 16, borderWidth: 1, borderColor: Colors.border }}>
-                <View style={{ gap: 12 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary }}>Total Amount</Text>
-                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.textPrimary }}>₹{order.total.toLocaleString()}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary }}>Paid Amount</Text>
-                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success }}>₹{totalPaid.toLocaleString()}</Text>
-                    </View>
-                    <View style={{ height: 1, backgroundColor: Colors.border }} />
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>Balance Due</Text>
-                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: currentBalance > 0 ? Colors.danger : Colors.success }}>
-                            ₹{currentBalance.toLocaleString()}
-                        </Text>
-                    </View>
+        <View style={{ marginTop: 24, padding: 16, backgroundColor: Colors.white, borderRadius: 16, borderWidth: 1, borderColor: Colors.border }}>
+            <View style={{ gap: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary }}>Total Amount</Text>
+                    <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.textPrimary }}>₹{order.total.toLocaleString()}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary }}>Paid Amount</Text>
+                    <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success }}>₹{totalPaid.toLocaleString()}</Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: Colors.border }} />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>Balance Due</Text>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: currentBalance > 0 ? Colors.danger : Colors.success }}>
+                        ₹{currentBalance.toLocaleString()}
+                    </Text>
                 </View>
             </View>
         </View>
-    );
+    </View>
+);
 
-    const renderPaymentHistory = () => (
-        <View style={{ flex: 1 }}>
-            {/* Payment Summary Card */}
-            <View style={{ backgroundColor: Colors.white, padding: 16, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Total</Text>
-                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{order.total.toLocaleString()}</Text>
-                    </View>
-                    <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
-                    <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Paid</Text>
-                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.success }}>₹{totalPaid.toLocaleString()}</Text>
-                    </View>
-                    <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
-                    <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Balance</Text>
-                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: currentBalance > 0 ? Colors.danger : Colors.success }}>₹{currentBalance.toLocaleString()}</Text>
-                    </View>
+const renderPaymentHistory = () => (
+    <View style={{ flex: 1 }}>
+        {/* Payment Summary Card */}
+        <View style={{ backgroundColor: Colors.white, padding: 16, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Total</Text>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.textPrimary }}>₹{order.total.toLocaleString()}</Text>
+                </View>
+                <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Paid</Text>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: Colors.success }}>₹{totalPaid.toLocaleString()}</Text>
+                </View>
+                <View style={{ width: 1, height: '80%', backgroundColor: Colors.border, alignSelf: 'center' }} />
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Balance</Text>
+                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 16, color: currentBalance > 0 ? Colors.danger : Colors.success }}>₹{currentBalance.toLocaleString()}</Text>
                 </View>
             </View>
+        </View>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={styles.sectionTitle}>History ({billPayments.length})</Text>
-                <TouchableOpacity
-                    onPress={() => {
-                        setEditingPayment(null);
-                        setPaymentAmount('');
-                        setPaymentMode('Cash');
-                        setPaymentModalVisible(true);
-                    }}
-                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
-                >
-                    <PlusCircle size={16} color="#059669" style={{ marginRight: 4 }} />
-                    <Text style={{ color: '#059669', fontFamily: 'Inter-SemiBold', fontSize: 13 }}>Add Payment</Text>
-                </TouchableOpacity>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={styles.sectionTitle}>History ({billPayments.length})</Text>
+            <TouchableOpacity
+                onPress={() => {
+                    setEditingPayment(null);
+                    setPaymentAmount('');
+                    setPaymentMode('Cash');
+                    setPaymentModalVisible(true);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 }}
+            >
+                <PlusCircle size={16} color="#059669" style={{ marginRight: 4 }} />
+                <Text style={{ color: '#059669', fontFamily: 'Inter-SemiBold', fontSize: 13 }}>Add Payment</Text>
+            </TouchableOpacity>
+        </View>
+
+        {billPayments.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: Colors.border }}>
+                <ReceiptIndianRupee size={32} color={Colors.textSecondary} style={{ marginBottom: 8, opacity: 0.5 }} />
+                <Text style={{ color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>No payments recorded yet</Text>
             </View>
-
-            {billPayments.length === 0 ? (
-                <View style={{ padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: Colors.border }}>
-                    <ReceiptIndianRupee size={32} color={Colors.textSecondary} style={{ marginBottom: 8, opacity: 0.5 }} />
-                    <Text style={{ color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>No payments recorded yet</Text>
-                </View>
-            ) : (
-                <View style={{ gap: 12 }}>
-                    {billPayments.map((p, index) => (
+        ) : (
+            <View style={{ gap: 12 }}>
+                {[...billPayments]
+                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((p, index) => (
                         <View key={index} style={{ backgroundColor: Colors.white, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, ...Shadow.subtle }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ECFDF5', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
@@ -758,378 +861,378 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                             </View>
                         </View>
                     ))}
-                </View>
-            )}
-        </View>
-    );
+            </View>
+        )}
+    </View>
+);
 
-    return (
-        <View style={styles.container}>
-            {renderTabs()}
-            <ScrollView
-                ref={scrollRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={handleScroll}
+return (
+    <View style={styles.container}>
+        {renderTabs()}
+        <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScroll}
+            style={{ flex: 1 }}
+        >
+            <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                {renderOrderDetails()}
+            </ScrollView>
+            <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                {renderOrderItems()}
+            </ScrollView>
+            <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
+                {renderPaymentHistory()}
+            </ScrollView>
+        </ScrollView>
+
+        <PDFPreviewModal
+            visible={previewVisible}
+            html={previewHtml}
+            title={previewTitle}
+            onClose={() => setPreviewVisible(false)}
+            onPrint={handleActualPrint}
+            onShare={handleActualShare}
+        />
+
+
+
+        <Modal
+            animationType="slide"
+            transparent={true}
+            visible={paymentModalVisible}
+            onRequestClose={() => setPaymentModalVisible(false)}
+        >
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
-                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
-                    {renderOrderDetails()}
-                </ScrollView>
-                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
-                    {renderOrderItems()}
-                </ScrollView>
-                <ScrollView style={{ width }} contentContainerStyle={styles.scrollContent}>
-                    {renderPaymentHistory()}
-                </ScrollView>
-            </ScrollView>
-
-            <PDFPreviewModal
-                visible={previewVisible}
-                html={previewHtml}
-                title={previewTitle}
-                onClose={() => setPreviewVisible(false)}
-                onPrint={handleActualPrint}
-                onShare={handleActualShare}
-            />
-
-
-
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={paymentModalVisible}
-                onRequestClose={() => setPaymentModalVisible(false)}
-            >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={{ flex: 1 }}
-                >
-                    <View style={styles.modalOverlay}>
-                        <View style={styles.modalContent}>
-                            <ScrollView showsVerticalScrollIndicator={false}>
-                                <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>{editingPayment ? 'Edit Payment' : 'Add Payment'}</Text>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Amount Received (Balance: ₹{currentBalance})</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholderTextColor={Colors.textSecondary}
-                                        placeholder="₹ 0.00"
-                                        keyboardType="numeric"
-                                        value={paymentAmount}
-                                        onChangeText={setPaymentAmount}
-                                        autoFocus
-                                    />
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Payment Mode</Text>
-                                    <View style={styles.modeRow}>
-                                        {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
-                                            <TouchableOpacity
-                                                key={m}
-                                                style={[styles.modeBtn, paymentMode === m && styles.modeBtnActive]}
-                                                onPress={() => setPaymentMode(m)}
-                                            >
-                                                <Text style={[styles.modeBtnText, paymentMode === m && styles.modeBtnTextActive]}>{m}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
-
-                                <View style={styles.modalFooter}>
-                                    <TouchableOpacity style={styles.cancelBtn} onPress={() => {
-                                        setPaymentModalVisible(false);
-                                        setEditingPayment(null);
-                                        setPaymentAmount('');
-                                    }}>
-                                        <Text style={styles.cancelBtnText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
-                                        <Text style={styles.saveBtnText}>{editingPayment ? 'Update Payment' : 'Add Payment'}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </ScrollView>
-                        </View>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
-
-            <Modal
-                animationType="fade"
-                transparent={true}
-                visible={printOptionsModalVisible}
-                onRequestClose={() => setPrintOptionsModalVisible(false)}
-            >
                 <View style={styles.modalOverlay}>
-                    <TouchableOpacity
-                        style={{ flex: 1 }}
-                        activeOpacity={1}
-                        onPress={() => setPrintOptionsModalVisible(false)}
-                    />
-                    <View style={styles.bottomSheet}>
-                        <View style={styles.bottomSheetHeader}>
-                            <Text style={styles.bottomSheetTitle}>Select Copy to Print</Text>
-                            <TouchableOpacity onPress={() => setPrintOptionsModalVisible(false)}>
-                                <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>Cancel</Text>
-                            </TouchableOpacity>
-                        </View>
+                    <View style={styles.modalContent}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>{editingPayment ? 'Edit Payment' : 'Add Payment'}</Text>
 
-                        <TouchableOpacity
-                            style={styles.optionItem}
-                            onPress={() => {
-                                setPrintOptionsModalVisible(false);
-                                handleCustomerCopy();
-                            }}
-                        >
-                            <View style={[styles.optionIcon, { backgroundColor: '#F0F9FF' }]}>
-                                <User size={20} color="#0284C7" />
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Amount Received (Balance: ₹{currentBalance})</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholderTextColor={Colors.textSecondary}
+                                    placeholder="₹ 0.00"
+                                    keyboardType="numeric"
+                                    value={paymentAmount}
+                                    onChangeText={setPaymentAmount}
+                                    autoFocus
+                                />
                             </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.optionLabel}>Customer Copy</Text>
-                                <Text style={styles.optionDesc}>Original bill with full pricing details</Text>
-                            </View>
-                        </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={[styles.optionItem, { borderBottomWidth: 0 }]}
-                            onPress={() => {
-                                setPrintOptionsModalVisible(false);
-                                handleTailorCopy();
-                            }}
-                        >
-                            <View style={[styles.optionIcon, { backgroundColor: '#FFF7ED' }]}>
-                                <PenTool size={20} color="#EA580C" />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.optionLabel}>Tailor Copy</Text>
-                                <Text style={styles.optionDesc}>Measurements, photos & notes (no prices)</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Modals and Sheets */}
-
-            <BottomConfirmationSheet
-                visible={deleteSheetVisible}
-                onClose={() => setDeleteSheetVisible(false)}
-                onConfirm={confirmDelete}
-                title="Delete Order"
-                description="Are you sure you want to delete this order? This action cannot be undone."
-                confirmText="Delete Order"
-                type="danger"
-            />
-
-            <BottomConfirmationSheet
-                visible={deleteItemSheetVisible}
-                onClose={() => setDeleteItemSheetVisible(false)}
-                onConfirm={confirmDeleteItem}
-                title="Delete Item"
-                description="Are you sure you want to delete this item?"
-                confirmText="Delete Item"
-                type="danger"
-            />
-
-            <AlertModal
-                visible={alertVisible}
-                title={alertConfig.title}
-                message={alertConfig.message}
-                onClose={() => setAlertVisible(false)}
-            />
-            {/* Status Selection Modal */}
-            <ReusableBottomDrawer
-                visible={statusModalVisible}
-                onClose={() => setStatusModalVisible(false)}
-                title="Update Status"
-            >
-                <View>
-                    {['Pending', 'In Progress', 'Trial', 'Completed', 'Overdue', 'Cancelled'].map((statusOption) => {
-                        const isSelected = order.status === statusOption;
-                        const activeColor = getStatusColor(statusOption);
-                        return (
-                            <TouchableOpacity
-                                key={statusOption}
-                                onPress={async () => {
-                                    setStatusModalVisible(false);
-                                    await updateOrder(order.id, { status: statusOption as any });
-                                }}
-                                style={{
-                                    paddingVertical: 16,
-                                    paddingHorizontal: 24,
-                                    borderBottomWidth: 1,
-                                    borderBottomColor: '#F3F4F6',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    backgroundColor: isSelected ? activeColor + '10' : 'transparent',
-                                }}
-                            >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: 5,
-                                        backgroundColor: activeColor,
-                                        shadowColor: activeColor,
-                                        shadowOpacity: 0.5,
-                                        shadowRadius: 4,
-                                        elevation: 2
-                                    }} />
-                                    <Text style={{
-                                        fontFamily: isSelected ? 'Inter-Bold' : 'Inter-Medium',
-                                        fontSize: 16,
-                                        color: isSelected ? Colors.textPrimary : Colors.textSecondary
-                                    }}>
-                                        {statusOption}
-                                    </Text>
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Payment Mode</Text>
+                                <View style={styles.modeRow}>
+                                    {['Cash', 'UPI', 'GPay', 'Card'].map(m => (
+                                        <TouchableOpacity
+                                            key={m}
+                                            style={[styles.modeBtn, paymentMode === m && styles.modeBtnActive]}
+                                            onPress={() => setPaymentMode(m)}
+                                        >
+                                            <Text style={[styles.modeBtnText, paymentMode === m && styles.modeBtnTextActive]}>{m}</Text>
+                                        </TouchableOpacity>
+                                    ))}
                                 </View>
-                                {isSelected && (
-                                    <View style={{
-                                        backgroundColor: activeColor + '20',
-                                        borderRadius: 12,
-                                        padding: 4
-                                    }}>
-                                        <Check size={16} color={activeColor} strokeWidth={3} />
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-            </ReusableBottomDrawer>
-            {/* Item Detail Modal */}
-            <Modal
-                visible={!!selectedItem}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setSelectedItem(null)}
-            >
-                <View style={[styles.modalOverlay, { justifyContent: 'flex-end' }]}>
-                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setSelectedItem(null)} />
-                    <View style={[styles.bottomSheet, { maxHeight: '85%' }]}>
-                        <View style={styles.bottomSheetHeader}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.bottomSheetTitle}>{selectedItem?.name}</Text>
-                                <Text style={{ fontSize: 13, color: Colors.textSecondary }}>Detailed Specifications</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setSelectedItem(null)}>
-                                <X size={24} color={Colors.textPrimary} />
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
-                            {/* Images */}
-                            {selectedItem?.images && selectedItem.images.length > 0 && (
-                                <View style={{ marginBottom: 24 }}>
-                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Photos / Designs</Text>
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                                        {selectedItem.images.map((img: string, i: number) => (
-                                            <TouchableOpacity key={i} onPress={() => setPreviewImageUri(img)} style={{ width: '48%', aspectRatio: 1 }}>
-                                                <Image source={{ uri: img }} style={{ width: '100%', height: '100%', borderRadius: 12, backgroundColor: '#F3F4F6' }} resizeMode="cover" />
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
-                            )}
 
-                            {/* Separating Measurements and Stitching Options */}
-                            {(() => {
-                                const measurements = selectedItem?.measurements || {};
-                                const numericMeasurements: any = {};
-                                const stitchingOptions: any = {};
-
-                                Object.entries(measurements).forEach(([key, val]) => {
-                                    if (!isNaN(Number(val)) && String(val).trim() !== '') {
-                                        numericMeasurements[key] = val;
-                                    } else if (val && String(val).trim() !== '') {
-                                        stitchingOptions[key] = val;
-                                    }
-                                });
-
-                                return (
-                                    <>
-                                        {Object.keys(numericMeasurements).length > 0 && (
-                                            <View style={{ marginBottom: 24 }}>
-                                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Measurements</Text>
-                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                                                    {Object.entries(numericMeasurements).map(([key, val]: any) => (
-                                                        <View key={key} style={{ width: '48%', backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' }}>
-                                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize', marginBottom: 4 }}>{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
-                                                            <Text style={{ fontSize: 16, fontFamily: 'Inter-SemiBold', color: Colors.textPrimary }}>{String(val)}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-
-                                        {Object.keys(stitchingOptions).length > 0 && (
-                                            <View style={{ marginBottom: 24 }}>
-                                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Stitching Options</Text>
-                                                <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', gap: 12 }}>
-                                                    {Object.entries(stitchingOptions).map(([key, val]: any) => (
-                                                        <View key={key} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                            <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: 'Inter-Medium', textTransform: 'capitalize' }}>{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
-                                                            <Text style={{ fontSize: 14, fontFamily: 'Inter-SemiBold', color: Colors.textPrimary, flex: 1, textAlign: 'right', marginLeft: 16 }}>{String(val)}</Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            </View>
-                                        )}
-                                    </>
-                                );
-                            })()}
-
-                            {/* Notes */}
-                            {selectedItem?.notes ? (
-                                <View style={{ marginBottom: 24 }}>
-                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notes</Text>
-                                    <View style={{ backgroundColor: '#FFFBEB', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#FEF3C7' }}>
-                                        <Text style={{ fontSize: 14, color: '#92400E', fontFamily: 'Inter-Medium', lineHeight: 20 }}>{selectedItem.notes}</Text>
-                                    </View>
-                                </View>
-                            ) : null}
-
-                            {/* Audio Note */}
-                            {selectedItem?.audioUri && (
-                                <View style={{ marginBottom: 24 }}>
-                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Audio Note</Text>
-                                    <TouchableOpacity
-                                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, padding: 16, borderRadius: 12, ...Shadow.subtle }}
-                                        onPress={() => handlePlayAudio(selectedItem.audioUri)}
-                                    >
-                                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                                            {playingUri === selectedItem.audioUri ? <StopCircle size={24} color={Colors.white} /> : <PlayCircle size={24} color={Colors.white} />}
-                                        </View>
-                                        <View>
-                                            <Text style={{ color: Colors.white, fontFamily: 'Inter-SemiBold', fontSize: 15 }}>
-                                                {playingUri === selectedItem.audioUri ? 'Stop Playback' : 'Play Voice Note'}
-                                            </Text>
-                                            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>Tap to listen per instructions</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
+                            <View style={styles.modalFooter}>
+                                <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                                    setPaymentModalVisible(false);
+                                    setEditingPayment(null);
+                                    setPaymentAmount('');
+                                }}>
+                                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.saveBtn} onPress={handleSavePayment}>
+                                    <Text style={styles.saveBtnText}>{editingPayment ? 'Update Payment' : 'Add Payment'}</Text>
+                                </TouchableOpacity>
+                            </View>
                         </ScrollView>
                     </View>
                 </View>
-            </Modal>
+            </KeyboardAvoidingView>
+        </Modal>
 
-            {/* Image Preview Modal */}
-            <Modal visible={!!previewImageUri} transparent={true} animationType="fade" onRequestClose={() => setPreviewImageUri(null)}>
-                <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' }}>
-                    <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setPreviewImageUri(null)}>
-                        <X size={30} color="white" />
+        <Modal
+            animationType="fade"
+            transparent={true}
+            visible={printOptionsModalVisible}
+            onRequestClose={() => setPrintOptionsModalVisible(false)}
+        >
+            <View style={styles.modalOverlay}>
+                <TouchableOpacity
+                    style={{ flex: 1 }}
+                    activeOpacity={1}
+                    onPress={() => setPrintOptionsModalVisible(false)}
+                />
+                <View style={styles.bottomSheet}>
+                    <View style={styles.bottomSheetHeader}>
+                        <Text style={styles.bottomSheetTitle}>Select Copy to Print</Text>
+                        <TouchableOpacity onPress={() => setPrintOptionsModalVisible(false)}>
+                            <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold' }}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.optionItem}
+                        onPress={() => {
+                            setPrintOptionsModalVisible(false);
+                            handleCustomerCopy();
+                        }}
+                    >
+                        <View style={[styles.optionIcon, { backgroundColor: '#F0F9FF' }]}>
+                            <User size={20} color="#0284C7" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.optionLabel}>Customer Copy</Text>
+                            <Text style={styles.optionDesc}>Original bill with full pricing details</Text>
+                        </View>
                     </TouchableOpacity>
-                    {previewImageUri && (
-                        <Image source={{ uri: previewImageUri }} style={{ width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.8 }} resizeMode="contain" />
-                    )}
+
+                    <TouchableOpacity
+                        style={[styles.optionItem, { borderBottomWidth: 0 }]}
+                        onPress={() => {
+                            setPrintOptionsModalVisible(false);
+                            handleTailorCopy();
+                        }}
+                    >
+                        <View style={[styles.optionIcon, { backgroundColor: '#FFF7ED' }]}>
+                            <PenTool size={20} color="#EA580C" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.optionLabel}>Tailor Copy</Text>
+                            <Text style={styles.optionDesc}>Measurements, photos & notes (no prices)</Text>
+                        </View>
+                    </TouchableOpacity>
                 </View>
-            </Modal>
-        </View >
-    );
+            </View>
+        </Modal>
+
+        {/* Modals and Sheets */}
+
+        <BottomConfirmationSheet
+            visible={deleteSheetVisible}
+            onClose={() => setDeleteSheetVisible(false)}
+            onConfirm={confirmDelete}
+            title="Delete Order"
+            description="Are you sure you want to delete this order? This action cannot be undone."
+            confirmText="Delete Order"
+            type="danger"
+        />
+
+        <BottomConfirmationSheet
+            visible={deleteItemSheetVisible}
+            onClose={() => setDeleteItemSheetVisible(false)}
+            onConfirm={confirmDeleteItem}
+            title="Delete Item"
+            description="Are you sure you want to delete this item?"
+            confirmText="Delete Item"
+            type="danger"
+        />
+
+        <AlertModal
+            visible={alertVisible}
+            title={alertConfig.title}
+            message={alertConfig.message}
+            onClose={() => setAlertVisible(false)}
+        />
+        {/* Status Selection Modal */}
+        <ReusableBottomDrawer
+            visible={statusModalVisible}
+            onClose={() => setStatusModalVisible(false)}
+            title="Update Status"
+        >
+            <View>
+                {['Pending', 'In Progress', 'Trial', 'Completed', 'Overdue', 'Cancelled'].map((statusOption) => {
+                    const isSelected = order.status === statusOption;
+                    const activeColor = getStatusColor(statusOption);
+                    return (
+                        <TouchableOpacity
+                            key={statusOption}
+                            onPress={async () => {
+                                setStatusModalVisible(false);
+                                await updateOrder(order.id, { status: statusOption as any });
+                            }}
+                            style={{
+                                paddingVertical: 16,
+                                paddingHorizontal: 24,
+                                borderBottomWidth: 1,
+                                borderBottomColor: '#F3F4F6',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: isSelected ? activeColor + '10' : 'transparent',
+                            }}
+                        >
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: 5,
+                                    backgroundColor: activeColor,
+                                    shadowColor: activeColor,
+                                    shadowOpacity: 0.5,
+                                    shadowRadius: 4,
+                                    elevation: 2
+                                }} />
+                                <Text style={{
+                                    fontFamily: isSelected ? 'Inter-Bold' : 'Inter-Medium',
+                                    fontSize: 16,
+                                    color: isSelected ? Colors.textPrimary : Colors.textSecondary
+                                }}>
+                                    {statusOption}
+                                </Text>
+                            </View>
+                            {isSelected && (
+                                <View style={{
+                                    backgroundColor: activeColor + '20',
+                                    borderRadius: 12,
+                                    padding: 4
+                                }}>
+                                    <Check size={16} color={activeColor} strokeWidth={3} />
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </ReusableBottomDrawer>
+        {/* Item Detail Modal */}
+        <Modal
+            visible={!!selectedItem}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setSelectedItem(null)}
+        >
+            <View style={[styles.modalOverlay, { justifyContent: 'flex-end' }]}>
+                <TouchableOpacity style={{ flex: 1 }} onPress={() => setSelectedItem(null)} />
+                <View style={[styles.bottomSheet, { maxHeight: '85%' }]}>
+                    <View style={styles.bottomSheetHeader}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.bottomSheetTitle}>{selectedItem?.name}</Text>
+                            <Text style={{ fontSize: 13, color: Colors.textSecondary }}>Detailed Specifications</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setSelectedItem(null)}>
+                            <X size={24} color={Colors.textPrimary} />
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                        {/* Images */}
+                        {selectedItem?.images && selectedItem.images.length > 0 && (
+                            <View style={{ marginBottom: 24 }}>
+                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Photos / Designs</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                                    {selectedItem.images.map((img: string, i: number) => (
+                                        <TouchableOpacity key={i} onPress={() => setPreviewImageUri(img)} style={{ width: '48%', aspectRatio: 1 }}>
+                                            <Image source={{ uri: img }} style={{ width: '100%', height: '100%', borderRadius: 12, backgroundColor: '#F3F4F6' }} resizeMode="cover" />
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Separating Measurements and Stitching Options */}
+                        {(() => {
+                            const measurements = selectedItem?.measurements || {};
+                            const numericMeasurements: any = {};
+                            const stitchingOptions: any = {};
+
+                            Object.entries(measurements).forEach(([key, val]) => {
+                                if (!isNaN(Number(val)) && String(val).trim() !== '') {
+                                    numericMeasurements[key] = val;
+                                } else if (val && String(val).trim() !== '') {
+                                    stitchingOptions[key] = val;
+                                }
+                            });
+
+                            return (
+                                <>
+                                    {Object.keys(numericMeasurements).length > 0 && (
+                                        <View style={{ marginBottom: 24 }}>
+                                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Measurements</Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                                {Object.entries(numericMeasurements).map(([key, val]: any) => (
+                                                    <View key={key} style={{ width: '48%', backgroundColor: '#F9FAFB', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F3F4F6' }}>
+                                                        <Text style={{ fontSize: 12, color: Colors.textSecondary, textTransform: 'capitalize', marginBottom: 4 }}>{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
+                                                        <Text style={{ fontSize: 16, fontFamily: 'Inter-SemiBold', color: Colors.textPrimary }}>{String(val)}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {Object.keys(stitchingOptions).length > 0 && (
+                                        <View style={{ marginBottom: 24 }}>
+                                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Stitching Options</Text>
+                                            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', gap: 12 }}>
+                                                {Object.entries(stitchingOptions).map(([key, val]: any) => (
+                                                    <View key={key} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <Text style={{ fontSize: 14, color: Colors.textSecondary, fontFamily: 'Inter-Medium', textTransform: 'capitalize' }}>{key.replace(/([A-Z])/g, ' $1').trim()}</Text>
+                                                        <Text style={{ fontSize: 14, fontFamily: 'Inter-SemiBold', color: Colors.textPrimary, flex: 1, textAlign: 'right', marginLeft: 16 }}>{String(val)}</Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </View>
+                                    )}
+                                </>
+                            );
+                        })()}
+
+                        {/* Notes */}
+                        {selectedItem?.notes ? (
+                            <View style={{ marginBottom: 24 }}>
+                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Notes</Text>
+                                <View style={{ backgroundColor: '#FFFBEB', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#FEF3C7' }}>
+                                    <Text style={{ fontSize: 14, color: '#92400E', fontFamily: 'Inter-Medium', lineHeight: 20 }}>{selectedItem.notes}</Text>
+                                </View>
+                            </View>
+                        ) : null}
+
+                        {/* Audio Note */}
+                        {selectedItem?.audioUri && (
+                            <View style={{ marginBottom: 24 }}>
+                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 13, color: Colors.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>Audio Note</Text>
+                                <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary, padding: 16, borderRadius: 12, ...Shadow.subtle }}
+                                    onPress={() => handlePlayAudio(selectedItem.audioUri)}
+                                >
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                                        {playingUri === selectedItem.audioUri ? <StopCircle size={24} color={Colors.white} /> : <PlayCircle size={24} color={Colors.white} />}
+                                    </View>
+                                    <View>
+                                        <Text style={{ color: Colors.white, fontFamily: 'Inter-SemiBold', fontSize: 15 }}>
+                                            {playingUri === selectedItem.audioUri ? 'Stop Playback' : 'Play Voice Note'}
+                                        </Text>
+                                        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>Tap to listen per instructions</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+
+        {/* Image Preview Modal */}
+        <Modal visible={!!previewImageUri} transparent={true} animationType="fade" onRequestClose={() => setPreviewImageUri(null)}>
+            <View style={{ flex: 1, backgroundColor: 'black', justifyContent: 'center', alignItems: 'center' }}>
+                <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setPreviewImageUri(null)}>
+                    <X size={30} color="white" />
+                </TouchableOpacity>
+                {previewImageUri && (
+                    <Image source={{ uri: previewImageUri }} style={{ width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.8 }} resizeMode="contain" />
+                )}
+            </View>
+        </Modal>
+    </View >
+);
 };
 
 const getStatusColor = (status: string) => {

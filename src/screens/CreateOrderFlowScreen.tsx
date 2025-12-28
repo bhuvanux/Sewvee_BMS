@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import {
     ChevronLeft,
+    Info,
     ArrowLeft,
     Check,
     ArrowRight,
@@ -407,7 +408,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                             <Text style={styles.modernLabel}>Outfit Type</Text>
                             <TouchableOpacity
                                 style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
-                                onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => { }}
+                                onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => onShowAlert('Editing Restricted', 'Cannot change outfit type while editing an item.')}
                                 disabled={editItemIndex !== undefined}
                             >
                                 <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
@@ -478,7 +479,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
             <OutfitDrawer
                 visible={outfitDrawerVisible}
                 onClose={() => setOutfitDrawerVisible(false)}
-                outfits={outfits}
+                outfits={outfits.filter((o: any) => o.isVisible !== false)}
                 onSelect={handleTypeSelect}
                 currentType={state.currentOutfit.type}
             />
@@ -853,11 +854,8 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const historyData = state.selectedCustomer?.measurementHistory || [];
 
     // Filter by measurement type relevant to current outfit
-    const sortedHistory = [...historyData].sort((a: any, b: any) => {
-        if (a.type === state.currentOutfit.type && b.type !== state.currentOutfit.type) return -1;
-        if (a.type !== state.currentOutfit.type && b.type === state.currentOutfit.type) return 1;
-        return 0; // Simple fallback sort
-    });
+    // Filter by measurement type relevant to current outfit
+    const sortedHistory = historyData.filter((item: any) => item.type === state.currentOutfit.type);
 
     const applyHistory = (data: any) => {
         onChange({
@@ -887,7 +885,7 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const SECTIONS = [
         {
             title: "Body",
-            fields: ["Upper Chest", "Middle Chest", "Waist", "Hip"]
+            fields: ["Height", "Upper Chest", "Middle Chest", "Waist", "Hip"]
         },
         {
             title: "Shoulder & Neck",
@@ -916,13 +914,36 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                 {/* Header / History Link */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: -8 }}>
                     <Text style={styles.sectionTitle}>Measurements</Text>
-                    {historyData.length > 0 && (
-                        <TouchableOpacity onPress={() => setHistoryVisible(true)}>
-                            <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
-                                View History
-                            </Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (historyData.length > 0) {
+                                setHistoryVisible(true);
+                            } else {
+                                Alert.alert('No History', 'No previous measurement history found for this customer.');
+                            }
+                        }}
+                    >
+                        <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13, opacity: historyData.length > 0 ? 1 : 0.6 }}>
+                            View History
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Auto-save Hint */}
+                <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#ECFDF5',
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    marginTop: 4,
+                    marginBottom: 4
+                }}>
+                    <Info size={14} color={Colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: '#047857', fontFamily: 'Inter-Medium', flex: 1 }}>
+                        Measurements entered here will be saved to this customer's profile for future use.
+                    </Text>
                 </View>
 
                 {/* Sections Loop */}
@@ -1140,7 +1161,7 @@ const AudioPlayer = ({ uri, compact = false, onShowAlert }: { uri: string, compa
                 setIsPlaying(true);
             }
         } catch (error) {
-            console.log("Error playing sound", error);
+
             if (onShowAlert) onShowAlert("Error", "Could not play audio.");
         }
     };
@@ -1298,7 +1319,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
             setEditorVisible(true);
             setViewerVisible(false); // Close viewer, open editor
         } catch (error) {
-            console.log("Error reading image for edit:", error);
+
             if (onShowAlert) onShowAlert("Error", "Could not load image for editing");
         }
     };
@@ -1330,7 +1351,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
             setEditorVisible(false);
             setSelectedImage(null);
         } catch (error) {
-            console.log("Error saving edited image:", error);
+
             if (onShowAlert) onShowAlert("Error", "Could not save edit");
         }
     };
@@ -1379,6 +1400,11 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     const handleEditSketch = async (uri: string, index: number) => {
         try {
+            const fileInfo = await FileSystem.getInfoAsync(uri);
+            if (!fileInfo.exists) {
+                Alert.alert("Error", "Sketch file not found. It may have been deleted.");
+                return;
+            }
             // Read file to get base64
             const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
             setInitialSketchData(`data:image/png;base64,${base64}`);
@@ -1743,10 +1769,11 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         </ScrollView>
     );
 };
-const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep }: any) => {
+const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex }: any) => {
     // Merge cart and current item for unified display logic
     const currentItem = { ...state.currentOutfit, id: 'current', isCurrent: true };
-    const allItems = [...state.cart.map((i: any, idx: number) => ({ ...i, cartIndex: idx, isCurrent: false }))];
+    const allItems = [...state.cart.map((i: any, idx: number) => ({ ...i, cartIndex: idx, isCurrent: false }))]
+        .filter((item) => item.cartIndex !== editItemIndex); // Filter out the item being edited to avoid duplication
     // Only show currentItem if it has a Type
     if (state.currentOutfit.type) {
         allItems.push(currentItem);
@@ -1756,7 +1783,12 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
     const [expandedIndex, setExpandedIndex] = useState<number | null>(allItems.length > 0 ? allItems.length - 1 : 0); // Initialize LAST item as expanded
 
     const calculateTotal = () => {
-        const cartTotal = state.cart.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
+        const cartTotal = state.cart.reduce((sum: number, item: any, index: number) => {
+            // If we are currently editing this item (and it's in the cart), don't count it from the cart
+            // because it's being counted via state.currentOutfit below.
+            if (index === editItemIndex) return sum;
+            return sum + (Number(item.totalCost) || 0);
+        }, 0);
         const currentTotal = Number(state.currentOutfit.totalCost) || 0;
         return cartTotal + currentTotal;
     };
@@ -1853,38 +1885,145 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             <View style={styles.accordionContent}>
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />
 
-                                <View style={{ marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, gap: 8 }}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Delivery Date</Text>
-                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.deliveryDate || 'Not set'}</Text>
+                                {/* Falls & Lining Section */}
+                                {/* Cost Breakdown Section (UX Enhanced) */}
+                                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, flex: 1 }}>Service</Text>
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, width: 100, textAlign: 'center' }}>Amount (₹)</Text>
                                     </View>
-                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Fabric Source</Text>
-                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.fabricSource || 'Not set'}</Text>
+
+                                    {/* Stitching Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Stitching</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.stitchingCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const sCost = parseFloat(val) || 0;
+                                                    const fCost = item.fallsCost || 0;
+                                                    const lCost = item.liningCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                stitchingCost: sCost,
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            stitchingCost: sCost,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
                                     </View>
-                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Urgency</Text>
-                                        <Text style={{ fontSize: 13, color: state.urgency === 'Urgent' ? Colors.danger : Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.urgency || 'Normal'}</Text>
+
+                                    {/* Lining Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Lining</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.liningCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const lCost = parseFloat(val) || 0;
+                                                    const sCost = item.stitchingCost || 0;
+                                                    const fCost = item.fallsCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                liningCost: lCost,
+                                                                lining: lCost > 0, // Auto-enable constraint if needed, or just track cost
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            liningCost: lCost,
+                                                            lining: lCost > 0,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    {/* Falls Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Falls</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.fallsCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const fCost = parseFloat(val) || 0;
+                                                    const sCost = item.stitchingCost || 0;
+                                                    const lCost = item.liningCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                fallsCost: fCost,
+                                                                falls: fCost > 0,
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            fallsCost: fCost,
+                                                            falls: fCost > 0,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    {/* Divider */}
+                                    <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 }} />
+
+                                    {/* Total Item Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 15, color: Colors.textPrimary, fontFamily: 'Inter-Bold' }}>Total Item Price</Text>
+                                        <Text style={{ fontSize: 16, color: Colors.primary, fontFamily: 'Inter-Bold' }}>₹{item.totalCost || 0}</Text>
                                     </View>
                                 </View>
 
-                                <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />
-
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>Price</Text>
-                                    <View style={priceInputStyle}>
-                                        <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
-                                        <TextInput
-                                            style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
-                                            value={item.totalCost?.toString()}
-                                            onChangeText={(val) => updateItemCost(item, val)}
-                                            keyboardType="numeric"
-                                            placeholder="0"
-                                        />
-                                    </View>
-                                </View>
 
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 16 }} />
 
@@ -2068,14 +2207,14 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
 // ... existing code ...
 
-const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep }: any) => {
+const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex }: any) => {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
         >
-            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} />
+            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} editItemIndex={editItemIndex} />
         </KeyboardAvoidingView>
     );
 };
@@ -2170,7 +2309,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const { customers, outfits, addOrder, updateOrder, addCustomer, updateCustomer, orders } = useData();
-    const { user } = useAuth();
+    const { user, company } = useAuth();
     const { showToast } = useToast();
 
     const editOrderId = route.params?.editOrderId;
@@ -2192,7 +2331,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         cart: [],
         currentOutfit: {
             id: '1',
-            type: 'Blouse',
+            type: '',
             quantity: 1,
             measurements: {},
             images: [],
@@ -2202,9 +2341,30 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             totalCost: 0
         },
 
-        advance: '',
-        advanceMode: 'Cash'
+        paymentMode: 'Cash',
+        advance: ''
     });
+
+    // EFFECT: Set default outfit to first visible if "Blouse" (default) is hidden
+    useEffect(() => {
+        if (outfits.length > 0) {
+            const visibleOutfits = outfits.filter((o: any) => o.isVisible !== false);
+            const firstVisible = visibleOutfits[0]?.name;
+
+            // If current type is not in visible list, or is strictly default 'Blouse' but Blouse is hidden
+            const currentIsVisible = visibleOutfits.find((o: any) => o.name === state.currentOutfit.type);
+
+            if (!currentIsVisible && firstVisible) {
+                setState((prev: any) => ({
+                    ...prev,
+                    currentOutfit: {
+                        ...prev.currentOutfit,
+                        type: firstVisible
+                    }
+                }));
+            }
+        }
+    }, [outfits]);
 
     const [alert, setAlert] = useState<{ visible: boolean, title: string, message: string, type: 'info' | 'success' | 'error' | 'warning', onConfirm?: () => void }>({ visible: false, title: '', message: '', type: 'info', onConfirm: undefined });
     const [customerModalVisible, setCustomerModalVisible] = useState(false);
@@ -2221,18 +2381,31 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         if (!createdOrder) return;
 
         try {
-            const companyData = {
+            // Use the authoritative company profile if available, otherwise fallback to user details
+            const companyData = company ? {
+                name: company.name,
+                address: company.address,
+                phone: company.phone,
+                gstin: company.gstin,
+                email: company.email
+            } : {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
-                address: user?.address || '',
-                phone: user?.mobile || user?.phone || '',
+                address: user?.address || 'Your Address Here',
+                phone: user?.mobile || user?.phone || 'Your Phone Here',
                 gstin: user?.gstin || ''
             };
+            // Enrich Order with Customer Display ID
+            const customer = customers.find(c => c.id === createdOrder.customerId);
+            const enrichedOrder = {
+                ...createdOrder,
+                customerDisplayId: customer?.displayId
+            };
 
-            const html = getCustomerCopyHTML(createdOrder, companyData);
+            const html = getCustomerCopyHTML(enrichedOrder, companyData);
             setPreviewHtml(html);
             setPreviewVisible(true);
         } catch (error) {
-            console.log('Preview error:', error);
+
             showAlert('Error', 'Could not generate preview.');
         }
     };
@@ -2250,11 +2423,19 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         try {
             const companyData = {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
-                address: user?.address || '',
-                phone: user?.mobile || user?.phone || '',
+                address: user?.address || 'Your Address Here',
+                phone: user?.mobile || user?.phone || 'Your Phone Here',
                 gstin: user?.gstin || ''
             };
-            await generateCustomerCopyPDF(createdOrder, companyData);
+
+            // Enrich Order with Customer Display ID
+            const customer = customers.find(c => c.id === createdOrder.customerId);
+            const enrichedOrder = {
+                ...createdOrder,
+                customerDisplayId: customer?.displayId
+            };
+
+            await generateCustomerCopyPDF(enrichedOrder, companyData);
         } catch (error) {
             showAlert('Error', 'Failed to share PDF');
         }
@@ -2294,16 +2475,19 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             const order = orders.find(o => o.id === editOrderId);
             if (order) {
                 // Determine items to load into cart
-                const initialCart = order.outfits || (order.items || []).map((it: any) => ({
+                // Fix: Normalize BOTH outfits and items to ensure defaults (like fabricSource) are always present
+                const sourceItems = order.outfits || order.items || [];
+                const initialCart = sourceItems.map((it: any) => ({
+                    ...it, // Keep existing props
                     id: it.id || Date.now().toString() + Math.random(),
                     type: it.type || it.name || 'Blouse',
                     quantity: it.quantity || it.qty || 1,
                     measurements: it.measurements || {},
                     images: it.images || [],
-                    notes: it.description || '',
+                    notes: it.description || it.notes || '',
                     audioUri: it.audioUri || null,
                     fabricSource: it.fabricSource || 'Customer',
-                    totalCost: it.rate || it.amount || 0
+                    totalCost: it.totalCost || it.rate || it.amount || 0
                 }));
 
                 const selectedCust = customers.find(c => c.id === order.customerId) || null;
@@ -2410,56 +2594,76 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         // Auto-save measurements to history
         await saveMeasurementHistory(state.currentOutfit);
 
-        // Smart Grouping Logic
-        // Check if an identical item exists in the cart (Type, Measurements, Notes)
-        const cartIndex = state.cart.findIndex((item: any) => {
-            const isTypeMatch = item.type === state.currentOutfit.type;
-            const isMeasurementsMatch = JSON.stringify(item.measurements) === JSON.stringify(state.currentOutfit.measurements);
-            const isNotesMatch = (item.notes || '').trim() === (state.currentOutfit.notes || '').trim();
-            // We ignore images/audio for grouping? User said "measurements and stitching options". 
-            // Let's be strict: if notes differ, it's different.
-
-            return isTypeMatch && isMeasurementsMatch && isNotesMatch;
-        });
-
-        if (cartIndex !== -1) {
-            // Match found! Increment quantity
+        // EDIT MODE: If we are editing a specific item index, update it directly
+        if (editItemIndex !== undefined && editItemIndex !== null && editItemIndex >= 0) {
             const newCart = [...state.cart];
-            newCart[cartIndex].quantity += (state.currentOutfit.quantity || 1);
-            // Update total cost? Usually rate * qty. 
-            // If rate is per item, we should sum it up.
-            // Assuming totalCost held the total for that row.
-            // Let's verify how totalCost is calculated. If it's manual input, we differ.
-            // If manual price input, we probably shouldn't merge automatically if prices differ?
-            // "if all options are same". Price is usually derived or same.
-            // Let's assume price per unit is `item.totalCost / item.quantity`.
-            // User manually inputs "Total Price" for the row in Step 4.
-            // If merging, we should probably add the costs?
-            // "Price" input in UI is for the row.
-
-            // Safer to just add the cost of currentOutfit to the existing item's cost
-            newCart[cartIndex].totalCost = (Number(newCart[cartIndex].totalCost) || 0) + (Number(state.currentOutfit.totalCost) || 0);
+            newCart[editItemIndex] = {
+                ...state.currentOutfit,
+                // Ensure we keep the original ID if valid
+                id: state.currentOutfit.id || newCart[editItemIndex].id
+            };
 
             updateState({ cart: newCart });
-        } else {
-            // No match, add as new item
-            const cartItem = {
-                ...state.currentOutfit,
-                // Preserve ID if it exists and is not a temp "current_" ID (meaning it's an existing item from DB)
-                // Otherwise generate a new temp ID
-                id: (state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_'))
-                    ? state.currentOutfit.id
-                    : Date.now().toString(),
-            };
-            updateState({
-                cart: [...state.cart, cartItem],
+
+            // Clear the edit param so subsequent adds are new items? 
+            // In this flow, usually 'Add Another' means 'Save & Close' or 'Save & Add New'.
+            // Given the UI, this acts as "Save Current Item".
+            // We should probably clear the route param or handle navigation, but modifying the cart is the key fix.
+            navigation.setParams({ editItemIndex: undefined });
+        }
+        else {
+            // NORMAL ADD MODE
+            // Smart Grouping Logic
+            // Check if an identical item exists in the cart (Type, Measurements, Notes)
+            const cartIndex = state.cart.findIndex((item: any) => {
+                const isTypeMatch = item.type === state.currentOutfit.type;
+                const isMeasurementsMatch = JSON.stringify(item.measurements) === JSON.stringify(state.currentOutfit.measurements);
+                const isNotesMatch = (item.notes || '').trim() === (state.currentOutfit.notes || '').trim();
+                // We ignore images/audio for grouping? User said "measurements and stitching options". 
+                // Let's be strict: if notes differ, it's different.
+
+                return isTypeMatch && isMeasurementsMatch && isNotesMatch;
             });
+
+            if (cartIndex !== -1) {
+                // Match found! Increment quantity
+                const newCart = [...state.cart];
+                newCart[cartIndex].quantity += (state.currentOutfit.quantity || 1);
+                // Update total cost? Usually rate * qty. 
+                // If rate is per item, we should sum it up.
+                // Assuming totalCost held the total for that row.
+                // Let's verify how totalCost is calculated. If it's manual input, we differ.
+                // If manual price input, we probably shouldn't merge automatically if prices differ?
+                // "if all options are same". Price is usually derived or same.
+                // Let's assume price per unit is `item.totalCost / item.quantity`.
+                // User manually inputs "Total Price" for the row in Step 4.
+                // If merging, we should probably add the costs?
+                // "Price" input in UI is for the row.
+
+                // Safer to just add the cost of currentOutfit to the existing item's cost
+                newCart[cartIndex].totalCost = (Number(newCart[cartIndex].totalCost) || 0) + (Number(state.currentOutfit.totalCost) || 0);
+
+                updateState({ cart: newCart });
+            } else {
+                // No match, add as new item
+                const cartItem = {
+                    ...state.currentOutfit,
+                    // Preserve ID if it exists and is not a temp "current_" ID (meaning it's an existing item from DB)
+                    // Otherwise generate a new temp ID
+                    id: (state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_'))
+                        ? state.currentOutfit.id
+                        : Date.now().toString(),
+                };
+                updateState({
+                    cart: [...state.cart, cartItem],
+                });
+            }
         }
 
         // Reset current outfit
         const newOutfit = {
-            id: (Date.now() + 1).toString(),
-            type: 'Blouse',
+            id: `current_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: outfits.filter((o: any) => o.isVisible !== false)[0]?.name || 'Blouse',
             quantity: 1,
             measurements: {},
             images: [],
@@ -2472,7 +2676,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         updateState({
             currentOutfit: {
                 ...newOutfit,
-                sketchUri: undefined
+                sketchUri: null
             }
         });
         setCurrentStep(0);
@@ -2481,7 +2685,30 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const handleDeleteItem = (index: number) => {
         const newCart = [...state.cart];
         newCart.splice(index, 1);
-        updateState({ cart: newCart });
+
+        let newUpdates: any = { cart: newCart };
+
+        // If we represent the 'Current Item' as the one being edited, we must shift the index
+        // if an item BEFORE it is deleted.
+        if (editItemIndex !== undefined && editItemIndex !== null) {
+            if (index < editItemIndex) {
+                navigation.setParams({ editItemIndex: editItemIndex - 1 });
+            } else if (index === editItemIndex) {
+                // Should not happen if UI hides it, but safety:
+                navigation.setParams({ editItemIndex: undefined });
+                // Also reset current outfit if we deleted the source
+                newUpdates.currentOutfit = {
+                    id: `current_${Date.now()}`,
+                    type: 'Blouse',
+                    quantity: 1,
+                    measurements: {},
+                    images: [],
+                    notes: '',
+                    totalCost: 0
+                };
+            }
+        }
+        updateState(newUpdates);
     };
 
     const handleEditItem = (index: number) => {
@@ -2512,45 +2739,33 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             }
         });
 
+        let text = "";
+
         try {
-            console.log("Starting transcription for:", uri);
-            let text = "";
-
-            try {
-                text = await transcribeAudioWithWhisper(uri);
-            } catch (whisperError: any) {
-                console.error("OpenAI Whisper failed:", whisperError);
-                if (showAlert) showAlert("Transcription Failed", `OpenAI Error: ${whisperError.message}`);
-                text = ""; // Continue even if transcription fails, don't crash the save
-            }
-
-            console.log("Transcription result:", text);
-
-            // Append to existing notes
-            const currentNotes = state.currentOutfit.notes || '';
-            const newNotes = text ? (currentNotes ? `${currentNotes}\n\n[Transcript]: ${text}` : `[Transcript]: ${text}`) : currentNotes;
-
-            updateState({
-                currentOutfit: {
-                    ...state.currentOutfit,
-                    audioUri: uri,
-                    audioDuration: duration,
-                    notes: newNotes,
-                    isTranscribing: false
-                }
-            });
-        } catch (error: any) {
-            console.error("Recording save failed", error);
-            updateState({
-                currentOutfit: {
-                    ...state.currentOutfit,
-                    audioUri: uri,
-                    audioDuration: duration,
-                    isTranscribing: false
-                }
-            });
-            if (showAlert) showAlert("Error", "Could not save recording updates.");
+            text = await transcribeAudioWithWhisper(uri);
+        } catch (whisperError: any) {
+            console.error("OpenAI Whisper failed:", whisperError);
+            if (showAlert) showAlert("Transcription Failed", `OpenAI Error: ${whisperError.message}`);
+            text = ""; // Continue even if transcription fails, don't crash the save
         }
+
+
+
+
+        // Append to existing notes
+        const currentNotes = state.currentOutfit.notes || '';
+        const newNotes = text ? (currentNotes ? `${currentNotes}\n\n[Transcript]: ${text}` : `[Transcript]: ${text}`) : currentNotes;
+
+        updateState({
+            currentOutfit: {
+                ...state.currentOutfit,
+                audioUri: uri,
+                audioDuration: duration,
+                notes: newNotes,
+                isTranscribing: false
+            }
+        });
+
     };
 
     const handleCreateOrder = async () => {
@@ -2582,9 +2797,27 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 // This prevents duplicate items when updating an order (backend upsert logic)
                 const itemId = state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_')
                     ? state.currentOutfit.id
-                    : 'current_' + Date.now();
+                    : `final_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-                finalItems.push({ ...state.currentOutfit, id: itemId });
+                const itemToSave = { ...state.currentOutfit, id: itemId };
+
+                // LOGIC TO PREVENT DUPLICATES:
+                // 1. Check if item with same ID exists in cart (Priority)
+                const existingIndexById = finalItems.findIndex((i: any) => i.id === itemId);
+
+                if (existingIndexById !== -1) {
+                    // Replace existing item found by ID
+                    finalItems[existingIndexById] = itemToSave;
+                }
+                // 2. Fallback: If editItemIndex passed via route param matches a position in cart
+                // (Only if we haven't matched by ID already)
+                else if (editItemIndex !== undefined && editItemIndex !== null && editItemIndex >= 0 && editItemIndex < finalItems.length) {
+                    finalItems[editItemIndex] = itemToSave;
+                }
+                else {
+                    // 3. New Item -> Push
+                    finalItems.push(itemToSave);
+                }
             }
 
             // Validate: check if prices are set?
@@ -2616,6 +2849,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 notes: state.currentOutfit.notes,
                 deliveryDate: state.deliveryDate,
                 trialDate: state.trialDate,
+                // Fix: Save Urgency and Order Type
+                urgency: state.urgency,
+                orderType: state.orderType,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -2634,8 +2870,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     showAlert('Error', 'Failed to create order. Please try again.');
                 }
             }
-        } catch (e) {
-            showAlert('Error', 'An unexpected error occurred.');
+        } catch (e: any) {
+            showAlert('Error', e.message || 'An unexpected error occurred.');
             console.error(e);
         } finally {
             setLoading(false);
@@ -2727,7 +2963,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     {currentStep === 1 && <StepStitching state={state} onChange={updateState} outfits={outfits} />}
                     {currentStep === 2 && <StepMeasurements state={state} onChange={updateState} />}
                     {currentStep === 3 && <Step3Media state={state} onChange={updateState} onShowAlert={showAlert} />}
-                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} />}
+                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} editItemIndex={editItemIndex} />}
                 </View>
             </KeyboardAvoidingView>
 

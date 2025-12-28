@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { COLLECTIONS } from '../config/firebase';
 import {
     getFirestore,
@@ -39,6 +40,7 @@ interface DataContextType {
     addOutfit: (outfit: Partial<Outfit>) => Promise<void>;
     updateOutfit: (id: string, outfit: Partial<Outfit>) => Promise<void>;
     deleteOutfit: (id: string) => Promise<void>;
+    reorderOutfits: (outfits: Outfit[]) => Promise<void>;
     getCustomerOrders: (customerId: string) => Order[];
     refreshData: () => Promise<void>;
 }
@@ -147,7 +149,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const unsubCustomers = onSnapshot(
             query(collection(db, COLLECTIONS.CUSTOMERS), where('ownerId', '==', user.uid)),
             snapshot => {
-                console.log(`[DataContext] Customers snapshot update. Size: ${snapshot?.size}`);
+
                 if (snapshot) {
                     const data = snapshot.docs.map((docSnap: any) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
                     // Sort A-Z by name
@@ -199,18 +201,26 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                     }
                     const data = snapshot.docs.map((docSnap: any) => ({ ...docSnap.data(), id: docSnap.id } as Outfit));
 
-                    // Inject "Others" if missing in active list (Self-healing)
+                    // Removed auto-injection of 'Others' to allow deletion.
+                    /*
                     if (data.length > 0 && !data.find((o: any) => o.name === 'Others')) {
-                        const defaultOthers = DEFAULT_OUTFITS.find(d => d.name === 'Others');
-                        if (defaultOthers) {
-                            // Add it to DB asynchronously
-                            addDoc(collection(db, COLLECTIONS.OUTFITS), { ...defaultOthers, ownerId: user.uid })
-                                .catch(err => console.error('Failed to auto-inject Others outfit:', err));
-                        }
+                         // ...
                     }
+                    */
 
-                    // Sort A-Z by name
-                    data.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
+                    // Sort by Order (Ascending), then by Name (A-Z) fallback
+                    data.sort((a: any, b: any) => {
+                        const orderA = a.order ?? 0;
+                        const orderB = b.order ?? 0;
+                        if (orderA !== orderB) {
+                            return orderA - orderB;
+                        }
+                        // Fallback: Newest First (using createdAt)
+                        if (a.createdAt && b.createdAt) {
+                            return b.createdAt.localeCompare(a.createdAt);
+                        }
+                        return (a.name || '').localeCompare(b.name || '');
+                    });
                     setOutfits(data);
                 }
                 setLoading(false);
@@ -229,6 +239,15 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     }, [user?.uid]);
 
 
+    // --- OPTIMISTIC HELPER ---
+    // Executes the Firestore promise in background, logs error if it fails
+    const runInBackground = (promise: Promise<any>, context: string) => {
+        promise.catch(err => {
+            console.error(`[DataContext] ${context} failed (background):`, err);
+            Alert.alert(`Sync Error (${context})`, err.message);
+        });
+    };
+
     const addCustomer = async (customer: Partial<Customer>) => {
         if (!user?.uid) throw new Error('Not authenticated');
 
@@ -241,7 +260,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const nextId = maxId + 1;
 
         // Custom ID Logic: {First 2 letters of name}-{5-digit sequence}
-        // Example: inba boutique -> IN-00001
         const prefix = company?.name ? company.name.substring(0, 2).toUpperCase() : 'CU';
         const nextDisplayId = `${prefix}-${String(nextId).padStart(5, '0')}`;
 
@@ -253,16 +271,25 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             createdAt: new Date().toISOString(),
             displayId: nextDisplayId
         };
-        const ref = await addDoc(collection(getFirestore(), COLLECTIONS.CUSTOMERS), newItem);
-        return { id: ref.id, ...newItem } as Customer;
+
+        // Optimistic: Generate ID locally
+        const ref = doc(collection(getFirestore(), COLLECTIONS.CUSTOMERS));
+        const finalItem = { id: ref.id, ...newItem } as Customer;
+
+        // Background Write
+        runInBackground(setDoc(ref, newItem), 'addCustomer');
+
+        return finalItem;
     };
 
     const updateCustomer = async (id: string, customer: Partial<Customer>) => {
-        await updateDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id), customer);
+        // Optimistic: Fire and forget
+        runInBackground(updateDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id), customer), 'updateCustomer');
     };
 
     const deleteCustomer = async (id: string) => {
-        await deleteDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id));
+        // Optimistic: Fire and forget
+        runInBackground(deleteDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id)), 'deleteCustomer');
     };
 
     const addOrder = async (order: Partial<Order>) => {
@@ -270,9 +297,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Custom Order ID Logic: YYYY/00001
         const currentYear = new Date().getFullYear().toString();
-
-        // 1. Get all orders for current year to determine next sequence
-        // Note: For high volume, a separate counter doc is better, but for this app, client-side calc from existing list is acceptable.
         const existingOrders = orders.filter(o => o.billNo?.startsWith(currentYear));
         const maxSeq = existingOrders.reduce((max, o) => {
             const parts = o.billNo?.split('/');
@@ -292,7 +316,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const newItem = {
             ...order,
             id: orderRef.id,
-            billNo: newBillNo, // Set the custom ID
+            billNo: newBillNo,
             ownerId: user.uid,
             createdAt: new Date().toISOString(),
             time: order.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
@@ -320,18 +344,20 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             batch.set(paymentRef, {
                 id: paymentRef.id,
                 orderId: orderRef.id,
-                billNo: newBillNo, // redundant but useful for searching
+                billNo: newBillNo,
                 customerId: newItem.customerId,
                 amount: newItem.advance,
                 date: newItem.date || getCurrentDate(),
                 time: newItem.time,
-                mode: (order as any).advanceMode || 'Cash', // Use the selected mode
+                mode: (order as any).advanceMode || 'Cash',
                 type: 'Advance',
                 ownerId: user.uid
             });
         }
 
-        await batch.commit();
+        // Background Write
+        runInBackground(batch.commit(), 'addOrder');
+
         return newItem as Order;
     };
 
@@ -341,45 +367,34 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const db = getFirestore();
         const docRef = doc(db, COLLECTIONS.ORDERS, id);
 
-        try {
-            const docSnap = await getDoc(docRef);
-            const current = docSnap.exists() ? (docSnap.data() as Order) : {} as Order;
+        // NOTE: updateOrder is tricky because we usually need previous state to calculate balance.
+        // For strict optimistic UI, we might need access to 'orders' state here, which we have.
+        const current = orders.find(o => o.id === id) || {} as Order;
 
-            // Recalculate balance only if necessary fields are changing
-            if (updates.total !== undefined || updates.advance !== undefined) {
-                const total = updates.total ?? current.total ?? 0;
-                const advance = updates.advance ?? current.advance ?? 0;
-                updates.balance = total - advance;
-                updates.paymentStatus = advance >= total ? 'Paid' : (advance > 0 ? 'Partially Paid' : 'Unpaid');
-            }
-
-            // Ensure ownerId is preserved or added (in case of restoration)
-            if (!updates.ownerId && user?.uid) {
-                updates.ownerId = user.uid;
-            }
-            if (!updates.createdAt && !current.createdAt) {
-                updates.createdAt = new Date().toISOString();
-            }
-
-            // Use set with merge: true to prevent "not-found" errors if doc is missing on server
-            await setDoc(docRef, updates, { merge: true });
-        } catch (error) {
-            console.error('Update Order Failed:', error);
-            throw error;
+        // Recalculate balance only if necessary fields are changing
+        if (updates.total !== undefined || updates.advance !== undefined) {
+            const total = updates.total ?? current.total ?? 0;
+            const advance = updates.advance ?? current.advance ?? 0;
+            updates.balance = total - advance;
+            updates.paymentStatus = advance >= total ? 'Paid' : (advance > 0 ? 'Partially Paid' : 'Unpaid');
         }
+
+        if (!updates.ownerId && user?.uid) updates.ownerId = user.uid;
+        if (!updates.createdAt && !current.createdAt) updates.createdAt = new Date().toISOString();
+
+        // Background Write - using set(merge) for safety
+        runInBackground(setDoc(docRef, updates, { merge: true }), 'updateOrder');
     };
 
     const deleteOrder = async (id: string) => {
-        console.log('[DataContext] Attempting to delete order:', id);
-        try {
+        runInBackground((async () => {
             const db = getFirestore();
             const orderRef = doc(db, COLLECTIONS.ORDERS, id);
+            // We need to fetch for precise cascade delete, so we await fetch *inside* the background task
+            // The UI will return immediately.
             const orderSnap = await getDoc(orderRef);
 
-            if (!orderSnap.exists) {
-                console.warn('[DataContext] Order not found (already deleted?):', id);
-                return; // Treat as success if already gone
-            }
+            if (!orderSnap.exists) return;
 
             const orderData = orderSnap.data();
             const batch = writeBatch(db);
@@ -388,7 +403,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             // Cascade: Delete Payments & Calculate Total Paid
             const q = query(collection(db, COLLECTIONS.PAYMENTS), where('orderId', '==', id));
             const pSnap = await getDocs(q);
-            console.log(`[DataContext] Found ${pSnap.size} payments to delete`);
 
             let totalPaidForOrder = 0;
             pSnap.forEach((docSnap: any) => {
@@ -400,7 +414,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             // Sync: Update Customer Stats
             if (orderData?.customerId) {
                 const custRef = doc(db, COLLECTIONS.CUSTOMERS, orderData.customerId);
-                // We use set with merge to safely update specific fields
                 batch.set(custRef, {
                     totalOrders: increment(-1),
                     totalSpent: increment(-totalPaidForOrder)
@@ -408,11 +421,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             await batch.commit();
-            console.log('[DataContext] Order delete batch committed successfully');
-        } catch (error) {
-            console.error('[DataContext] Delete order error:', error);
-            throw new Error('Failed to delete order: ' + (error instanceof Error ? error.message : 'Unknown error'));
-        }
+        })(), 'deleteOrder');
     };
 
     const addPayment = async (payment: Partial<Payment>) => {
@@ -446,86 +455,117 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             }, { merge: true });
         }
 
-        await batch.commit();
+        runInBackground(batch.commit(), 'addPayment');
     };
 
     const updatePayment = async (id: string, updates: Partial<Payment>) => {
-        const db = getFirestore();
-        const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
-        const paymentDocSnap = await getDoc(paymentDocRef);
+        // Complex logic involving reads - run entirely in background
+        runInBackground((async () => {
+            const db = getFirestore();
+            const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
+            const paymentDocSnap = await getDoc(paymentDocRef);
 
-        if (!paymentDocSnap.exists) return;
-        const oldPayment = { id: paymentDocSnap.id, ...paymentDocSnap.data() } as Payment;
+            if (!paymentDocSnap.exists) return;
+            const oldPayment = { id: paymentDocSnap.id, ...paymentDocSnap.data() } as Payment;
 
-        const batch = writeBatch(db);
-        batch.update(paymentDocRef, updates);
+            const batch = writeBatch(db);
+            batch.update(paymentDocRef, updates);
 
-        if (updates.amount !== undefined && updates.amount !== oldPayment.amount) {
-            const newAmount = Number(updates.amount) || 0;
-            const oldAmount = Number(oldPayment.amount) || 0;
-            const delta = newAmount - oldAmount;
+            if (updates.amount !== undefined && updates.amount !== oldPayment.amount) {
+                const newAmount = Number(updates.amount) || 0;
+                const oldAmount = Number(oldPayment.amount) || 0;
+                const delta = newAmount - oldAmount;
 
-            // Update Order Balance
-            if (oldPayment.orderId) {
-                const orderRef = doc(db, COLLECTIONS.ORDERS, oldPayment.orderId);
-                batch.set(orderRef, {
-                    advance: increment(delta),
-                    balance: increment(-delta)
-                }, { merge: true });
+                if (oldPayment.orderId) {
+                    const orderRef = doc(db, COLLECTIONS.ORDERS, oldPayment.orderId);
+                    batch.set(orderRef, {
+                        advance: increment(delta),
+                        balance: increment(-delta)
+                    }, { merge: true });
+                }
+
+                if (oldPayment.customerId) {
+                    const custRef = doc(db, COLLECTIONS.CUSTOMERS, oldPayment.customerId);
+                    batch.set(custRef, {
+                        totalSpent: increment(delta)
+                    }, { merge: true });
+                }
             }
-
-            // Update Customer Stats
-            if (oldPayment.customerId) {
-                const custRef = doc(db, COLLECTIONS.CUSTOMERS, oldPayment.customerId);
-                batch.set(custRef, {
-                    totalSpent: increment(delta)
-                }, { merge: true });
-            }
-        }
-        await batch.commit();
+            await batch.commit();
+        })(), 'updatePayment');
     };
 
     const deletePayment = async (id: string) => {
-        // Revert balance on order
-        const db = getFirestore();
-        const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
-        const paymentDocSnap = await getDoc(paymentDocRef);
-        const payment = paymentDocSnap.data() as Payment;
+        runInBackground((async () => {
+            const db = getFirestore();
+            const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
+            const paymentDocSnap = await getDoc(paymentDocRef);
+            const payment = paymentDocSnap.data() as Payment;
 
-        if (payment && payment.orderId) {
-            const batch = writeBatch(db);
-            batch.delete(paymentDocRef);
-            const orderRef = doc(db, COLLECTIONS.ORDERS, payment.orderId);
-            batch.set(orderRef, {
-                advance: increment(-(Number(payment.amount) || 0)),
-                balance: increment(Number(payment.amount) || 0)
-            }, { merge: true });
-
-            // Update Customer Stats
-            if (payment.customerId) {
-                const custRef = doc(db, COLLECTIONS.CUSTOMERS, payment.customerId);
-                batch.set(custRef, {
-                    totalSpent: increment(-(Number(payment.amount) || 0))
+            if (payment && payment.orderId) {
+                const batch = writeBatch(db);
+                batch.delete(paymentDocRef);
+                const orderRef = doc(db, COLLECTIONS.ORDERS, payment.orderId);
+                batch.set(orderRef, {
+                    advance: increment(-(Number(payment.amount) || 0)),
+                    balance: increment(Number(payment.amount) || 0)
                 }, { merge: true });
-            }
 
-            await batch.commit();
-        } else {
-            await deleteDoc(paymentDocRef);
-        }
+                if (payment.customerId) {
+                    const custRef = doc(db, COLLECTIONS.CUSTOMERS, payment.customerId);
+                    batch.set(custRef, {
+                        totalSpent: increment(-(Number(payment.amount) || 0))
+                    }, { merge: true });
+                }
+
+                await batch.commit();
+            } else {
+                await deleteDoc(paymentDocRef);
+            }
+        })(), 'deletePayment');
     };
 
     const addOutfit = async (outfit: Partial<Outfit>) => {
         if (!user?.uid) throw new Error('Not authenticated');
-        await addDoc(collection(getFirestore(), COLLECTIONS.OUTFITS), { ...outfit, ownerId: user.uid });
+
+        // Determine Order: Find min order and subtract 1 to put at top
+        const minOrder = outfits.length > 0
+            ? Math.min(...outfits.map(o => o.order || 0))
+            : 0;
+
+        const newOrder = minOrder - 1;
+
+        const newOutfit = {
+            ...outfit,
+            ownerId: user.uid,
+            createdAt: new Date().toISOString(),
+            order: newOrder
+        };
+
+        // Optimistic
+        runInBackground(addDoc(collection(getFirestore(), COLLECTIONS.OUTFITS), newOutfit), 'addOutfit');
     };
 
     const updateOutfit = async (id: string, outfit: Partial<Outfit>) => {
-        await updateDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id), outfit);
+        runInBackground(updateDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id), outfit), 'updateOutfit');
     };
 
     const deleteOutfit = async (id: string) => {
-        await deleteDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id));
+        // Return promise directly to allow UI to await/catch
+        return deleteDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id));
+    };
+
+    const reorderOutfits = async (reorderedOutfits: Outfit[]) => {
+        const db = getFirestore();
+        const batch = writeBatch(db);
+
+        reorderedOutfits.forEach((outfit, index) => {
+            const ref = doc(db, COLLECTIONS.OUTFITS, outfit.id);
+            batch.update(ref, { order: index });
+        });
+
+        // Optimistic update local state immediately if needed, but snapshot will handle it
+        runInBackground(batch.commit(), 'reorderOutfits');
     };
 
     const getCustomerOrders = (customerId: string) => {
@@ -555,6 +595,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             addOutfit,
             updateOutfit,
             deleteOutfit,
+            reorderOutfits,
             getCustomerOrders,
             refreshData
         }}>

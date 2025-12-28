@@ -114,6 +114,16 @@ const CustomersScreen = ({ navigation }: any) => {
                     >
                         <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
+                        onPress={() => {
+                            logEvent('add_customer_click');
+                            navigation.navigate('AddCustomer');
+                        }}
+                    >
+                        <Plus size={20} color={Colors.white} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.searchContainer}>
@@ -219,16 +229,7 @@ const CustomersScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
             </Modal>
 
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => {
-                    logEvent('add_customer_click');
-                    navigation.navigate('AddCustomer');
-                }}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>Add Client</Text>
-            </TouchableOpacity>
+
         </View>
     );
 };

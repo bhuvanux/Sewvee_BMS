@@ -11,7 +11,7 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus } from 'lucide-react-native';
+import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus, Flame } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,40 +75,73 @@ const OrdersListScreen = ({ navigation }: any) => {
         return acc;
     }, { total: 0, advance: 0, balance: 0 });
 
-    const renderItem = ({ item }: any) => (
-        <TouchableOpacity
-            style={styles.orderCard}
-            onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
-        >
-            <View style={styles.orderHeader}>
-                <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
-                </View>
-            </View>
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        const targetDate = parseDate(dateString);
+        const today = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = targetDate.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
 
-            <View style={styles.orderContent}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.customerName}>{item.customerName}</Text>
-                    <View style={styles.dateRow}>
-                        <Calendar size={12} color={Colors.textSecondary} />
-                        <Text style={styles.dateText}>{formatDate(item.date || item.createdAt)}</Text>
-                    </View>
-                </View>
-                <View style={styles.amountArea}>
-                    <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
-                        <Text style={styles.amount}>₹{item.total}</Text>
-                        {item.balance > 0 ? (
-                            <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
-                        ) : (
-                            <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+    const renderItem = ({ item }: any) => {
+        const daysLeft = getDaysRemaining(item.deliveryDate);
+        const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
+        const isUrgent = item.urgency === 'Urgent' || item.urgency === 'High'; // Handle legacy values if any
+
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.orderCard,
+                    isNearingDeadline && { borderColor: '#FECACA', backgroundColor: '#FEF2F2', borderWidth: 1.5 }
+                ]}
+                onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+            >
+                <View style={styles.orderHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
+                        {isUrgent && (
+                            <View style={{ backgroundColor: '#FEE2E2', padding: 4, borderRadius: 12 }}>
+                                <Flame size={14} color={Colors.danger} fill={Colors.danger} />
+                            </View>
                         )}
                     </View>
-                    <ChevronRight size={18} color={Colors.textSecondary} />
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+                        <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+                    </View>
                 </View>
-            </View>
-        </TouchableOpacity>
-    );
+
+                <View style={styles.orderContent}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.customerName}>{item.customerName}</Text>
+                        <View style={styles.dateRow}>
+                            <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
+                            <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
+                                {item.deliveryDate ? `Delivery: ${formatDate(item.deliveryDate)}` : formatDate(item.date || item.createdAt)}
+                            </Text>
+                        </View>
+                        {isNearingDeadline && (
+                            <Text style={{ fontSize: 11, color: Colors.danger, fontFamily: 'Inter-Medium', marginTop: 2 }}>
+                                {daysLeft === 0 ? 'Delivery Today' : `Due in ${daysLeft} days`}
+                            </Text>
+                        )}
+                    </View>
+                    <View style={styles.amountArea}>
+                        <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                            <Text style={styles.amount}>₹{item.total}</Text>
+                            {item.balance > 0 ? (
+                                <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
+                            ) : (
+                                <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+                            )}
+                        </View>
+                        <ChevronRight size={18} color={Colors.textSecondary} />
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -157,6 +190,13 @@ const OrdersListScreen = ({ navigation }: any) => {
                                 borderColor: Colors.white
                             }} />
                         )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
+                        onPress={() => navigation.navigate('CreateOrderFlow')}
+                    >
+                        <Plus size={20} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
 
@@ -311,13 +351,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                 }
             />
 
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => navigation.navigate('CreateOrderFlow')}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>New Order</Text>
-            </TouchableOpacity>
+
         </View>
     );
 };

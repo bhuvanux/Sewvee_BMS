@@ -51,6 +51,7 @@ const BottomConfirmationSheet = ({
             transparent={true}
             animationType="slide"
             onRequestClose={onClose}
+            statusBarTranslucent
         >
             <View style={styles.overlay}>
                 {/* Close on tap outside */}

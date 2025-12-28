@@ -22,10 +22,10 @@ interface BottomActionSheetProps {
     visible: boolean;
     onClose: () => void;
     title?: string;
-    actions: ActionItem[];
+    actions?: ActionItem[];
 }
 
-const BottomActionSheet = ({ visible, onClose, title, actions }: BottomActionSheetProps) => {
+const BottomActionSheet = ({ visible, onClose, title, actions, children }: BottomActionSheetProps & { children?: React.ReactNode }) => {
     return (
         <Modal
             visible={visible}
@@ -50,9 +50,9 @@ const BottomActionSheet = ({ visible, onClose, title, actions }: BottomActionShe
                         </View>
                     </View>
 
-                    {/* Actions List */}
+                    {/* Content: Either actions list or custom children */}
                     <ScrollView contentContainerStyle={styles.content}>
-                        {actions.map((action, index) => {
+                        {actions ? actions.map((action, index) => {
                             const Icon = action.icon;
                             const isDanger = action.type === 'danger';
                             const color = isDanger ? Colors.danger : Colors.textPrimary;
@@ -63,7 +63,6 @@ const BottomActionSheet = ({ visible, onClose, title, actions }: BottomActionShe
                                     style={styles.actionItem}
                                     onPress={() => {
                                         onClose();
-                                        // Small timeout to allow modal to close smoothly before action triggers (e.g. another modal)
                                         setTimeout(() => action.onPress(), 100);
                                     }}
                                 >
@@ -75,7 +74,7 @@ const BottomActionSheet = ({ visible, onClose, title, actions }: BottomActionShe
                                     </Text>
                                 </TouchableOpacity>
                             );
-                        })}
+                        }) : children}
                     </ScrollView>
                 </TouchableOpacity>
             </TouchableOpacity>

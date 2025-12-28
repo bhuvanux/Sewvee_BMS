@@ -19,7 +19,7 @@ import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers, 
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image as ExpoImage } from 'expo-image';
-import { useData } from '../context/DataContext';
+import { useData, DEFAULT_OUTFITS } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Outfit, OutfitCategory, OutfitSubCategory, OutfitOption } from '../types';
 import AlertModal from '../components/AlertModal';
@@ -33,6 +33,7 @@ interface CategoryDetailFormProps {
     modalType: 'subcategory' | 'option';
     inputName: string;
     editImage: string | null;
+    suggestions?: string[];
     setInputName: (text: string) => void;
     pickImage: () => void;
     handleSave: () => void;
@@ -45,6 +46,7 @@ const CategoryDetailForm = React.memo(({
     modalType,
     inputName,
     editImage,
+    suggestions,
     setInputName,
     pickImage,
     handleSave,
@@ -64,27 +66,42 @@ const CategoryDetailForm = React.memo(({
             </View>
 
             <View style={styles.inlineFormBody}>
-                {/* Image Picker */}
+                {/* Image Picker - EXACT MATCH to ManageOutfits Style */}
                 <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.textSecondary} />
-                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
+                    <View style={styles.inlinePickedImageContainer}>
+                        {editImage ? (
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            <View style={[styles.inlinePickedImage, { backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }]}>
+                                <ImageIcon size={32} color="#166534" opacity={0.5} />
                             </View>
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
+                        )}
+
+                        {/* "Upload Photo" Badge - Always Visible */}
+                        <View style={{
+                            position: 'absolute',
+                            bottom: 4,
+                            left: 4,
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                            borderRadius: 4
+                        }}>
+                            <Text style={{ color: 'white', fontSize: 8, fontWeight: '600' }}>Upload Photo</Text>
                         </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+
+                        {/* Edit Icon Overlay - Always Visible */}
+                        <View style={styles.inlineImageOverlay}>
+                            <Edit2 size={16} color="white" />
                         </View>
-                    )}
+                    </View>
                 </TouchableOpacity>
 
-                <View style={styles.inlineInputWrapper}>
+                <View style={[styles.inlineInputWrapper, { flex: 1 }]}>
                     <Text style={styles.inlineLabel}>Name</Text>
                     <TextInput
                         style={styles.inlineInput}
@@ -92,7 +109,42 @@ const CategoryDetailForm = React.memo(({
                         onChangeText={setInputName}
                         placeholder={modalType === 'subcategory' ? "e.g. Back, Sleeve" : "e.g. Boat Neck, Long"}
                         placeholderTextColor={Colors.textSecondary}
+                        autoFocus={!editMode}
                     />
+
+                    {/* Suggestions Chips */}
+                    {!editMode && modalType === 'subcategory' && suggestions && suggestions.length > 0 && (
+                        <View style={{ marginTop: 12 }}>
+                            <Text style={{
+                                fontFamily: 'Inter-Medium',
+                                fontSize: 11,
+                                color: Colors.textSecondary,
+                                marginBottom: 6
+                            }}>
+                                Suggestions (tap to autofill):
+                            </Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                {suggestions.map((s) => (
+                                    <TouchableOpacity
+                                        key={s}
+                                        style={{
+                                            paddingVertical: 4,
+                                            paddingHorizontal: 8,
+                                            borderRadius: 12,
+                                            backgroundColor: '#F1F5F9',
+                                            borderWidth: 1,
+                                            borderColor: '#E2E8F0'
+                                        }}
+                                        onPress={() => setInputName(s)}
+                                    >
+                                        <Text style={{ fontSize: 11, color: Colors.textPrimary, fontFamily: 'Inter-Medium' }}>
+                                            {s}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -101,7 +153,7 @@ const CategoryDetailForm = React.memo(({
                     <Text style={styles.inlineCancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.inlineSaveBtn} onPress={handleSave}>
-                    <Text style={styles.inlineSaveBtnText}>Save Changes</Text>
+                    <Text style={styles.inlineSaveBtnText}>{editMode ? 'Update' : 'Save'}</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -112,6 +164,31 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     const { outfitId, categoryId, categoryName } = route.params;
     const { outfits, updateOutfit } = useData();
     const insets = useSafeAreaInsets();
+
+    // Use DEFAULT_OUTFITS for suggestions (Safe to call unconditinally)
+    const suggestions = React.useMemo(() => {
+        // Extract unique subcat names from all defaults
+        const names = new Set<string>();
+        // Note: DEFAULT_OUTFITS should be imported. If not, we might need to import it or use 'outfits' if they contain defaults.
+        // Assuming DEFAULT_OUTFITS is available in scope or imported from DataContext
+        // If implicit from context use, we might use 'outfits' state if seeded. 
+        // But the original code referenced DEFAULT_OUTFITS global? 
+        // Let's assume it's imported. If not, use empty array safely for now to avoid crash.
+        // Actually, line 496 in original used it. Let's check imports.
+        // If not imported, I'll add it.
+        try {
+            // Using a safer approach:
+            const source = (typeof DEFAULT_OUTFITS !== 'undefined') ? DEFAULT_OUTFITS : [];
+            source.forEach((o: any) => {
+                o.categories?.forEach((c: any) => {
+                    c.subCategories?.forEach((sc: any) => names.add(sc.name));
+                });
+            });
+        } catch (e) {
+            // Ignore
+        }
+        return Array.from(names).slice(0, 8);
+    }, []);
 
     const [currentOutfit, setCurrentOutfit] = useState<Outfit | null>(null);
     const [currentCategory, setCurrentCategory] = useState<OutfitCategory | null>(null);
@@ -191,14 +268,37 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
             if (modalType === 'subcategory') {
                 if (editMode && targetId) {
                     updatedSubCategories = updatedSubCategories.map(sc =>
-                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: finalImage || undefined } : sc
+                        sc.id === targetId ? { ...sc, name: inputName.trim(), image: finalImage || null } : sc
                     );
                 } else {
+                    // Check for default options if name matches a known default
+                    let initialOptions: OutfitOption[] = [];
+                    // Flatten defaults to find matching subcat
+                    const allDefaults: OutfitSubCategory[] = [];
+                    DEFAULT_OUTFITS.forEach((o: any) => {
+                        o.categories?.forEach((c: any) => {
+                            c.subCategories?.forEach((sc: any) => {
+                                allDefaults.push({
+                                    ...sc,
+                                    options: sc.options || []
+                                } as OutfitSubCategory);
+                            });
+                        });
+                    });
+
+                    const foundDefault = allDefaults.find(d => d.name.toLowerCase() === inputName.trim().toLowerCase());
+                    if (foundDefault && foundDefault.options) {
+                        initialOptions = foundDefault.options.map(opt => ({
+                            ...opt,
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5) // Ensure unique IDs
+                        }));
+                    }
+
                     updatedSubCategories.push({
-                        id: Date.now().toString(),
+                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                         name: inputName.trim(),
-                        image: finalImage || undefined,
-                        options: []
+                        image: finalImage || null,
+                        options: initialOptions
                     });
                 }
             } else if (modalType === 'option' && parentId) {
@@ -209,13 +309,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
                     if (editMode && targetId) {
                         updatedOptions = updatedOptions.map(opt =>
-                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: finalImage || undefined } : opt
+                            opt.id === targetId ? { ...opt, name: inputName.trim(), image: finalImage || null } : opt
                         );
                     } else {
                         updatedOptions.push({
-                            id: Date.now().toString(),
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                             name: inputName.trim(),
-                            image: finalImage || undefined
+                            image: finalImage || null
                         });
                     }
                     subCat.options = updatedOptions;
@@ -414,6 +514,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         pickImage={pickImage}
                         handleSave={handleSave}
                         closeForm={closeForm}
+                        suggestions={modalType === 'subcategory' ? suggestions : undefined}
                     />
                 )}
             </View>
@@ -753,17 +854,17 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 12,
-        backgroundColor: '#F1F5F9', // Slightly darker slate
+        backgroundColor: '#F0FDF4', // Green-50
         borderWidth: 1.5,
-        borderColor: '#CBD5E1', // Darker border
+        borderColor: '#BBF7D0', // Green-200
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
     },
     inlineImagePlaceholderText: {
-        fontFamily: 'Inter-Regular',
+        fontFamily: 'Inter-SemiBold',
         fontSize: 10,
-        color: Colors.textSecondary,
+        color: '#166534', // Green-800
         marginTop: 4,
     },
     inlinePickedImageContainer: {

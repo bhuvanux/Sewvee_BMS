@@ -64,27 +64,42 @@ const CategoryForm = React.memo(({
             </View>
 
             <View style={styles.inlineFormBody}>
-                {/* Image Picker */}
+                {/* Image Picker - EXACT MATCH to ManageOutfits Style */}
                 <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.textSecondary} />
-                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
+                    <View style={styles.inlinePickedImageContainer}>
+                        {editImage ? (
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            <View style={[styles.inlinePickedImage, { backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }]}>
+                                <ImageIcon size={32} color="#166534" opacity={0.5} />
                             </View>
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
+                        )}
+
+                        {/* "Upload Photo" Badge - Always Visible (Green Style) */}
+                        <View style={{
+                            position: 'absolute',
+                            bottom: 4,
+                            left: 4,
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                            borderRadius: 4
+                        }}>
+                            <Text style={{ color: 'white', fontSize: 8, fontWeight: '600' }}>Upload Photo</Text>
                         </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+
+                        {/* Edit Icon Overlay - Always Visible */}
+                        <View style={styles.inlineImageOverlay}>
+                            <Edit2 size={16} color="white" />
                         </View>
-                    )}
+                    </View>
                 </TouchableOpacity>
 
-                <View style={styles.inlineInputWrapper}>
+                <View style={[styles.inlineInputWrapper, { flex: 1 }]}>
                     <Text style={styles.inlineLabel}>Category Name</Text>
                     <TextInput
                         style={styles.inlineInput}
@@ -92,6 +107,7 @@ const CategoryForm = React.memo(({
                         onChangeText={setCategoryName}
                         placeholder="e.g. Neck, Sleeve, Back"
                         placeholderTextColor={Colors.textSecondary}
+                        autoFocus={!categoryId}
                     />
                 </View>
             </View>

@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    TouchableOpacity,
     TextInput,
     Switch,
     Modal,
@@ -13,12 +12,14 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     Keyboard,
-    Image
+    Image,
+    TouchableOpacity
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers, Check, CheckCircle2, AlertCircle, PlayCircle, StopCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+
 import { Image as ExpoImage } from 'expo-image';
 
 import { useData } from '../context/DataContext';
@@ -66,22 +67,38 @@ const OutfitForm = React.memo(({
             <View style={styles.inlineFormBody}>
                 {/* Image Picker */}
                 <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.textSecondary} />
-                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
-                            </View>
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
+                    <View style={styles.inlinePickedImageContainer}>
+                        {editImage ? (
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            // Fallback just in case, though editImage should always be set
+                            <Image
+                                source={{ uri: "https://placehold.co/600x600/e2e8f0/475569.png?text=Stitched\\nOutfit&font=roboto" }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        )}
+
+                        <View style={{
+                            position: 'absolute',
+                            bottom: 4,
+                            left: 4,
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                            borderRadius: 4
+                        }}>
+                            <Text style={{ color: 'white', fontSize: 8, fontWeight: '600' }}>Upload Photo</Text>
                         </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+
+                        <View style={styles.inlineImageOverlay}>
+                            <Edit2 size={16} color="white" />
                         </View>
-                    )}
+                    </View>
                 </TouchableOpacity>
 
                 <View style={styles.inlineInputWrapper}>
@@ -110,7 +127,6 @@ const OutfitForm = React.memo(({
 });
 
 import AlertModal from '../components/AlertModal';
-
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import BottomActionSheet from '../components/BottomActionSheet';
 
@@ -134,6 +150,11 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
 
+    // Default Image for outfits
+    // Default Image for outfits - Stitching/Fashion Theme
+    // Default Image for outfits - Stitching/Fashion Theme
+    const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1556905055-8f358a18e474?q=80&w=1080&auto=format&fit=crop";
+
     // Bottom Action Sheet State
     const [actionSheetVisible, setActionSheetVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<Outfit | null>(null);
@@ -141,14 +162,14 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const openAddForm = useCallback(() => {
         setEditId(null);
         setEditName('');
-        setEditImage(null);
+        setEditImage(DEFAULT_IMAGE); // Pre-fill with default
         setIsFormVisible(true);
     }, []);
 
     const openEditForm = useCallback((outfit: Outfit) => {
         setEditId(outfit.id);
         setEditName(outfit.name);
-        setEditImage(outfit.image || null);
+        setEditImage(outfit.image || DEFAULT_IMAGE);
         setIsFormVisible(true);
     }, []);
 
@@ -246,9 +267,14 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
     const confirmDelete = useCallback(async () => {
         if (itemToDelete) {
-            await deleteOutfit(itemToDelete.id);
-            setDeleteSheetVisible(false);
-            setItemToDelete(null);
+            try {
+                await deleteOutfit(itemToDelete.id);
+                setDeleteSheetVisible(false);
+                setItemToDelete(null);
+            } catch (error: any) {
+                console.error("Delete failed:", error);
+                Alert.alert("Delete Error", "Could not delete outfit. Please try again.");
+            }
         }
     }, [itemToDelete, deleteOutfit]);
 
@@ -269,12 +295,16 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     }, []);
 
     const renderItem = useCallback(({ item }: { item: Outfit }) => (
-        <View style={styles.itemRow}>
+        <TouchableOpacity
+            activeOpacity={0.7}
+            style={styles.itemRow}
+            onPress={() => handleConfigure(item)}
+        >
             {/* Left: Icon/Image */}
             <View style={styles.iconBox}>
                 {item.image ? (
                     <Image
-                        source={{ uri: item.image }}
+                        source={{ uri: item.image || DEFAULT_IMAGE }}
                         style={styles.itemImage}
                         resizeMode="cover"
                     />
@@ -284,13 +314,10 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             </View>
 
             {/* Middle: Info */}
-            <TouchableOpacity
-                style={styles.itemInfo}
-                onPress={() => handleConfigure(item)}
-            >
+            <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{item.name}</Text>
                 <Text style={styles.itemMeta}>{(item.categories?.length || 0)} Categories</Text>
-            </TouchableOpacity>
+            </View>
 
             {/* Right: Actions */}
             <View style={styles.actions}>
@@ -321,10 +348,8 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     <ChevronRight size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
             </View>
-        </View>
+        </TouchableOpacity>
     ), [handleConfigure, toggleVisibility, openActionSheet]);
-
-
 
     return (
         <View style={styles.container}>
@@ -375,16 +400,15 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 }
             />
 
+            {/* Floating Add Button */}
             {!isFormVisible && (
                 <TouchableOpacity
-                    style={[styles.fab, { bottom: 24 + (insets.bottom || 0), zIndex: 9999 }]}
+                    style={styles.fab}
                     onPress={openAddForm}
                 >
-                    <Plus size={24} color={Colors.white} />
-                    <Text style={styles.fabText}>Add Outfit</Text>
+                    <Plus size={24} color="white" />
                 </TouchableOpacity>
             )}
-
 
 
             <AlertModal
@@ -394,45 +418,61 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 onClose={() => setAlertVisible(false)}
             />
 
+            <BottomConfirmationSheet
+                visible={deleteSheetVisible}
+                title="Delete Outfit?"
+                message={`Are you sure you want to delete "${itemToDelete?.name}"?`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                isDestructive
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteSheetVisible(false)}
+            />
+
             <BottomActionSheet
                 visible={actionSheetVisible}
                 onClose={() => setActionSheetVisible(false)}
-                title={selectedItem?.name}
-                actions={[
-                    {
-                        id: 'edit',
-                        label: 'Edit Outfit',
-                        icon: Edit2,
-                        onPress: () => {
-                            if (selectedItem) openEditForm(selectedItem);
-                        }
-                    },
-                    {
-                        id: 'delete',
-                        label: 'Delete Outfit',
-                        icon: Trash2,
-                        type: 'danger',
-                        onPress: () => {
-                            if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
-                        }
-                    }
-                ]}
-            />
+                title={selectedItem?.name || 'Outfit Options'}
+            >
+                <TouchableOpacity
+                    style={styles.actionOption}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) openEditForm(selectedItem);
+                    }}
+                >
+                    <Edit2 size={20} color={Colors.textPrimary} />
+                    <Text style={styles.actionText}>Edit Details</Text>
+                </TouchableOpacity>
 
-            <BottomConfirmationSheet
-                visible={deleteSheetVisible}
-                onClose={() => setDeleteSheetVisible(false)}
-                onConfirm={confirmDelete}
-                title="Delete Outfit"
-                description={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
-                confirmText="Delete Outfit"
-                cancelText="Cancel"
-                type="danger"
-            />
-        </View >
+                <TouchableOpacity
+                    style={styles.actionOption}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) handleConfigure(selectedItem);
+                    }}
+                >
+                    <Shirt size={20} color={Colors.textPrimary} />
+                    <Text style={styles.actionText}>Manage Categories</Text>
+                </TouchableOpacity>
+
+                <View style={styles.actionDivider} />
+
+                <TouchableOpacity
+                    style={[styles.actionOption, styles.destructiveAction]}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
+                    }}
+                >
+                    <Trash2 size={20} color={Colors.error} />
+                    <Text style={[styles.actionText, { color: Colors.error }]}>Delete Outfit</Text>
+                </TouchableOpacity>
+            </BottomActionSheet>
+
+        </View>
     );
 };
-
 
 const styles = StyleSheet.create({
     container: {
@@ -440,99 +480,165 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     header: {
-        backgroundColor: Colors.white,
+        backgroundColor: 'white',
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
+        borderBottomColor: '#E2E8F0',
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 56,
         paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.md,
     },
     backBtn: {
-        padding: 4,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 20,
     },
     subtitle: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
+        ...Typography.h3,
         color: Colors.textPrimary,
-        flex: 1,
-        textAlign: 'center',
+        // Reverted to original as user requested bold only on cards
+    },
+    helperText: {
+        ...Typography.bodySmall,
+        color: Colors.textSecondary,
+        marginBottom: Spacing.md,
+        textAlign: 'center'
     },
     listContent: {
         padding: Spacing.md,
-        paddingBottom: 140,
-    },
-    helperText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: Spacing.md,
-        lineHeight: 20,
+        paddingBottom: 100, // Space for FAB
     },
     itemRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
-        backgroundColor: Colors.white,
+        backgroundColor: 'white',
         borderRadius: 12,
+        padding: 12,
         marginBottom: 12,
-        ...Shadow.small,
+        ...Shadow.sm,
         borderWidth: 1,
-        borderColor: Colors.border,
+        borderColor: 'transparent'
     },
     iconBox: {
         width: 48,
         height: 48,
-        backgroundColor: '#F8FAFC',
         borderRadius: 8,
+        backgroundColor: '#F1F5F9',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        overflow: 'hidden',
+        marginRight: 12,
+        overflow: 'hidden'
     },
     itemImage: {
         width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
+        height: '100%'
     },
     itemInfo: {
         flex: 1,
     },
     itemName: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
+        fontSize: 18, // Increased for readability
         color: Colors.textPrimary,
         marginBottom: 2,
+        fontWeight: 'bold',
     },
     itemMeta: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 13,
+        fontSize: 14, // Increased for readability
         color: Colors.textSecondary,
     },
     actions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 8
+    },
+    toggleTrack: {
+        width: 32,
+        height: 18,
+        borderRadius: 9,
+        justifyContent: 'center',
+        paddingHorizontal: 2,
+    },
+    toggleThumb: {
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: 'white',
+        ...Shadow.sm
     },
     menuTrigger: {
         padding: 4,
     },
-    imagePickerBtn: {
-        alignSelf: 'center',
-        marginBottom: 20,
+    fab: {
+        position: 'absolute',
+        bottom: 24,
+        right: 24,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: Colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Shadow.md,
+        elevation: 6
     },
-    pickedImage: {
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: 60,
+    },
+    emptyIconBox: {
         width: 80,
         height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
+        borderRadius: 40,
+        backgroundColor: '#F0F9FF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.md
     },
-    placeholderImage: {
+    emptyTitle: {
+        ...Typography.h3,
+        color: Colors.textPrimary,
+        marginBottom: 4
+    },
+    emptySubtitle: {
+        ...Typography.body,
+        color: Colors.textSecondary,
+        textAlign: 'center',
+        maxWidth: 260
+    },
+
+    // Inline Form Styles
+    inlineFormContainer: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 24,
+        ...Shadow.md,
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
+    },
+    inlineFormHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16
+    },
+    inlineFormTitle: {
+        ...Typography.h4,
+        color: Colors.textPrimary,
+        // Reverted to original
+    },
+    inlineFormBody: {
+        flexDirection: 'row',
+        gap: 16,
+        marginBottom: 20
+    },
+    inlineImagePicker: {
         width: 80,
         height: 80,
         borderRadius: 12,
@@ -542,260 +648,124 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    imagePickerText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 12,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
-    toggleTrack: {
-        width: 36,
-        height: 20,
-        borderRadius: 12,
-        justifyContent: 'center',
-        padding: 2,
-    },
-    toggleThumb: {
-        width: 16,
-        height: 16,
-        backgroundColor: Colors.white,
-        borderRadius: 8,
-        ...Shadow.subtle,
-    },
-    fab: {
-        position: 'absolute',
-        right: 24,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 30,
-        ...Shadow.medium,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    fabText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        padding: Spacing.lg,
-    },
-    modalContent: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        ...Shadow.medium,
-        width: '100%',
-        maxWidth: 400,
-        alignSelf: 'center',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.lg,
-    },
-    modalTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inputContainer: {
-        marginBottom: Spacing.xl,
-    },
-    label: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 12,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    saveBtn: {
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    saveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
-    // Inline Form Styles
-    inlineFormContainer: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        marginBottom: Spacing.xl,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        ...Shadow.medium,
-    },
-    inlineFormHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    inlineFormTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inlineFormBody: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        marginBottom: 20,
-    },
-    inlineImagePicker: {
-        width: 80,
-        height: 80,
-    },
-    inlineImagePlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F1F5F9', // Slightly darker slate
-        borderWidth: 1.5,
-        borderColor: '#CBD5E1', // Darker border
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inlineImagePlaceholderText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 10,
-        color: Colors.textSecondary,
-        marginTop: 4,
+        overflow: 'hidden'
     },
     inlinePickedImageContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    inlinePickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 8,
-    },
-    photoReadyContainer: {
-        backgroundColor: '#E2E8F0', // Darker grey for visibility
-        borderWidth: 2, // Thicker border
-        borderColor: '#94A3B8', // High contrast slate border
+        width: '100%',
+        height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: '#F0FDF4',
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        borderRadius: 12
+    },
+    inlinePickedImage: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    photoReadyContainer: {
+        gap: 4
     },
     photoReadyText: {
-        fontSize: 11, // Slightly larger
-        fontFamily: 'Inter-Bold', // Bolder
-        color: '#475569', // Darker slate
-        marginTop: 4,
-        textAlign: 'center',
+        ...Typography.caption,
+        color: '#166534',
+        fontSize: 10,
+        fontWeight: '600'
     },
     inlineImageOverlay: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        right: 0,
+        backgroundColor: Colors.primary,
+        width: 24,
+        height: 24,
+        borderTopLeftRadius: 8,
         justifyContent: 'center',
+        alignItems: 'center'
+    },
+    inlineImagePlaceholder: {
         alignItems: 'center',
+        gap: 4
+    },
+    inlineImagePlaceholderText: {
+        ...Typography.caption,
+        color: Colors.textSecondary,
+        fontSize: 10
     },
     inlineInputWrapper: {
         flex: 1,
+        justifyContent: 'center'
     },
     inlineLabel: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
+        ...Typography.caption,
         color: Colors.textSecondary,
-        marginBottom: 4,
+        marginBottom: 6,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5
     },
     inlineInput: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 10,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
+        ...Typography.body,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E2E8F0',
+        paddingVertical: 8,
         color: Colors.textPrimary,
-        backgroundColor: '#FAFBFC',
+        height: 40
     },
     inlineFormFooter: {
         flexDirection: 'row',
-        gap: 12,
+        justifyContent: 'flex-end',
+        gap: 12
     },
     inlineCancelBtn: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        backgroundColor: '#F1F5F9'
     },
     inlineCancelBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
+        ...Typography.button,
         color: Colors.textSecondary,
+        fontSize: 14
     },
     inlineSaveBtn: {
-        flex: 2,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        backgroundColor: Colors.primary
     },
     inlineSaveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.white,
+        ...Typography.button,
+        color: 'white',
+        fontSize: 14
     },
-    emptyContainer: {
+    actionOption: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
-        paddingHorizontal: 40,
+        paddingVertical: 16,
+        paddingHorizontal: 20
     },
-    emptyIconBox: {
-        width: 64,
-        height: 64,
-        backgroundColor: '#F0FDF9',
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
+    actionText: {
+        ...Typography.body,
         color: Colors.textPrimary,
-        marginBottom: 8,
-        textAlign: 'center',
+        marginLeft: 16
     },
-    emptySubtitle: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 20,
+    destructiveAction: {
+        marginTop: 4
     },
+    actionDivider: {
+        height: 1,
+        backgroundColor: '#E2E8F0',
+        marginHorizontal: 20
+    },
+    dragHandle: {
+        paddingHorizontal: 10,
+        paddingVertical: 10,
+        marginRight: 4,
+        marginLeft: -4
+    }
 });
 
 export default ManageOutfitsScreen;
