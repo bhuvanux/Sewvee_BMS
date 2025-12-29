@@ -91,7 +91,7 @@ const SettingsScreen = ({ navigation }: any) => {
                     </View>
                     <TouchableOpacity
                         style={styles.editProfileBtn}
-                        onPress={() => navigation.navigate('EditBusinessProfile')}
+                        onPress={() => navigation.navigate('EditProfile')}
                     >
                         <Text style={styles.editProfileText}>Edit Profile</Text>
                     </TouchableOpacity>
@@ -126,22 +126,6 @@ const SettingsScreen = ({ navigation }: any) => {
                         value="Add, Edit, Types"
                         onPress={() => navigation.navigate('ManageOutfits')}
                         color="#EC4899"
-                        isLast={true}
-                    />
-                </View>
-            </View>
-
-
-
-            <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Security</Text>
-                <View style={styles.card}>
-                    <SettingItem
-                        icon={Lock}
-                        title="Change App PIN"
-                        value="Update your 4-digit code"
-                        onPress={() => setChangePinVisible(true)}
-                        color="#EF4444"
                         isLast={true}
                     />
                 </View>
@@ -183,10 +167,12 @@ const SettingsScreen = ({ navigation }: any) => {
                     <Text style={[styles.footerText, { fontStyle: 'italic', marginRight: 4 }]}>Handcrafted for</Text>
                     <Text style={{ fontSize: 16, color: Colors.primary, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Didot-Italic' : 'serif' }}>Boutiques</Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 12, color: Colors.textSecondary, opacity: 0.7 }}>Powered by</Text>
-                    <Text style={{ fontSize: 12, color: Colors.textPrimary, marginLeft: 4, letterSpacing: 1, fontFamily: 'Inter-Bold' }}>SEWVEE</Text>
-                </View>
+                <TouchableOpacity onLongPress={() => navigation.navigate('DevSettings')} delayLongPress={2000} activeOpacity={0.8}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, color: Colors.textSecondary, opacity: 0.7 }}>Powered by</Text>
+                        <Text style={{ fontSize: 12, color: Colors.textPrimary, marginLeft: 4, letterSpacing: 1, fontFamily: 'Inter-Bold' }}>SEWVEE</Text>
+                    </View>
+                </TouchableOpacity>
             </View>
 
             <View style={{ height: 40 }} />

@@ -86,9 +86,54 @@ const OrdersListScreen = ({ navigation }: any) => {
     };
 
     const renderItem = ({ item }: any) => {
-        const daysLeft = getDaysRemaining(item.deliveryDate);
-        const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
-        const isUrgent = item.urgency === 'Urgent' || item.urgency === 'High'; // Handle legacy values if any
+        // Logic to find earliest delivery date from items or fallback to order date
+        let targetDateVal = item.deliveryDate;
+        let isNearingDeadline = false;
+        let daysLeft = 999;
+
+        // Check if we have sub-items with delivery dates
+        if (item.items && item.items.length > 0) {
+            const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
+
+            // If we have active items, use their dates. 
+            // If all items are cancelled, we might still want to show the latest date or just the order date? 
+            // User requirement: "ignore cancelled items". So if all cancelled, fallback to order date is fine, or treat as normal.
+
+            // Allow searching through all items if no active items exist? No, user wants to IGNORE cancelled.
+            // So we only look at activeItems.
+            const sourceItems = activeItems.length > 0 ? activeItems : []; // If all cancelled, we have empty list.
+
+            const validDates = sourceItems
+                .map((i: any) => i.deliveryDate)
+                .filter((d: any) => d)
+                .map((d: string) => parseDate(d).getTime());
+
+            if (validDates.length > 0) {
+                const minDate = Math.min(...validDates);
+                targetDateVal = new Date(minDate).toISOString();
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const tDate = new Date(minDate);
+                tDate.setHours(0, 0, 0, 0);
+                const diff = tDate.getTime() - today.getTime();
+                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+            } else {
+                // If no active items with dates (or all cancelled), fallback to main order delivery date
+                // But wait, if order is active but all items cancelled, logic says order should be cancelled?
+                // Assuming mixed state. Fallback to order.deliveryDate
+                daysLeft = getDaysRemaining(item.deliveryDate);
+            }
+        } else {
+            daysLeft = getDaysRemaining(item.deliveryDate);
+        }
+
+        // Re-verify isNearing based on calculated daysLeft
+        isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
+
+        // Check for urgency in any item
+        const hasUrgentItem = item.items && item.items.some((i: any) => (i.urgency === 'Urgent' || i.urgency === 'High') && i.status !== 'Cancelled');
+        const isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
 
         return (
             <TouchableOpacity
@@ -107,9 +152,29 @@ const OrdersListScreen = ({ navigation }: any) => {
                             </View>
                         )}
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-                        <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
-                    </View>
+                    {item.items && item.items.length > 1 ? (
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {Object.entries(item.items.reduce((acc: any, i: any) => {
+                                const s = i.status || 'Pending';
+                                acc[s] = (acc[s] || 0) + 1;
+                                return acc;
+                            }, {})).map(([status, count]: any) => (
+                                <View key={status} style={{
+                                    backgroundColor: getStatusColor(status),
+                                    width: 22, height: 22, borderRadius: 11,
+                                    justifyContent: 'center', alignItems: 'center',
+                                    borderWidth: 1, borderColor: 'white',
+                                    ...Shadow.subtle
+                                }}>
+                                    <Text style={{ color: 'white', fontSize: 11, fontFamily: 'Inter-Bold' }}>{count}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+                            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={styles.orderContent}>
@@ -118,7 +183,11 @@ const OrdersListScreen = ({ navigation }: any) => {
                         <View style={styles.dateRow}>
                             <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
                             <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
-                                {item.deliveryDate ? `Delivery: ${formatDate(item.deliveryDate)}` : formatDate(item.date || item.createdAt)}
+                                {/* Display the calculated earliest date if nearing, else standard date */}
+                                {isNearingDeadline && daysLeft < 500
+                                    ? `Due: ${daysLeft === 0 ? 'Today' : (daysLeft === 1 ? 'Tomorrow' : formatDate(targetDateVal))}`
+                                    : (targetDateVal ? `Delivery: ${formatDate(targetDateVal)}` : formatDate(item.date || item.createdAt))
+                                }
                             </Text>
                         </View>
                         {isNearingDeadline && (
@@ -129,17 +198,24 @@ const OrdersListScreen = ({ navigation }: any) => {
                     </View>
                     <View style={styles.amountArea}>
                         <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
-                            <Text style={styles.amount}>₹{item.total}</Text>
-                            {item.balance > 0 ? (
-                                <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
-                            ) : (
-                                <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+                            <Text style={[
+                                styles.amount,
+                                item.status === 'Cancelled' && { textDecorationLine: 'line-through', color: Colors.textSecondary }
+                            ]}>
+                                ₹{item.total}
+                            </Text>
+                            {item.status !== 'Cancelled' && (
+                                item.balance > 0 ? (
+                                    <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
+                                ) : (
+                                    <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+                                )
                             )}
                         </View>
                         <ChevronRight size={18} color={Colors.textSecondary} />
                     </View>
                 </View>
-            </TouchableOpacity>
+            </TouchableOpacity >
         );
     };
 

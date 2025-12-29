@@ -43,7 +43,10 @@ import {
     AlertTriangle,
     Pen,
     Eraser,
-    Undo2
+    Undo2,
+    Calendar,
+    History,
+    Flame
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
@@ -51,7 +54,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '../types';
-import { formatDate, getCurrentDate, getCurrentTime } from '../utils/dateUtils';
+import { formatDate, getCurrentDate, getCurrentTime, parseDate } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -915,6 +918,17 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: -8 }}>
                     <Text style={styles.sectionTitle}>Measurements</Text>
                     <TouchableOpacity
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#EFF6FF', // Light blue bg
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: '#BFDBFE',
+                            gap: 6
+                        }}
                         onPress={() => {
                             if (historyData.length > 0) {
                                 setHistoryVisible(true);
@@ -923,7 +937,8 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                             }
                         }}
                     >
-                        <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13, opacity: historyData.length > 0 ? 1 : 0.6 }}>
+                        <History size={14} color={Colors.primary} />
+                        <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
                             View History
                         </Text>
                     </TouchableOpacity>
@@ -1085,18 +1100,26 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                                 {sortedHistory.length > 0 ? (
                                     sortedHistory.map((item: any) => (
                                         <View key={item.id} style={styles.tableRow}>
-                                            <View style={{ flex: 1 }}>
+                                            <View style={{ flex: 1.2 }}>
                                                 <Text style={styles.tableCellDate}>{item.date}</Text>
                                             </View>
-                                            <View style={{ flex: 1 }}>
+                                            <View style={{ flex: 0.8 }}>
                                                 <Text style={styles.tableCellText}>{item.type}</Text>
                                             </View>
-                                            <TouchableOpacity
-                                                style={styles.applyBtn}
-                                                onPress={() => applyHistory(item.data)}
-                                            >
-                                                <Text style={styles.applyBtnText}>Apply</Text>
-                                            </TouchableOpacity>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    style={[styles.applyBtn, { backgroundColor: '#FEE2E2', paddingHorizontal: 8 }]}
+                                                    onPress={() => deleteHistoryItem(item.id)}
+                                                >
+                                                    <Trash2 size={14} color={Colors.danger} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={styles.applyBtn}
+                                                    onPress={() => applyHistory(item.data)}
+                                                >
+                                                    <Text style={styles.applyBtnText}>Apply</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     ))
                                 ) : (
@@ -1256,6 +1279,17 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const signatureRef = useRef<any>(null);
     const { showToast } = useToast();
     // const canvasRef = useRef<any>(null); // Skia drawing temporarily disabled
+    const [calendarVisible, setCalendarVisible] = useState(false);
+
+    const handleDateSelect = (date: string) => {
+        onChange({
+            currentOutfit: {
+                ...state.currentOutfit,
+                deliveryDate: date
+            }
+        });
+        setCalendarVisible(false); // Close after select (CalendarModal might handle close too but this is safe)
+    };
 
     const pickImage = async () => {
         // 1. Multiple Selection Enabled (Editing disabled to allow multiple)
@@ -1467,6 +1501,8 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>
+
+
             {/* Reference Images */}
             <View style={styles.section}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -1782,14 +1818,34 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
     const [linkModal, setLinkModal] = useState({ visible: false, title: '', content: [] as string[] });
     const [expandedIndex, setExpandedIndex] = useState<number | null>(allItems.length > 0 ? allItems.length - 1 : 0); // Initialize LAST item as expanded
 
+    // Date Logic Helper
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        try {
+            const targetDate = parseDate(dateString);
+            if (isNaN(targetDate.getTime())) return 999;
+
+            const today = new Date();
+            targetDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            const diffTime = targetDate.getTime() - today.getTime();
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        } catch {
+            return 999;
+        }
+    };
+
     const calculateTotal = () => {
         const cartTotal = state.cart.reduce((sum: number, item: any, index: number) => {
             // If we are currently editing this item (and it's in the cart), don't count it from the cart
             // because it's being counted via state.currentOutfit below.
             if (index === editItemIndex) return sum;
+            // Exclude cancelled items from total
+            if (item.status === 'Cancelled') return sum;
             return sum + (Number(item.totalCost) || 0);
         }, 0);
-        const currentTotal = Number(state.currentOutfit.totalCost) || 0;
+        const currentTotal = (state.currentOutfit.status === 'Cancelled') ? 0 : (Number(state.currentOutfit.totalCost) || 0);
         return cartTotal + currentTotal;
     };
 
@@ -1848,36 +1904,87 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                 const stitchOptions = getSelectedOptions(item.measurements);
                 const isExpanded = expandedIndex === index;
 
+                const deliveryDate = item.deliveryDate || state.deliveryDate;
+                const daysLeft = getDaysRemaining(deliveryDate);
+                const isUrgent = (state.urgency === 'Urgent' || state.urgency === 'Emergency' || item.urgency === 'Urgent' || item.urgency === 'High');
+                // Days Left <= 3 and positive
+                const isNearing = daysLeft <= 3 && daysLeft >= 0;
+
                 return (
-                    <View key={index} style={[styles.accordionCard, isExpanded && styles.accordionCardExpanded]}>
-                        {/* Card Header (Always Visible) */}
+                    <View key={index} style={{
+                        backgroundColor: isNearing ? '#FEF2F2' : Colors.white,
+                        borderRadius: 16,
+                        marginBottom: 16,
+                        borderWidth: 1,
+                        borderColor: isNearing ? '#FECACA' : Colors.border,
+                        overflow: 'hidden',
+                        ...Shadow.subtle
+                    }}>
+                        {/* Card Header (Click to Expand logic moved to internal view to allow buttons to work? No, entire card can toggle, but buttons stop prop) */}
                         <TouchableOpacity
-                            style={styles.accordionHeader}
+                            activeOpacity={0.8}
                             onPress={() => toggleAccordion(index)}
-                            activeOpacity={0.7}
+                            style={{ padding: 16 }}
                         >
-                            <View style={{ flex: 4 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>{item.type}</Text>
-                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ fontSize: 11, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold' }}>x{item.quantity || 1}</Text>
-                                    </View>
+                            {/* Top Row: Name and Price */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>{item.type}</Text>
                                     {item.isCurrent && (!item.id || item.id.toString().startsWith('current_')) && (
                                         <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                                             <Text style={{ fontSize: 10, color: '#166534', fontFamily: 'Inter-Bold' }}>NEW</Text>
                                         </View>
                                     )}
+
+                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                                        <Text style={{ fontSize: 12, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary }}>x{item.quantity || 1}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>₹{item.totalCost || 0}</Text>
+                                    <ChevronRight
+                                        size={20}
+                                        color={Colors.textSecondary}
+                                        style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+                                    />
                                 </View>
                             </View>
 
-                            <View style={{ flex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>₹{item.totalCost || 0}</Text>
-                                <ChevronRight
-                                    size={20}
-                                    color={Colors.textSecondary}
-                                    style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
-                                />
-                            </View>
+                            {/* Middle Row: Delivery Date (Prominent) */}
+                            {deliveryDate && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: isUrgent ? 12 : 0 }}>
+                                    <View style={{
+                                        backgroundColor: isNearing ? '#FEE2E2' : '#EFF6FF',
+                                        padding: 8,
+                                        borderRadius: 8
+                                    }}>
+                                        <Calendar size={18} color={isNearing ? Colors.danger : Colors.primary} />
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>Expected Delivery</Text>
+                                        <Text style={{
+                                            fontSize: 16,
+                                            fontFamily: 'Inter-Bold',
+                                            color: isNearing ? Colors.danger : Colors.textPrimary
+                                        }}>
+                                            {formatDate(deliveryDate)}
+                                            {isNearing && daysLeft >= 0 && (
+                                                <Text style={{ color: Colors.danger, fontSize: 14 }}>  ({daysLeft === 0 ? 'Today' : `${daysLeft}d left`})</Text>
+                                            )}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Urgency Badge */}
+                            {isUrgent && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#FECACA', alignSelf: 'flex-start' }}>
+                                    <Flame size={14} color={Colors.danger} fill={Colors.danger} />
+                                    <Text style={{ fontSize: 11, fontFamily: 'Inter-Bold', color: Colors.danger, textTransform: 'uppercase' }}>Urgent</Text>
+                                </View>
+                            )}
+
                         </TouchableOpacity>
 
                         {/* Card Content (Visible when Expanded) */}
@@ -2092,9 +2199,18 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
             </TouchableOpacity>
 
 
-            {/* Advance Payment Section (Restored) */}
+            {/* Advance Payment Section */}
             <View style={{ marginBottom: 16, marginTop: 10 }}>
-                <Text style={[styles.fieldLabel, { marginBottom: 10 }]}>Advance Payment</Text>
+                {Number(state.existingAdvance) > 0 && (
+                    <View style={{ marginBottom: 12, padding: 12, backgroundColor: '#ECFDF5', borderRadius: 10, borderWidth: 1, borderColor: '#6EE7B7' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', color: '#047857', fontSize: 13 }}>Previously Paid</Text>
+                        <Text style={{ fontFamily: 'Inter-Bold', color: '#065F46', fontSize: 18 }}>₹{state.existingAdvance}</Text>
+                    </View>
+                )}
+
+                <Text style={[styles.fieldLabel, { marginBottom: 10 }]}>
+                    {Number(state.existingAdvance) > 0 ? "Add Payment" : "Advance Payment"}
+                </Text>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {/* Payment Mode Toggle */}
@@ -2161,8 +2277,8 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             placeholder="0"
                             placeholderTextColor={Colors.textSecondary}
                             keyboardType="numeric"
-                            value={state.advance?.toString()}
-                            onChangeText={(t) => onChange({ advance: t })}
+                            value={state.paymentInput} // Bind to paymentInput
+                            onChangeText={(t) => onChange({ paymentInput: t })} // Update paymentInput
                         />
                     </View>
                 </View>
@@ -2177,7 +2293,8 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, fontSize: 14 }}>Advance Paid</Text>
-                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success, fontSize: 16 }}>- ₹{Number(state.advance) || 0}</Text>
+                        {/* Show Total Advance (Existing + New Input) */}
+                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success, fontSize: 16 }}>- ₹{(Number(state.existingAdvance) || 0) + (Number(state.paymentInput) || 0)}</Text>
                     </View>
 
                     <View style={{ height: 1, backgroundColor: Colors.primary + '20', marginVertical: 4 }} />
@@ -2188,7 +2305,7 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>To be collected on delivery</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.primary }}>₹{balance.toFixed(0)}</Text>
+                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.primary }}>₹{(total - ((Number(state.existingAdvance) || 0) + (Number(state.paymentInput) || 0))).toFixed(0)}</Text>
                         </View>
                     </View>
                 </View>
@@ -2308,7 +2425,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 };
 
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
-    const { customers, outfits, addOrder, updateOrder, addCustomer, updateCustomer, orders } = useData();
+    const { customers, outfits, addOrder, updateOrder, addPayment, addCustomer, updateCustomer, orders } = useData();
     const { user, company } = useAuth();
     const { showToast } = useToast();
 
@@ -2454,6 +2571,54 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         setDeleteSheetVisible(true);
     };
 
+    // Exit Warning Logic
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            // If we are just navigating between steps in the stack (internal), don't block?
+            // React Navigation 'beforeRemove' is triggered only when "leaving" the screen (pop).
+
+            // Check if we have unsaved changes
+            const hasItems = state.cart.length > 0;
+            // Check if current outfit has ANY modified data (type is default 'Blouse', but check if other fields have data)
+            const hasData = (state.currentOutfit.type !== 'Blouse') ||
+                (Object.keys(state.currentOutfit.measurements || {}).length > 0) ||
+                !!state.currentOutfit.notes ||
+                (state.currentOutfit.images && state.currentOutfit.images.length > 0);
+
+            // If we are on Step 0 and everything is empty, don't block
+            if (!hasItems && !hasData && !loading) {
+                return;
+            }
+
+            // If success modal is visible, safe to leave (order created)
+            if (successModalVisible) {
+                return;
+            }
+
+            // Prevent default behavior of leaving the screen
+            e.preventDefault();
+
+            // Prompt the user to confirm the action
+            Alert.alert(
+                'Discard changes?',
+                'You have unsaved changes. Are you sure you want to discard them and leave?',
+                [
+                    { text: "Don't leave", style: 'cancel', onPress: () => { } },
+                    {
+                        text: 'Discard',
+                        style: 'destructive',
+                        // If the user confirmed, then we dispatch the action we blocked earlier
+                        onPress: () => navigation.dispatch(e.data.action),
+                    },
+                ]
+            );
+        });
+
+        return unsubscribe;
+    }, [navigation, state.cart, state.currentOutfit, successModalVisible, loading]);
+
+
+
     useEffect(() => {
         // Configure Audio for playback and recording
         const configureAudio = async () => {
@@ -2487,7 +2652,10 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     notes: it.description || it.notes || '',
                     audioUri: it.audioUri || null,
                     fabricSource: it.fabricSource || 'Customer',
-                    totalCost: it.totalCost || it.rate || it.amount || 0
+                    totalCost: it.totalCost || it.rate || it.amount || 0,
+                    // Fix: Persist existing item date, fallback to order date only on first load
+                    // This "locks" the date so changing order date doesn't affect existing items
+                    deliveryDate: it.deliveryDate || order.deliveryDate
                 }));
 
                 const selectedCust = customers.find(c => c.id === order.customerId) || null;
@@ -2502,8 +2670,10 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     customerName: order.customerName || '',
                     customerMobile: order.customerMobile || '',
                     selectedCustomer: selectedCust,
-                    trialDate: order.trialDate || null,
-                    deliveryDate: order.deliveryDate || null,
+                    // Fix: Only pre-fill dates if we are editing a specific item. 
+                    // For new items (Add Item flow), dates should be empty as per user request.
+                    trialDate: itemToEdit ? (order.trialDate || null) : null,
+                    deliveryDate: itemToEdit ? (order.deliveryDate || null) : null,
                     urgency: (order as any).urgency || 'Normal',
                     orderType: (order as any).orderType || 'Stitching',
                     cart: initialCart,
@@ -2521,6 +2691,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                         totalCost: 0
                     },
                     advance: order.advance?.toString() || '',
+                    existingAdvance: order.advance || 0, // Store existing advance from DB
+                    paymentInput: '', // Input is empty for adding NEW payment
                     paymentMode: (order as any).advanceMode || (order as any).paymentMode || 'Cash'
                 });
             }
@@ -2567,14 +2739,35 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
         if (Object.keys(validMeasurements).length === 0) return;
 
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
         const newHistoryItem: MeasurementHistoryItem = {
             id: Date.now().toString(),
-            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), // e.g., 22 Oct 2024
+            date: `${dateStr}, ${timeStr}`,
             type: outfit.type,
-            data: validMeasurements as MeasurementProfile
+            data: validMeasurements as MeasurementProfile,
+            timestamp: now.getTime()
         };
 
         const currentHistory = state.selectedCustomer.measurementHistory || [];
+
+        // Check against latest history entry for this outfit type
+        const latestEntry = currentHistory.find((h: any) => h.type === outfit.type);
+        if (latestEntry) {
+            const newKeys = Object.keys(validMeasurements);
+            const oldKeys = Object.keys(latestEntry.data || {});
+
+            if (newKeys.length === oldKeys.length) {
+                const isIdentical = newKeys.every(key => validMeasurements[key] === latestEntry.data[key]);
+                if (isIdentical) {
+                    console.log("Measurements identical to last history. Skipping save.");
+                    return;
+                }
+            }
+        }
+
         const updatedHistory = [newHistoryItem, ...currentHistory];
 
         try {
@@ -2587,6 +2780,55 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             });
         } catch (e) {
             console.error("Failed to save measurement history", e);
+        }
+    };
+
+    const deleteHistoryItem = async (historyId: string) => {
+        if (!state.selectedCustomer) return;
+
+        Alert.alert(
+            "Delete History",
+            "Are you sure you want to delete this measurement entry?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        const currentHistory = state.selectedCustomer.measurementHistory || [];
+                        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
+
+                        try {
+                            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
+                            updateState({
+                                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
+                            });
+                            showToast('History entry deleted', 'success');
+                        } catch (e) {
+                            console.error("Failed to delete history item", e);
+                            showToast('Failed to delete history', 'error');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const deleteHistoryItem = async (historyId: string) => {
+        if (!state.selectedCustomer) return;
+
+        const currentHistory = state.selectedCustomer.measurementHistory || [];
+        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
+
+        try {
+            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
+            updateState({
+                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
+            });
+            showToast('History entry deleted', 'success');
+        } catch (e) {
+            console.error("Failed to delete history item", e);
+            showToast('Failed to delete history', 'error');
         }
     };
 
@@ -2653,6 +2895,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     id: (state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_'))
                         ? state.currentOutfit.id
                         : Date.now().toString(),
+                    // Fix: Explicitly save the current selected date to this item
+                    deliveryDate: state.deliveryDate,
                 };
                 updateState({
                     cart: [...state.cart, cartItem],
@@ -2723,7 +2967,12 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         // but user might want to change Type (Step 0). Step 0 is safer.
         updateState({
             cart: newCart,
-            currentOutfit: { ...itemToEdit, isCurrent: true, id: itemToEdit.id || Date.now().toString() }
+            currentOutfit: { ...itemToEdit, isCurrent: true, id: itemToEdit.id || Date.now().toString() },
+            // Fix: Populate Date & Urgency from item being edited
+            trialDate: itemToEdit.trialDate || state.trialDate,
+            deliveryDate: itemToEdit.deliveryDate || state.deliveryDate,
+            urgency: itemToEdit.urgency || state.urgency,
+            orderType: itemToEdit.orderType || state.orderType,
         });
         setCurrentStep(0); // Go to start of flow
     };
@@ -2799,7 +3048,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     ? state.currentOutfit.id
                     : `final_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-                const itemToSave = { ...state.currentOutfit, id: itemId };
+                // Fix: Explicitly save metadata for the final item being added
+                const itemToSave = {
+                    ...state.currentOutfit,
+                    id: itemId,
+                    deliveryDate: state.deliveryDate, // Persist date
+                    urgency: state.urgency // Persist urgency
+                };
 
                 // LOGIC TO PREVENT DUPLICATES:
                 // 1. Check if item with same ID exists in cart (Priority)
@@ -2820,8 +3075,11 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 }
             }
 
-            // Validate: check if prices are set?
-            const totalValue = finalItems.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
+            // Validate: check if prices are set? (Exclude Cancelled)
+            const totalValue = finalItems.reduce((sum: number, item: any) => {
+                if (item.status === 'Cancelled') return sum;
+                return sum + (Number(item.totalCost) || 0);
+            }, 0);
 
             if (finalItems.length === 0) {
                 showToast('Please add at least one item to the order.', 'warning');
@@ -2835,17 +3093,24 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 return;
             }
 
+            const currentInputAdvance = Number(state.paymentInput) || 0;
+            const existingAdvanceVal = Number(state.existingAdvance) || 0;
+            // For New Order: Total = Input
+            // For Edit Order: Total = Existing + Input (Additive)
+            // But wait, if we are in New Order mode, existingAdvance is 0. So logic holds.
+            const totalAdvance = existingAdvanceVal + currentInputAdvance;
+
             const newOrderData: Partial<Order> = {
                 customerId: state.selectedCustomer?.id,
                 customerName: state.customerName || state.selectedCustomer?.name,
                 customerMobile: state.customerMobile || state.selectedCustomer?.mobile,
-                items: finalItems, // For legacy compatibility
-                outfits: finalItems, // For rich data (measurements, images, audio)
-                status: 'Pending',
-                paymentStatus: Number(state.advance) >= totalValue ? 'Paid' : (Number(state.advance) > 0 ? 'Partial' : 'Pending'),
+                items: finalItems.map(i => ({ ...i, status: i.status || 'Pending' })), // Ensure items have status
+                outfits: finalItems.map(i => ({ ...i, status: i.status || 'Pending' })), // Ensure outfits have status
+                status: editOrderId && orders.find(o => o.id === editOrderId)?.status ? orders.find(o => o.id === editOrderId)?.status! : 'Pending', // Preserve status on edit
+                paymentStatus: totalAdvance >= totalValue ? 'Paid' : (totalAdvance > 0 ? 'Partial' : 'Pending'),
                 total: totalValue,
-                advance: Number(state.advance) || 0,
-                balance: totalValue - (Number(state.advance) || 0),
+                advance: totalAdvance,
+                balance: totalValue - totalAdvance,
                 notes: state.currentOutfit.notes,
                 deliveryDate: state.deliveryDate,
                 trialDate: state.trialDate,
@@ -2858,6 +3123,19 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
             if (editOrderId) {
                 const existingOrder = orders.find(o => o.id === editOrderId);
+
+                // PAYMENT RECONCILIATION:
+                // If user added a payment (paymentInput > 0), record it.
+                if (currentInputAdvance > 0) {
+                    await addPayment({
+                        orderId: editOrderId,
+                        customerId: existingOrder?.customerId,
+                        amount: currentInputAdvance,
+                        date: new Date().toISOString(),
+                        mode: (state.paymentMode || 'Cash') as any
+                    });
+                }
+
                 await updateOrder(editOrderId, newOrderData);
                 setCreatedOrder({ ...existingOrder, ...newOrderData, id: editOrderId } as Order);
                 setSuccessModalVisible(true);

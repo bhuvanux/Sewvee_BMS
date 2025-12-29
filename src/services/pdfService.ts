@@ -1,52 +1,64 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { Colors } from '../constants/theme';
 import { Alert, Platform } from 'react-native';
 import { formatDate } from '../utils/dateUtils';
 
-export const normalizeItems = (orderData: any) => {
+export const normalizeItems = (orderData: any, includeCancelled: boolean = true) => {
+  let items = [];
   if (orderData.outfits && orderData.outfits.length > 0) {
-    return orderData.outfits.map((it: any) => ({
+    items = orderData.outfits.map((it: any) => ({
       name: it.type || 'Custom Outfit',
       qty: it.qty || 1,
-      rate: it.totalCost / (it.qty || 1),
-      amount: it.totalCost,
+      rate: (Number(it.totalCost) || 0) / (it.qty || 1),
+      amount: Number(it.totalCost) || 0,
       description: it.notes || '',
       measurements: it.measurements,
       type: it.type,
       notes: it.notes,
       quantity: it.qty || 1,
       images: it.images || [],
-      sketches: it.sketches || [], // Add sketches support
+      sketches: it.sketches || (it.sketchUri ? [it.sketchUri] : []),
       audioUri: it.audioUri || it.voiceNote,
       transcription: it.transcription,
-      fabricSource: it.fabricSource || it.fabric_source || ''
+      fabricSource: it.fabricSource || it.fabric_source || '',
+      deliveryDate: it.deliveryDate,
+      status: it.status || 'Pending'
+    }));
+  } else {
+    items = (orderData.items || []).map((it: any) => ({
+      ...it,
+      qty: it.qty || it.quantity || 1,
+      quantity: it.qty || it.quantity || 1,
+      name: it.name || it.type || 'Item',
+      amount: Number(it.amount || it.totalCost || 0),
+      rate: it.rate !== undefined ? Number(it.rate) : (it.totalCost ? (Number(it.totalCost) / (it.qty || it.quantity || 1)) : 0),
+      images: it.images || [],
+      sketches: it.sketches || (it.sketchUri ? [it.sketchUri] : []),
+      fabricSource: it.fabricSource || it.fabric_source || '',
+      deliveryDate: it.deliveryDate,
+      status: it.status || 'Pending'
     }));
   }
-  return (orderData.items || []).map((it: any) => ({
-    ...it,
-    qty: it.qty || it.quantity || 1,
-    quantity: it.qty || it.quantity || 1,
-    name: it.name || it.type || 'Item',
-    amount: it.amount || it.totalCost || 0,
-    rate: it.rate !== undefined ? it.rate : (it.totalCost ? (it.totalCost / (it.qty || it.quantity || 1)) : 0),
-    images: it.images || [],
-    sketches: it.sketches || [], // Add sketches support
-    fabricSource: it.fabricSource || it.fabric_source || ''
-  }));
+
+  if (!includeCancelled) {
+    return items.filter((it: any) => it.status !== 'Cancelled');
+  }
+  return items;
 };
 
 const COMMON_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  body { font-family: 'Inter', sans-serif; padding: 25px; color: #1F2937; background-color: white; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px; margin-bottom: 15px; }
+  @page { margin: 20px; }
+  body { font-family: 'Inter', sans-serif; padding: 20px; color: #1F2937; background-color: white; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #E5E7EB; padding-bottom: 8px; margin-bottom: 12px; }
   .company-logo { width: 50px; height: 50px; background-color: #0E9F8A; color: white; border-radius: 8px; display: flex; justify-content: center; align-items: center; text-align: center; vertical-align: middle; line-height: 50px; font-weight: 700; font-size: 20px; margin-bottom: 5px; overflow: hidden; }
   .company-name { font-size: 20px; font-weight: 700; margin: 0; text-transform: uppercase; color: #0E9F8A; }
   .company-details { font-size: 11px; color: #6B7280; line-height: 1.3; max-width: 300px; }
   .document-label { background-color: #F3F4F6; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: 12px; text-transform: uppercase; color: #374151; }
-  .info-row { display: flex; justify-content: space-between; margin-bottom: 15px; }
-  .info-group { flex: 1; }
+  .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .info-group { flex: 1 1 20%; min-width: 80px; }
   .info-label { font-size: 10px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
   .info-value { font-size: 13px; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -92,54 +104,61 @@ export const getInvoiceHTML = (orderData: any, companyData: any) => {
       <body>
         ${getBaseHeader(companyData, 'Invoice')}
 
-        <div class="info-row" style="background-color: #F9FAFB; padding: 10px; border-radius: 8px;">
-          <div style="width: 33%;">
-            <div class="info-label">Order No</div>
-            <div class="info-value">#${orderData.billNo}</div>
-          </div>
-          <div style="width: 33%; text-align: center;">
-            <div class="info-label">Order Date</div>
-            <div class="info-value">${formatDate(orderData.date)}</div>
-          </div>
-          <div style="width: 33%; text-align: right;">
-            <div class="info-label">Delivery Date</div>
-            <div class="info-value">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
-          </div>
-        </div>
-
-        <div class="info-row" style="margin-bottom: 25px;">
-          <div style="width: 40%;">
-            <div class="info-label">Customer Details</div>
-            <div class="info-value" style="font-size: 14px;">${orderData.customerName}</div>
-            <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">ID: #${orderData.customerDisplayId || '---'}</div>
-          </div>
-          <div style="width: 60%; text-align: right;">
-            <div class="info-label">Contact & Address</div>
-            <div class="info-value">${orderData.customerMobile}</div>
-            ${orderData.customerLocation ? `<div style="font-size: 11px; color: #6B7280; margin-top: 2px;">${orderData.customerLocation}</div>` : ''}
-          </div>
+        <div style="border: 2px solid #E5E7EB; border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
+            <div style="display: flex; border-bottom: 2px solid #E5E7EB;">
+                <div style="flex: 1; border-right: 2px solid #E5E7EB; padding: 12px; background-color: #F9FAFB;">
+                    <div style="font-size: 10px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Order Details</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="font-size: 11px; color: #4B5563;">Order No:</span>
+                        <span style="font-size: 12px; font-weight: 700;">#${orderData.billNo}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="font-size: 11px; color: #4B5563;">Date:</span>
+                        <span style="font-size: 12px; font-weight: 700;">${formatDate(orderData.date)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E7EB;">
+                        <span style="font-size: 11px; color: #4B5563;">Delivery:</span>
+                        <span style="font-size: 12px; font-weight: 700; color: #0E9F8A;">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</span>
+                    </div>
+                </div>
+                <div style="flex: 1; padding: 12px;">
+                    <div style="font-size: 10px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Customer Details</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 2px;">${orderData.customerName}</div>
+                    <div style="font-size: 11px; color: #6B7280;">ID: #${orderData.customerDisplayId || '---'}</div>
+                    <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">${orderData.customerMobile}</div>
+                </div>
+            </div>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 40px;">S.No</th>
-              <th>Description</th>
-              <th style="text-align: center; width: 60px;">Qty</th>
-              <th style="text-align: right; width: 100px;">Rate</th>
-              <th style="text-align: right; width: 100px;">Amount</th>
+              <th style="width: 40px; border-bottom: 2px solid #E5E7EB;">S.No</th>
+              <th style="border-bottom: 2px solid #E5E7EB;">Description</th>
+              <th style="width: 80px; text-align: center; border-bottom: 2px solid #E5E7EB;">Delivery</th>
+              <th style="text-align: center; width: 50px; border-bottom: 2px solid #E5E7EB;">Qty</th>
+              <th style="text-align: right; width: 80px; border-bottom: 2px solid #E5E7EB;">Rate</th>
+              <th style="text-align: right; width: 90px; border-bottom: 2px solid #E5E7EB;">Amount</th>
             </tr>
           </thead>
           <tbody>
-            ${normalizeItems(orderData).map((item: any, index: number) => `
+            ${normalizeItems(orderData, false).map((item: any, index: number) => `
               <tr>
-                <td>${index + 1}</td>
-                <td>${item.name}
-                ${item.description ? `<br/><span style="font-size: 10px; color: #6B7280;">${item.description}</span>` : ''}
+                <td style="vertical-align: top;">${index + 1}</td>
+                <td style="vertical-align: top;">
+                    <div style="font-weight: 600;">${item.name}</div>
+                    ${item.description ? `<div style="font-size: 10px; color: #6B7280; margin-top: 2px;">${item.description}</div>` : ''}
                 </td>
-                <td style="text-align: center;">${item.qty}</td>
-                <td style="text-align: right;">₹${(parseFloat(item.rate) || 0).toFixed(2)}</td>
-                <td style="text-align: right;">₹${(parseFloat(item.amount) || 0).toFixed(2)}</td>
+                <td style="text-align: center; vertical-align: top;">
+                    ${item.deliveryDate ? `
+                        <div style="font-size: 10px; font-weight: 600; color: #059669; background: #ECFDF5; padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                            ${formatDate(item.deliveryDate)}
+                        </div>
+                    ` : '<span style="font-size: 10px; color: #9CA3AF;">-</span>'}
+                </td>
+                <td style="text-align: center; vertical-align: top;">${item.qty}</td>
+                <td style="text-align: right; vertical-align: top;">₹${(parseFloat(item.rate) || 0).toFixed(2)}</td>
+                <td style="text-align: right; vertical-align: top; font-weight: 600;">₹${(parseFloat(item.amount) || 0).toFixed(2)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -196,6 +215,7 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
         <style>
           ${COMMON_STYLES}
           .item-card { border: 1px solid #E5E7EB; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+          .item-block { page-break-inside: avoid; break-inside: avoid; }
           .item-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F3F4F6; padding-bottom: 8px; margin-bottom: 10px; page-break-inside: avoid; break-inside: avoid; }
           .item-title { font-size: 16px; font-weight: 700; color: #111827; }
           .item-qty { background: #E0E7FF; color: #4338CA; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
@@ -206,58 +226,61 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
           .notes-box { background: #FFFBEB; border: 1px solid #FEF3C7; padding: 10px; border-radius: 8px; margin-top: 10px; page-break-inside: avoid; break-inside: avoid; }
           .notes-label { font-size: 10px; font-weight: 700; color: #92400E; margin-bottom: 2px; text-transform: uppercase; }
           .notes-text { font-size: 12px; color: #78350F; line-height: 1.4; }
-          .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; justify-content: center; }
-          .item-image { width: 45%; height: 200px; object-fit: cover; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; margin-bottom: 10px; }
+          .item-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; justify-content: center; page-break-inside: avoid; break-inside: avoid; }
+          .item-image { width: 45%; height: 200px; object-fit: contain; border-radius: 6px; border: 1px solid #E5E7EB; background-color: #F9FAFB; margin-bottom: 10px; }
         </style>
       </head>
       <body>
         ${getBaseHeader(companyData, 'Tailor Copy')}
 
-        <div class="info-row">
-          <div class="info-group">
+        <div class="info-row" style="border-bottom: 2px solid #E5E7EB; padding: 12px 0; margin-bottom: 20px; align-items: flex-start; flex-wrap: nowrap;">
+          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
             <div class="info-label">Order No</div>
             <div class="info-value">#${orderData.billNo}</div>
           </div>
-          <div class="info-group">
+          <div class="info-group" style="min-width: 90px; margin-right: 15px;">
             <div class="info-label">Order Date</div>
-            <div class="info-value">${formatDate(orderData.date || orderData.createdAt || new Date())}</div>
+            <div class="info-value">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
           </div>
-          <div class="info-group">
-            <div class="info-label">Delivery Date</div>
-            <div class="info-value" style="color: ${(
-      () => {
-        const d = orderData.deliveryDate;
-        if (!d) return '#1F2937';
-        const isUrgent = orderData.urgency === 'Urgent' || orderData.urgency === 'Emergency';
-        const now = new Date();
-        const target = new Date(d);
-        const diffTime = target.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return (isUrgent || diffDays <= 3) ? '#DC2626' : '#1F2937';
-      }
-    )()}">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
-          </div>
-        </div>
-
-        <div class="info-row" style="margin-top: -5px;">
-          <div class="info-group">
+          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
             <div class="info-label">Customer ID</div>
             <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
           </div>
-          <div class="info-group">
+          <div class="info-group" style="flex: 1; margin-right: 15px;">
             <div class="info-label">Customer Name</div>
             <div class="info-value">${orderData.customerName}</div>
           </div>
-          <div class="info-group">
-            <div class="info-label">Phone</div>
-            <div class="info-value">XXXXXXXXXX</div>
+          <div class="info-group" style="min-width: 100px;">
+            <div class="info-label">Mobile</div>
+            <div class="info-value">${orderData.customerMobile}</div>
           </div>
         </div>
 
         ${processedItems.map((item: any, idx: number) => `
           <div class="item-card">
             <div class="item-header">
-              <div class="item-title">${idx + 1}. ${item.type || item.name}</div>
+              <div style="display: flex; flex-direction: column;">
+                <div class="item-title">${idx + 1}. ${item.type || item.name}</div>
+                ${(item.deliveryDate || orderData.deliveryDate) ? `
+                  <div style="font-size: 11px; margin-top: 4px; display: inline-block;">
+                    <span style="background: ${(function () {
+        const now = new Date();
+        const target = new Date(item.deliveryDate || orderData.deliveryDate);
+        const diffTime = target.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 3 ? '#FEE2E2' : '#E0E7FF';
+      })()}; color: ${(function () {
+        const now = new Date();
+        const target = new Date(item.deliveryDate || orderData.deliveryDate);
+        const diffTime = target.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 3 ? '#DC2626' : '#4338CA';
+      })()}; padding: 3px 8px; border-radius: 4px; font-weight: 700;">
+                      DUE: ${formatDate(item.deliveryDate || orderData.deliveryDate)}
+                    </span>
+                  </div>
+                ` : ''}
+              </div>
               <div class="item-qty">Qty: ${item.quantity || item.qty}</div>
             </div>
 
@@ -283,7 +306,16 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
             ${item.sketches && item.sketches.length > 0 ? `
               <div class="notes-label" style="margin-top: 15px; color: #0E9F8A;">Design Sketches</div>
               <div class="item-images">
-                ${item.sketches.map((img: string) => `<img src="${img}" class="item-image" style="border: 2px dashed #0E9F8A;" />`).join('')}
+                ${item.sketches.map((img: string) => `
+                    <div style="display: flex; flex-direction: column; width: 45%;">
+                        <img src="${img}" class="item-image" style="width: 100%; border: 2px dashed #0E9F8A; background-color: white;" />
+                        <div style="font-size: 8px; color: red; font-family: monospace; overflow: hidden; white-space: nowrap; margin-top: -5px; background: rgba(255,255,255,0.8);">
+                            ${img.startsWith('data:')
+          ? `B64: ${img.substring(0, 20)}...`
+          : `FAIL: ${img.substring(0, 40)}...`}
+                        </div>
+                    </div>
+                `).join('')}
               </div>
             ` : ''}
 
@@ -323,56 +355,80 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
 
 export const generateTailorCopyPDF = async (orderData: any, companyData: any) => {
 
-  const rawItems = normalizeItems(orderData);
+  const rawItems = normalizeItems(orderData, false);
   const processedItems = await Promise.all(rawItems.map(async (item: any) => {
     // Helper to process any image URI into Base64
     const processImageUri = async (uri: string, mimeType = 'image/jpeg') => {
       try {
         if (!uri) return null;
 
-        // Handle remote http images - let expo-print handle them natively
-        if (uri.startsWith('http') || uri.startsWith('https')) {
-          return uri;
-        }
+        // Handle Base64 images directly
+        if (uri.startsWith('data:')) return uri;
 
         let targetUri = uri;
 
-        // Normalize local URI: ensure it starts with file://
-        if (!targetUri.startsWith('file://') && !targetUri.startsWith('content://')) {
-          if (targetUri.startsWith('/')) {
-            targetUri = `file://${targetUri}`;
+        // Normalize local paths
+        if (targetUri.startsWith('/')) {
+          targetUri = 'file://' + targetUri;
+        }
+
+        // Handle Local Files (file://, content://, or normalized paths)
+        if (targetUri.startsWith('file://') || targetUri.startsWith('content://')) {
+          try {
+            const decodedUri = decodeURIComponent(targetUri);
+
+            const fileInfo = await FileSystem.getInfoAsync(decodedUri);
+            if (!fileInfo.exists) {
+              return `ERR_FILE_MISSING: ${decodedUri.substring(0, 15)}`;
+            }
+            if (fileInfo.size && fileInfo.size < 50) {
+              return `ERR_FILE_EMPTY: ${fileInfo.size}`;
+            }
+
+            // Copy to cache to bypass scoped storage restrictions
+            const tempCopyPath = FileSystem.cacheDirectory + 'temp_sketch_' + Math.random().toString(36).substring(7) + '.png';
+            try {
+              await FileSystem.copyAsync({ from: decodedUri, to: tempCopyPath });
+              const base64 = await FileSystem.readAsStringAsync(tempCopyPath, { encoding: 'base64' });
+              return `data:${mimeType};base64,${base64}`;
+            } catch (copyErr: any) {
+              // Fallback direct read
+              try {
+                const base64 = await FileSystem.readAsStringAsync(decodedUri, { encoding: 'base64' });
+                return `data:${mimeType};base64,${base64}`;
+              } catch (readErr: any) {
+                return `ERR_READ_FAIL: ${readErr.message?.substring(0, 15)}`;
+              }
+            }
+          } catch (e: any) {
+            return `ERR_FILE_CATCH: ${e.message?.substring(0, 15)}`;
           }
         }
 
-        // Verify existence first
-        const info = await FileSystem.getInfoAsync(targetUri);
-        if (!info.exists) {
-          console.warn(`[PDF] Image file missing: ${targetUri}`);
-          Alert.alert('PDF Debug', `File not found: ${targetUri}`);
-          return null; // Don't return broken URI
+        // Handle Remote Images (HTTP/HTTPS)
+        if (targetUri.startsWith('http')) {
+          return `ERR_HTTP_SKIP: ${targetUri.substring(0, 15)}`;
         }
 
-        // Convert to Base64 using string literal 'base64' for legacy compatibility
-        const base64 = await FileSystem.readAsStringAsync(targetUri, { encoding: 'base64' });
-        return `data:${mimeType};base64,${base64}`;
+        // Fallthrough
+        return `ERR_UNKNOWN_SCHEME: ${targetUri.substring(0, 15)}`;
+
       } catch (e: any) {
-        console.warn('PDF Image Processing Failed for:', uri, e);
-        Alert.alert('PDF Image Error', `Failed to load image: ${uri}\nError: ${e.message}`);
-        return null; // Fail gracefully
+        return `ERR_CRASH: ${e.message?.substring(0, 15)}`;
       }
     };
 
     // Process Photos
     if (item.images && item.images.length > 0) {
-      // Alert.alert('Debug PDF', `Processing ${item.images.length} images for item ${item.name}`);
       const base64Images = await Promise.all(item.images.map((uri: string) => processImageUri(uri, 'image/jpeg')));
       item.images = base64Images.filter(Boolean);
-      // if (item.images.length === 0) Alert.alert('Debug PDF', 'All images failed to process or were filtered out.');
     }
 
     // Process Sketches
-    if (item.sketches && item.sketches.length > 0) {
-      const base64Sketches = await Promise.all(item.sketches.map((uri: string) => processImageUri(uri, 'image/png')));
+    const sketchesToProcess = item.sketches || (item.sketchUri ? [item.sketchUri] : []);
+
+    if (sketchesToProcess.length > 0) {
+      const base64Sketches = await Promise.all(sketchesToProcess.map((uri: string) => processImageUri(uri, 'image/png')));
       item.sketches = base64Sketches.filter(Boolean);
     }
 
@@ -404,66 +460,76 @@ export const getCustomerCopyHTML = (orderData: any, companyData: any) => {
         ${getBaseHeader(companyData, 'Customer Copy')}
 
         <div class="info-row">
-          <div class="info-group">
+            <div style="flex: 1;"></div> 
+            <!-- Empty left side, or company additional info if needed. Order # is now only in box. -->
+        </div>
+
+        <!-- Single Row Data Strip Header -->
+        <!-- Single Row Data Strip Header -->
+        <div class="info-row" style="border-bottom: 2px solid #E5E7EB; padding: 12px 0; margin-bottom: 20px; align-items: flex-start; flex-wrap: nowrap;">
+          
+          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
             <div class="info-label">Order No</div>
             <div class="info-value">#${orderData.billNo}</div>
           </div>
-          <div class="info-group">
-            <div class="info-label">Order Date</div>
-            <div class="info-value">${formatDate(orderData.date || orderData.createdAt || new Date())}</div>
-          </div>
-          <div class="info-group">
-            <div class="info-label">Delivery Date</div>
-            <div class="info-value" style="color: ${(
-      () => {
-        const d = orderData.deliveryDate;
-        if (!d) return '#1F2937';
-        const isUrgent = orderData.urgency === 'Urgent' || orderData.urgency === 'Emergency';
-        const now = new Date();
-        const target = new Date(d);
-        const diffTime = target.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return (diffDays <= 3) ? '#DC2626' : '#1F2937';
-      }
-    )()}">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
-          </div>
-        </div>
 
-        <div class="info-row" style="margin-top: -5px; margin-bottom: 25px;">
-          <div class="info-group">
+          <div class="info-group" style="min-width: 90px; margin-right: 15px;">
+            <div class="info-label">Order Date</div>
+            <div class="info-value">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
+          </div>
+
+          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
             <div class="info-label">Customer ID</div>
             <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
           </div>
-          <div class="info-group">
+
+          <div class="info-group" style="flex: 1; margin-right: 15px;">
             <div class="info-label">Customer Name</div>
             <div class="info-value">${orderData.customerName}</div>
           </div>
-          <div class="info-group">
+
+          <div class="info-group" style="min-width: 100px;">
             <div class="info-label">Mobile</div>
             <div class="info-value">${orderData.customerMobile}</div>
           </div>
+
         </div>
 
-        <table>
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
           <thead>
             <tr>
-              <th style="width: 40px;">S.No</th>
-              <th>Description</th>
-              <th style="text-align: center; width: 60px;">Qty</th>
-              <th style="text-align: right; width: 100px;">Rate</th>
-              <th style="text-align: right; width: 100px;">Amount</th>
+              <th style="width: 40px; border-bottom: 2px solid #E5E7EB; padding: 10px;">S.No</th>
+              <th style="border-bottom: 2px solid #E5E7EB; padding: 10px;">Description</th>
+              <th style="width: 100px; text-align: center; border-bottom: 2px solid #E5E7EB; padding: 10px;">Delivery</th>
+              <th style="text-align: center; width: 50px; border-bottom: 2px solid #E5E7EB; padding: 10px;">Qty</th>
+              <th style="text-align: right; width: 90px; border-bottom: 2px solid #E5E7EB; padding: 10px;">Rate</th>
+              <th style="text-align: right; width: 100px; border-bottom: 2px solid #E5E7EB; padding: 10px;">Amount</th>
             </tr>
           </thead>
           <tbody>
-            ${normalizeItems(orderData).map((item: any, index: number) => `
+            ${normalizeItems(orderData, false).map((item: any, index: number) => {
+    // Fallback to Order Delivery Date if Item date is missing
+    const itemDeliveryDate = item.deliveryDate || orderData.deliveryDate;
+
+    return `
               <tr>
-                <td>${index + 1}</td>
-                <td>${item.name}</td>
-                <td style="text-align: center;">${item.qty || item.quantity}</td>
-                <td style="text-align: right;">₹${(parseFloat(item.rate) || 0).toFixed(2)}</td>
-                <td style="text-align: right;">₹${(parseFloat(item.amount) || 0).toFixed(2)}</td>
+                <td style="vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6;">${index + 1}</td>
+                <td style="vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6;">
+                    <div style="font-weight: 600; color: #1F2937;">${item.name}</div>
+                    ${item.description ? `<div style="font-size: 11px; color: #6B7280; margin-top: 4px;">${item.description}</div>` : ''}
+                </td>
+                <td style="text-align: center; vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6;">
+                    ${itemDeliveryDate ? `
+                        <div style="font-size: 10px; font-weight: 600; color: ${item.deliveryDate ? '#0E9F8A' : '#4B5563'}; background: ${item.deliveryDate ? '#ECFDF5' : '#F3F4F6'}; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                            ${formatDate(itemDeliveryDate)}
+                        </div>
+                    ` : '<span style="font-size: 11px; color: #9CA3AF;">-</span>'}
+                </td>
+                <td style="text-align: center; vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6; font-weight: 500;">${item.qty}</td>
+                <td style="text-align: right; vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6;">₹${(parseFloat(item.rate) || 0).toFixed(2)}</td>
+                <td style="text-align: right; vertical-align: top; padding: 10px; border-bottom: 1px solid #F3F4F6; font-weight: 600; color: #111827;">₹${(parseFloat(item.amount) || 0).toFixed(2)}</td>
               </tr>
-            `).join('')}
+            `}).join('')}
           </tbody>
         </table>
 

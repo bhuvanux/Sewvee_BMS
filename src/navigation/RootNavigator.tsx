@@ -37,6 +37,7 @@ import ResetPinScreen from '../screens/ResetPinScreen';
 import ShareAppScreen from '../screens/ShareAppScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import AboutScreen from '../screens/AboutScreen';
+import DevSettingsScreen from '../screens/DevSettingsScreen';
 
 
 const CustomerStack = createNativeStackNavigator();
@@ -233,11 +234,13 @@ export default function RootNavigator() {
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />
 
                     {/* Settings Screens */}
+                    <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditBusinessProfile" component={EditBusinessProfileScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="BillSettings" component={BillSettingsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="ShareApp" component={ShareAppScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="About" component={AboutScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="DevSettings" component={DevSettingsScreen} options={{ headerShown: false }} />
                 </>
             )}
         </Stack.Navigator>
