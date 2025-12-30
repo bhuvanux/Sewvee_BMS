@@ -11,6 +11,12 @@ echo "✓ Environment set to PRODUCTION"
 echo "📦 Generating Android native code..."
 npx expo prebuild --platform android --clean
 
+# 2.5 Ensure SDK Location
+if [ -z "$ANDROID_HOME" ]; then
+  export ANDROID_HOME=$HOME/Library/Android/sdk
+fi
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
 # 3. Build AAB
 echo "🛠 Building Release Bundle (AAB)..."
 cd android
