@@ -104,28 +104,22 @@ export const getInvoiceHTML = (orderData: any, companyData: any) => {
       <body>
         ${getBaseHeader(companyData, 'Invoice')}
 
-        <div style="border: 2px solid #E5E7EB; border-radius: 8px; margin-bottom: 25px; overflow: hidden;">
-            <div style="display: flex; border-bottom: 2px solid #E5E7EB;">
-                <div style="flex: 1; border-right: 2px solid #E5E7EB; padding: 12px; background-color: #F9FAFB;">
-                    <div style="font-size: 10px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Order Details</div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                        <span style="font-size: 11px; color: #4B5563;">Order No:</span>
-                        <span style="font-size: 12px; font-weight: 700;">#${orderData.billNo}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="font-size: 11px; color: #4B5563;">Date:</span>
-                        <span style="font-size: 12px; font-weight: 700;">${formatDate(orderData.date)}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E7EB;">
-                        <span style="font-size: 11px; color: #4B5563;">Delivery:</span>
-                        <span style="font-size: 12px; font-weight: 700; color: #0E9F8A;">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</span>
-                    </div>
+        <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+            <div style="display: flex; border-bottom: 1px solid #E5E7EB;">
+                <div style="flex: 1; border-right: 1px solid #E5E7EB; padding: 8px 12px; background-color: #F9FAFB;">
+                    <div style="font-size: 9px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Customer Info</div>
+                    <div style="font-size: 13px; font-weight: 800; color: #111827; text-transform: uppercase;">${orderData.customerName}</div>
+                    <div style="font-size: 10px; color: #4B5563; margin-top: 2px;">${orderData.customerMobile}</div>
                 </div>
-                <div style="flex: 1; padding: 12px;">
-                    <div style="font-size: 10px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Customer Details</div>
-                    <div style="font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 2px;">${orderData.customerName}</div>
-                    <div style="font-size: 11px; color: #6B7280;">ID: #${orderData.customerDisplayId || '---'}</div>
-                    <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">${orderData.customerMobile}</div>
+                <div style="flex: 1; border-right: 1px solid #E5E7EB; padding: 8px 12px;">
+                    <div style="font-size: 9px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Order Details</div>
+                    <div style="font-size: 11px; font-weight: 700;">#${orderData.billNo}</div>
+                    <div style="font-size: 10px; color: #6B7280;">${formatDate(orderData.date)}</div>
+                </div>
+                <div style="flex: 1; padding: 8px 12px;">
+                    <div style="font-size: 9px; color: #6B7280; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Delivery & ID</div>
+                    <div style="font-size: 11px; font-weight: 700; color: #0E9F8A;">${orderData.deliveryDate ? formatDate(orderData.deliveryDate) : 'TBD'}</div>
+                    <div style="font-size: 10px; color: #6B7280;">#${orderData.customerDisplayId || '---'}</div>
                 </div>
             </div>
         </div>
@@ -233,26 +227,26 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
       <body>
         ${getBaseHeader(companyData, 'Tailor Copy')}
 
-        <div class="info-row" style="border-bottom: 2px solid #E5E7EB; padding: 12px 0; margin-bottom: 20px; align-items: flex-start; flex-wrap: nowrap;">
-          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
-            <div class="info-label">Order No</div>
-            <div class="info-value">#${orderData.billNo}</div>
+        <div class="info-row" style="border-bottom: 1px solid #E5E7EB; padding: 6px 0; margin-bottom: 10px; align-items: flex-start; flex-wrap: nowrap;">
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Customer</div>
+            <div class="info-value" style="font-size: 13px;">${orderData.customerName}</div>
           </div>
-          <div class="info-group" style="min-width: 90px; margin-right: 15px;">
-            <div class="info-label">Order Date</div>
-            <div class="info-value">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
-          </div>
-          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
-            <div class="info-label">Customer ID</div>
-            <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
-          </div>
-          <div class="info-group" style="flex: 1; margin-right: 15px;">
-            <div class="info-label">Customer Name</div>
-            <div class="info-value">${orderData.customerName}</div>
-          </div>
-          <div class="info-group" style="min-width: 100px;">
+          <div class="info-group" style="flex: 1;">
             <div class="info-label">Mobile</div>
-            <div class="info-value">${orderData.customerMobile}</div>
+            <div class="info-value" style="font-size: 13px;">${orderData.customerMobile}</div>
+          </div>
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Order No</div>
+            <div class="info-value" style="font-size: 13px;">#${orderData.billNo}</div>
+          </div>
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Date</div>
+            <div class="info-value" style="font-size: 13px;">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
+          </div>
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">ID</div>
+            <div class="info-value" style="font-size: 13px;">#${orderData.customerDisplayId || '---'}</div>
           </div>
         </div>
 
@@ -367,54 +361,63 @@ export const generateTailorCopyPDF = async (orderData: any, companyData: any) =>
 
         let targetUri = uri;
 
-        // Normalize local paths
+        // Normalize local paths: ensure they start with file:// if they are absolute paths
         if (targetUri.startsWith('/')) {
           targetUri = 'file://' + targetUri;
         }
 
-        // Handle Local Files (file://, content://, or normalized paths)
+        // Handle Local Files (file://, content://)
         if (targetUri.startsWith('file://') || targetUri.startsWith('content://')) {
           try {
-            const decodedUri = decodeURIComponent(targetUri);
+            // Some URIs might be double encoded or have special characters
+            const decodedUri = targetUri.includes('%') ? decodeURIComponent(targetUri) : targetUri;
 
             const fileInfo = await FileSystem.getInfoAsync(decodedUri);
             if (!fileInfo.exists) {
-              return `ERR_FILE_MISSING: ${decodedUri.substring(0, 15)}`;
-            }
-            if (fileInfo.size && fileInfo.size < 50) {
-              return `ERR_FILE_EMPTY: ${fileInfo.size}`;
+              // Try the non-decoded version as a fallback
+              const originalInfo = await FileSystem.getInfoAsync(targetUri);
+              if (!originalInfo.exists) {
+                return `ERR_FILE_NOT_FOUND: ${decodedUri.substring(Math.max(0, decodedUri.length - 20))}`;
+              }
+              // If original exists, use that
             }
 
-            // Copy to cache to bypass scoped storage restrictions
-            const tempCopyPath = FileSystem.cacheDirectory + 'temp_sketch_' + Math.random().toString(36).substring(7) + '.png';
+            const activeUri = fileInfo.exists ? decodedUri : targetUri;
+
+            // Copy to cache to bypass scoped storage restrictions (especially on newer Android)
+            const ext = mimeType.split('/')[1] || 'img';
+            const tempCopyPath = FileSystem.cacheDirectory + 'pdftemp_' + Date.now() + '_' + Math.random().toString(36).substring(7) + '.' + ext;
+
             try {
-              await FileSystem.copyAsync({ from: decodedUri, to: tempCopyPath });
+              await FileSystem.copyAsync({ from: activeUri, to: tempCopyPath });
               const base64 = await FileSystem.readAsStringAsync(tempCopyPath, { encoding: 'base64' });
+              // Cleanup early
+              await FileSystem.deleteAsync(tempCopyPath, { idempotent: true });
               return `data:${mimeType};base64,${base64}`;
             } catch (copyErr: any) {
               // Fallback direct read
               try {
-                const base64 = await FileSystem.readAsStringAsync(decodedUri, { encoding: 'base64' });
+                const base64 = await FileSystem.readAsStringAsync(activeUri, { encoding: 'base64' });
                 return `data:${mimeType};base64,${base64}`;
               } catch (readErr: any) {
-                return `ERR_READ_FAIL: ${readErr.message?.substring(0, 15)}`;
+                return `ERR_READ_FAIL: ${readErr.message?.substring(0, 20)}`;
               }
             }
           } catch (e: any) {
-            return `ERR_FILE_CATCH: ${e.message?.substring(0, 15)}`;
+            return `ERR_PROCESS_CATCH: ${e.message?.substring(0, 20)}`;
           }
         }
 
-        // Handle Remote Images (HTTP/HTTPS)
+        // Handle Remote Images (HTTP/HTTPS) - Let Print handle them if possible, or convert to B64
+        // For Tailor Copy, we prefer converting to B64 to ensure they show up in PDF
         if (targetUri.startsWith('http')) {
-          return `ERR_HTTP_SKIP: ${targetUri.substring(0, 15)}`;
+          return targetUri; // Print usually handles remote images fine if connected
         }
 
-        // Fallthrough
-        return `ERR_UNKNOWN_SCHEME: ${targetUri.substring(0, 15)}`;
+        return `ERR_UNSUPPORTED_SCHEME: ${targetUri.substring(0, 10)}`;
 
       } catch (e: any) {
-        return `ERR_CRASH: ${e.message?.substring(0, 15)}`;
+        return `ERR_CRASH: ${e.message?.substring(0, 20)}`;
       }
     };
 
@@ -459,40 +462,28 @@ export const getCustomerCopyHTML = (orderData: any, companyData: any) => {
       <body>
         ${getBaseHeader(companyData, 'Customer Copy')}
 
-        <div class="info-row">
-            <div style="flex: 1;"></div> 
-            <!-- Empty left side, or company additional info if needed. Order # is now only in box. -->
-        </div>
-
         <!-- Single Row Data Strip Header -->
-        <!-- Single Row Data Strip Header -->
-        <div class="info-row" style="border-bottom: 2px solid #E5E7EB; padding: 12px 0; margin-bottom: 20px; align-items: flex-start; flex-wrap: nowrap;">
-          
-          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
-            <div class="info-label">Order No</div>
-            <div class="info-value">#${orderData.billNo}</div>
+        <div class="info-row" style="border-bottom: 1px solid #E5E7EB; padding: 6px 0; margin-bottom: 10px; align-items: flex-start; flex-wrap: nowrap;">
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Customer</div>
+            <div class="info-value" style="font-size: 13px;">${orderData.customerName}</div>
           </div>
-
-          <div class="info-group" style="min-width: 90px; margin-right: 15px;">
-            <div class="info-label">Order Date</div>
-            <div class="info-value">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
-          </div>
-
-          <div class="info-group" style="min-width: 80px; margin-right: 15px;">
-            <div class="info-label">Customer ID</div>
-            <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
-          </div>
-
-          <div class="info-group" style="flex: 1; margin-right: 15px;">
-            <div class="info-label">Customer Name</div>
-            <div class="info-value">${orderData.customerName}</div>
-          </div>
-
-          <div class="info-group" style="min-width: 100px;">
+          <div class="info-group" style="flex: 1;">
             <div class="info-label">Mobile</div>
             <div class="info-value">${orderData.customerMobile}</div>
           </div>
-
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Order No</div>
+            <div class="info-value">#${orderData.billNo}</div>
+          </div>
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">Date</div>
+            <div class="info-value">${orderData.date ? formatDate(orderData.date) : formatDate(new Date().toISOString())}</div>
+          </div>
+          <div class="info-group" style="flex: 1;">
+            <div class="info-label">ID</div>
+            <div class="info-value">#${orderData.customerDisplayId || '---'}</div>
+          </div>
         </div>
 
         <table style="width: 100%; border-collapse: separate; border-spacing: 0;">

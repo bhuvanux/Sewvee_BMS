@@ -299,7 +299,10 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
     const handleDateSelect = (date: string) => {
         if (dateField) {
-            onChange({ [dateField]: date });
+            onChange({
+                [dateField]: date,
+                currentOutfit: { ...state.currentOutfit, [dateField]: date }
+            });
         }
     };
 
@@ -329,7 +332,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100, gap: 28 }}>
 
-            {/* Customer Section - Modern Card */}
+            {/* 1. Customer Section - Modern Card */}
             <View>
                 <Text style={styles.newSectionTitle}>Customer</Text>
                 <TouchableOpacity
@@ -353,9 +356,34 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         </View>
                     </View>
                 </TouchableOpacity>
+            </View>
 
-                {/* Order Type Section - Just below Customer */}
-                <View style={{ marginTop: 20 }}>
+            {/* 2. Outfit Details - Type & Qty */}
+            <View style={{ gap: 24 }}>
+                <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.modernLabel}>Outfit Type</Text>
+                        <TouchableOpacity
+                            style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
+                            onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => onShowAlert('Editing Restricted', 'Cannot change outfit type while editing an item.')}
+                            disabled={editItemIndex !== undefined}
+                        >
+                            <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
+                            {editItemIndex === undefined && <ChevronDown size={20} color="#64748B" />}
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ width: 130 }}>
+                        <Text style={styles.modernLabel}>Quantity</Text>
+                        <QuantityStepper
+                            value={state.currentOutfit.quantity || 1}
+                            onChange={handleQuantityChange}
+                        />
+                    </View>
+                </View>
+
+                {/* 3. Order Type Section */}
+                <View>
                     <Text style={styles.modernLabel}>Order Type</Text>
                     <View style={styles.chipGroup}>
                         {['Stitching', 'Alteration'].map((t) => {
@@ -364,7 +392,10 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                                 <TouchableOpacity
                                     key={t}
                                     style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                    onPress={() => onChange({ orderType: t })}
+                                    onPress={() => onChange({
+                                        orderType: t,
+                                        currentOutfit: { ...state.currentOutfit, orderType: t }
+                                    })}
                                 >
                                     <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
                                         {t}
@@ -374,10 +405,53 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         })}
                     </View>
                 </View>
-            </View>
 
-            {/* Dates Section - Modern Card Grid */}
-            <View>
+                {/* 4. Urgency */}
+                <View>
+                    <Text style={styles.modernLabel}>Order Urgency</Text>
+                    <View style={styles.chipGroup}>
+                        {['Normal', 'Urgent'].map((u) => {
+                            const isSelected = state.urgency === u;
+                            return (
+                                <TouchableOpacity
+                                    key={u}
+                                    style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                    onPress={() => onChange({
+                                        urgency: u,
+                                        currentOutfit: { ...state.currentOutfit, urgency: u }
+                                    })}
+                                >
+                                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                                        {u}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* 5. Fabric Source */}
+                <View>
+                    <Text style={styles.modernLabel}>Fabric Source</Text>
+                    <View style={styles.chipGroup}>
+                        {['Customer', 'Boutique'].map((s) => {
+                            const isSelected = state.currentOutfit.fabricSource === s;
+                            return (
+                                <TouchableOpacity
+                                    key={s}
+                                    style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                    onPress={() => onChange({ currentOutfit: { ...state.currentOutfit, fabricSource: s } })}
+                                >
+                                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                                        {s}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* 6. Dates Section - Modern Card Grid */}
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                     <TouchableOpacity
                         style={styles.dateModernCard}
@@ -398,77 +472,6 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                             {state.deliveryDate || 'Set Date'}
                         </Text>
                     </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Outfit Details - Clean Form */}
-            <View>
-
-                <View style={{ gap: 20 }}>
-                    {/* Type & Qty Row */}
-                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.modernLabel}>Outfit Type</Text>
-                            <TouchableOpacity
-                                style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
-                                onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => onShowAlert('Editing Restricted', 'Cannot change outfit type while editing an item.')}
-                                disabled={editItemIndex !== undefined}
-                            >
-                                <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
-                                {editItemIndex === undefined && <ChevronDown size={20} color="#64748B" />}
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ width: 130 }}>
-                            <Text style={styles.modernLabel}>Quantity</Text>
-                            <QuantityStepper
-                                value={state.currentOutfit.quantity || 1}
-                                onChange={handleQuantityChange}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Urgency */}
-                    <View>
-                        <Text style={styles.modernLabel}>Order Urgency</Text>
-                        <View style={styles.chipGroup}>
-                            {['Normal', 'Urgent'].map((u) => {
-                                const isSelected = state.urgency === u;
-                                return (
-                                    <TouchableOpacity
-                                        key={u}
-                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                        onPress={() => onChange({ urgency: u })}
-                                    >
-                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                                            {u}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-
-                    {/* Fabric Source */}
-                    <View>
-                        <Text style={styles.modernLabel}>Fabric Source</Text>
-                        <View style={styles.chipGroup}>
-                            {['Customer', 'Boutique'].map((s) => {
-                                const isSelected = state.currentOutfit.fabricSource === s;
-                                return (
-                                    <TouchableOpacity
-                                        key={s}
-                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                        onPress={() => onChange({ currentOutfit: { ...state.currentOutfit, fabricSource: s } })}
-                                    >
-                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                                            {s}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
                 </View>
             </View>
 
@@ -852,6 +855,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
 
 const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const [historyVisible, setHistoryVisible] = useState(false);
+    const { updateCustomer } = useData();
+    const { showToast } = useToast();
 
     // Use actual customer history or empty
     const historyData = state.selectedCustomer?.measurementHistory || [];
@@ -868,6 +873,37 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
             }
         });
         setHistoryVisible(false);
+    };
+
+    const deleteHistoryItem = async (historyId: string) => {
+        if (!state.selectedCustomer) return;
+
+        Alert.alert(
+            "Delete History",
+            "Are you sure you want to delete this measurement entry?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        const currentHistory = state.selectedCustomer.measurementHistory || [];
+                        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
+
+                        try {
+                            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
+                            onChange({
+                                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
+                            });
+                            showToast('History entry deleted', 'success');
+                        } catch (e) {
+                            console.error("Failed to delete history item", e);
+                            showToast('Failed to delete history', 'error');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const updateMeasurement = (key: string, val: string) => {
@@ -1108,7 +1144,13 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                                             </View>
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                                 <TouchableOpacity
-                                                    style={[styles.applyBtn, { backgroundColor: '#FEE2E2', paddingHorizontal: 8 }]}
+                                                    style={{
+                                                        padding: 8,
+                                                        backgroundColor: '#FEF2F2',
+                                                        borderRadius: 8,
+                                                        borderWidth: 1,
+                                                        borderColor: '#FEE2E2'
+                                                    }}
                                                     onPress={() => deleteHistoryItem(item.id)}
                                                 >
                                                     <Trash2 size={14} color={Colors.danger} />
@@ -2486,6 +2528,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const [alert, setAlert] = useState<{ visible: boolean, title: string, message: string, type: 'info' | 'success' | 'error' | 'warning', onConfirm?: () => void }>({ visible: false, title: '', message: '', type: 'info', onConfirm: undefined });
     const [customerModalVisible, setCustomerModalVisible] = useState(false);
     const [successModalVisible, setSuccessModalVisible] = useState(false);
+    const [discardDrawerVisible, setDiscardDrawerVisible] = useState(false);
+    const [pendingAction, setPendingAction] = useState<any>(null);
     const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(false);
     // Delete Confirmation State
@@ -2598,20 +2642,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             // Prevent default behavior of leaving the screen
             e.preventDefault();
 
-            // Prompt the user to confirm the action
-            Alert.alert(
-                'Discard changes?',
-                'You have unsaved changes. Are you sure you want to discard them and leave?',
-                [
-                    { text: "Don't leave", style: 'cancel', onPress: () => { } },
-                    {
-                        text: 'Discard',
-                        style: 'destructive',
-                        // If the user confirmed, then we dispatch the action we blocked earlier
-                        onPress: () => navigation.dispatch(e.data.action),
-                    },
-                ]
-            );
+            // Set pending action and show the drawer
+            setPendingAction(e.data.action);
+            setDiscardDrawerVisible(true);
         });
 
         return unsubscribe;
@@ -2783,54 +2816,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         }
     };
 
-    const deleteHistoryItem = async (historyId: string) => {
-        if (!state.selectedCustomer) return;
-
-        Alert.alert(
-            "Delete History",
-            "Are you sure you want to delete this measurement entry?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        const currentHistory = state.selectedCustomer.measurementHistory || [];
-                        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
-
-                        try {
-                            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
-                            updateState({
-                                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
-                            });
-                            showToast('History entry deleted', 'success');
-                        } catch (e) {
-                            console.error("Failed to delete history item", e);
-                            showToast('Failed to delete history', 'error');
-                        }
-                    }
-                }
-            ]
-        );
-    };
-
-    const deleteHistoryItem = async (historyId: string) => {
-        if (!state.selectedCustomer) return;
-
-        const currentHistory = state.selectedCustomer.measurementHistory || [];
-        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
-
-        try {
-            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
-            updateState({
-                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
-            });
-            showToast('History entry deleted', 'success');
-        } catch (e) {
-            console.error("Failed to delete history item", e);
-            showToast('Failed to delete history', 'error');
-        }
-    };
 
     const handleAddAnother = async () => {
         // Auto-save measurements to history
@@ -3345,6 +3330,44 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 onPrint={handleActualPrint}
                 onShare={handleActualShare}
             />
+
+            <ReusableBottomDrawer
+                visible={discardDrawerVisible}
+                onClose={() => setDiscardDrawerVisible(false)}
+                height={320}
+            >
+                <View style={{ padding: 20 }}>
+                    <View style={{ alignItems: 'center', marginBottom: 24 }}>
+                        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                            <AlertTriangle size={28} color={Colors.danger} />
+                        </View>
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary, marginBottom: 8 }}>Discard changes?</Text>
+                        <Text style={{ fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+                            You have unsaved changes. Are you sure you want to discard them and leave?
+                        </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <TouchableOpacity
+                            style={[styles.outlineBtn, { flex: 1 }]}
+                            onPress={() => setDiscardDrawerVisible(false)}
+                        >
+                            <Text style={styles.outlineBtnText}>Don't leave</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.primaryBtn, { flex: 1, backgroundColor: Colors.danger }]}
+                            onPress={() => {
+                                setDiscardDrawerVisible(false);
+                                if (pendingAction) {
+                                    navigation.dispatch(pendingAction);
+                                }
+                            }}
+                        >
+                            <Text style={styles.primaryBtnText}>Discard</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </ReusableBottomDrawer>
         </View>
     );
 };

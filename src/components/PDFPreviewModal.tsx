@@ -80,7 +80,7 @@ const PDFPreviewModal = ({
                 </View>
 
                 {/* Footer Actions */}
-                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 32 : 16) }]}>
                     <TouchableOpacity style={[styles.footerBtn, styles.closeBtn]} onPress={onClose}>
                         <X size={20} color={Colors.textSecondary} style={{ marginRight: 8 }} />
                         <Text style={styles.closeBtnText}>Close Preview</Text>

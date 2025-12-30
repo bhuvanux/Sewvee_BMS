@@ -34,6 +34,7 @@ import SignupScreen from '../screens/SignupScreen';
 import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import ForgotPinScreen from '../screens/ForgotPinScreen';
 import ResetPinScreen from '../screens/ResetPinScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 import ShareAppScreen from '../screens/ShareAppScreen';
 import HelpSupportScreen from '../screens/HelpSupportScreen';
 import AboutScreen from '../screens/AboutScreen';
@@ -100,9 +101,9 @@ function MainTabs() {
                     backgroundColor: '#1E293B',
                     borderTopWidth: 1,
                     borderTopColor: '#334155',
-                    height: 65 + insets.bottom,
+                    height: 65 + Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0),
                     paddingTop: 12,
-                    paddingBottom: insets.bottom + 4,
+                    paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 4),
                     elevation: 8,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: -2 },

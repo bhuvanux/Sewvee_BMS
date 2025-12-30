@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 backgroundColor: '#ffffff',
             },
             package: isStaging ? 'com.sewvee.app.staging' : 'com.sewvee.app',
-            versionCode: 30,
+            versionCode: 31,
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
             softwareKeyboardLayoutMode: 'resize',
@@ -72,6 +72,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             policy: 'appVersion',
         },
         extra: {
+            isStaging,
             eas: {
                 projectId: '049c0301-9322-4f3d-ba93-8baa65a13555',
             },

@@ -2,14 +2,15 @@ import { getAuth } from '@react-native-firebase/auth';
 import { getFirestore } from '@react-native-firebase/firestore';
 import { getAnalytics, logEvent as firebaseLogEvent } from '@react-native-firebase/analytics';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Firebase is auto-initialized from google-services.json on Android
 // and GoogleService-Info.plist on iOS
 
 // No manual initialization needed with React Native Firebase!
 
-// Environment Toggle - Update this for Production Builds
-export const IS_STAGING = true;
+// Environment Toggle - Dynamic based on EAS Build Profile or Expo Config
+export const IS_STAGING = Constants.expoConfig?.extra?.isStaging ?? true;
 
 // Constant Master Password for Firebase Auth
 export const MASTER_AUTH_PASS = "Sewvee_Auth_Secure_2025";
