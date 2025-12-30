@@ -13,7 +13,7 @@ npx expo prebuild --platform android --clean
 
 # 2.5 Ensure SDK Location
 if [ -z "$ANDROID_HOME" ]; then
-  export ANDROID_HOME=$HOME/Library/Android/sdk
+  export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 fi
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
