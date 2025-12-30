@@ -11,6 +11,26 @@ echo "✓ Environment set to PRODUCTION"
 echo "📦 Generating Android native code..."
 npx expo prebuild --platform android --clean
 
+# 2.1 Restore Secrets (After clean)
+echo "🔑 Restoring signing keys..."
+if [ -f "secrets/key.properties" ]; then
+  cp secrets/key.properties android/
+else
+  echo "⚠️ Warning: secrets/key.properties not found!"
+fi
+
+if [ -f "secrets/sewvee-prod.jks" ]; then
+  # Ensure the destination folder exists (it should after prebuild)
+  mkdir -p android/app
+  cp secrets/sewvee-prod.jks android/app/
+else
+  echo "⚠️ Warning: secrets/sewvee-prod.jks not found!"
+fi
+
+# 2.2 Patch Gradle for Signing (Critical)
+echo "🔧 Patching build.gradle for Release Signing..."
+node scripts/fix_gradle_signing.js
+
 # 2.5 Ensure SDK Location
 if [ -z "$ANDROID_HOME" ]; then
   export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
