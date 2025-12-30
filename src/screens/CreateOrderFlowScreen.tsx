@@ -1307,6 +1307,7 @@ const StitchDetailsModal = ({ visible, title, content, onClose }: any) => {
 };
 
 const Step3Media = ({ state, onChange, onShowAlert }: any) => {
+    const insets = useSafeAreaInsets();
     const [viewerVisible, setViewerVisible] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
     const [sketchModalVisible, setSketchModalVisible] = useState(false); // New Modal state
@@ -1670,7 +1671,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                         />
 
                         {/* EXPLICIT TOOLBAR (2 Rows) */}
-                        <View style={{ padding: 16, paddingBottom: 30, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 16 }}>
+                        <View style={{ padding: 16, paddingBottom: Math.max(insets.bottom, 20) + 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 16 }}>
 
                             {/* Row 1: Tools (Colors & Sizes) */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1847,7 +1848,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         </ScrollView>
     );
 };
-const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex }: any) => {
+const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex, editOrderId }: any) => {
     // Merge cart and current item for unified display logic
     const currentItem = { ...state.currentOutfit, id: 'current', isCurrent: true };
     const allItems = [...state.cart.map((i: any, idx: number) => ({ ...i, cartIndex: idx, isCurrent: false }))]
@@ -2196,13 +2197,18 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
                                     <View style={{ flexDirection: 'row', gap: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                            <TouchableOpacity
-                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                                                onPress={() => item.isCurrent ? onChange({ currentOutfit: { ...state.currentOutfit, type: '', quantity: 1, measurements: {}, images: [], notes: '', audioUri: null, totalCost: 0 } }) : confirmDeleteItem(item.cartIndex)}
-                                            >
-                                                <Trash2 size={16} color={Colors.danger} />
-                                                <Text style={{ fontSize: 13, color: Colors.danger, fontFamily: 'Inter-SemiBold' }}>Delete</Text>
-                                            </TouchableOpacity>
+                                            {/* Delete Icon Logic */}
+                                            {/* Hide if Edit Mode AND Item is Existing (from DB) */}
+                                            {/* Show if New Order OR (Edit Mode AND Item is New/Local) */}
+                                            {(!editOrderId || !item.isExisting) && (
+                                                <TouchableOpacity
+                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                                    onPress={() => item.isCurrent ? onChange({ currentOutfit: { ...state.currentOutfit, type: '', quantity: 1, measurements: {}, images: [], notes: '', audioUri: null, totalCost: 0 } }) : confirmDeleteItem(item.cartIndex)}
+                                                >
+                                                    <Trash2 size={16} color={Colors.danger} />
+                                                    <Text style={{ fontSize: 13, color: Colors.danger, fontFamily: 'Inter-SemiBold' }}>Delete</Text>
+                                                </TouchableOpacity>
+                                            )}
 
                                             <TouchableOpacity
                                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 16 }}
@@ -2373,7 +2379,7 @@ const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, conf
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
         >
-            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} editItemIndex={editItemIndex} />
+            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} editItemIndex={editItemIndex} editOrderId={editOrderId} />
         </KeyboardAvoidingView>
     );
 };
@@ -2534,6 +2540,12 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const [loading, setLoading] = useState(false);
     // Delete Confirmation State
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+    const [deleteSheetConfig, setDeleteSheetConfig] = useState({
+        title: "Delete Item",
+        description: "Are you sure you want to delete this item?",
+        confirmText: "Delete",
+        isDiscard: false
+    });
     const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
     const [previewVisible, setPreviewVisible] = useState(false);
     const [previewHtml, setPreviewHtml] = useState('');
@@ -2611,6 +2623,27 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     };
 
     const confirmDeleteItem = (index: number) => {
+        // Check if this is the last item (New Order mode only)
+        const newCart = state.cart;
+        // Total active items = cart length + currentOutfit (if active)
+        // Actually, if we are in Step 4, we see a list.
+        // If we delete an item, checks remaining.
+        // If cart has 1 item and no current outfit, it's the last one.
+        const isLastItem = newCart.length === 1 && !state.currentOutfit.type;
+
+        if (isLastItem && !editOrderId) {
+            setItemToDeleteIndex(index);
+            // Change sheet content dynamically
+            // Requires state for Sheet Title/Desc or passing it
+            // Assuming Sheet uses hardcoded props in render? 
+            // We need to update the state variable for the sheet? 
+            // Or use a state object for sheet config.
+
+            // Let's create a temp state for sheet config if not exists
+            setDeleteSheetVisible(true);
+            return;
+        }
+
         setItemToDeleteIndex(index);
         setDeleteSheetVisible(true);
     };
@@ -2668,8 +2701,19 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             }
         };
         configureAudio();
+    }, []);
 
+    const initializedOrderId = useRef<string | null>(null);
+
+    useEffect(() => {
         if (editOrderId && orders.length > 0) {
+            // Guard: Prevent re-initialization if already loaded for this order ID
+            // This prevents overwriting local state (cart modifications, etc.) 
+            // when navigation params (like editItemIndex) change.
+            if (initializedOrderId.current === editOrderId) {
+                return;
+            }
+
             const order = orders.find(o => o.id === editOrderId);
             if (order) {
                 // Determine items to load into cart
@@ -2686,9 +2730,11 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     audioUri: it.audioUri || null,
                     fabricSource: it.fabricSource || 'Customer',
                     totalCost: it.totalCost || it.rate || it.amount || 0,
-                    // Fix: Persist existing item date, fallback to order date only on first load
-                    // This "locks" the date so changing order date doesn't affect existing items
-                    deliveryDate: it.deliveryDate || order.deliveryDate
+                    // Fix: Persist existing item date/urgency, fallback to order values
+                    deliveryDate: it.deliveryDate || order.deliveryDate,
+                    trialDate: it.trialDate || order.trialDate,
+                    urgency: it.urgency || (order as any).urgency || 'Normal',
+                    isExisting: true // Mark as existing from DB
                 }));
 
                 const selectedCust = customers.find(c => c.id === order.customerId) || null;
@@ -2703,12 +2749,11 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     customerName: order.customerName || '',
                     customerMobile: order.customerMobile || '',
                     selectedCustomer: selectedCust,
-                    // Fix: Only pre-fill dates if we are editing a specific item. 
-                    // For new items (Add Item flow), dates should be empty as per user request.
-                    trialDate: itemToEdit ? (order.trialDate || null) : null,
-                    deliveryDate: itemToEdit ? (order.deliveryDate || null) : null,
-                    urgency: (order as any).urgency || 'Normal',
-                    orderType: (order as any).orderType || 'Stitching',
+                    // Fix: Prioritize item-level dates and urgency when editing
+                    trialDate: itemToEdit ? (itemToEdit.trialDate || null) : null,
+                    deliveryDate: itemToEdit ? (itemToEdit.deliveryDate || null) : null,
+                    urgency: itemToEdit ? (itemToEdit.urgency || 'Normal') : ((order as any).urgency || 'Normal'),
+                    orderType: itemToEdit ? (itemToEdit.orderType || (order as any).orderType || 'Stitching') : ((order as any).orderType || 'Stitching'),
                     cart: initialCart,
                     // If editing an item, pre-fill currentOutfit with that item's data
                     // Otherwise start fresh
@@ -2728,6 +2773,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     paymentInput: '', // Input is empty for adding NEW payment
                     paymentMode: (order as any).advanceMode || (order as any).paymentMode || 'Cash'
                 });
+
+                initializedOrderId.current = editOrderId;
             }
         }
     }, [editOrderId, orders.length, editItemIndex]);
@@ -2912,7 +2959,32 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     };
 
     const handleDeleteItem = (index: number) => {
+        // Special Case: If this is the LAST item in the list
+        // Calculate effective total items (cart items + current item if active)
+        // Actually, handleDeleteItem is called on cart items.
+        // If we are deleting a cart item, and it's the only one (and no current item active?)
+        // Let's rely on cart length.
+
         const newCart = [...state.cart];
+
+        // CHECK: Is this the last item?
+        // Logic: If we are in "New Order" mode (no editOrderId) AND cart has 1 item AND we are deleting it.
+        // Also check if currentOutfit is empty/inactive.
+        const isLastItem = newCart.length === 1 && !state.currentOutfit.type;
+
+        if (isLastItem && !editOrderId) {
+            // Trigger Discard Order Warning relative to the Sheet calling this?
+            // But wait, the sheet is already closed when this executes? 
+            // No, confirmDeleteItem sets the index, then confirms.
+            // We should have intercepted this BEFORE calling handleDeleteItem ideally, or inside here we navigte back.
+            // But handleDeleteItem is called AFTER confirmation in the current code structure?
+            // Let's look at `handleConfirmDelete` -> calls `handleDeleteItem`.
+            // We need to change the CONFIRMATION text logic mainly.
+            // But if we are here, surely we proceed? 
+            // Wait, user requirement: "warn it in the drawer and close that page".
+            // So we need to change what logic happens in `confirmDeleteItem` or `handleConfirmDelete`.
+        }
+
         newCart.splice(index, 1);
 
         let newUpdates: any = { cart: newCart };
@@ -2938,6 +3010,10 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             }
         }
         updateState(newUpdates);
+
+        // If we just deleted the last item and it was a new order (and we didn't just bail), 
+        // we might end up with empty screen. 
+        // Logic moved to `confirmDeleteItem` to handle the "Discard" flow BEFORE this.
     };
 
     const handleEditItem = (index: number) => {
@@ -3038,6 +3114,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     ...state.currentOutfit,
                     id: itemId,
                     deliveryDate: state.deliveryDate, // Persist date
+                    trialDate: state.trialDate, // Persist trial date
                     urgency: state.urgency // Persist urgency
                 };
 
@@ -3232,7 +3309,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
             {/* Footer Buttons */}
             {/* Footer Buttons */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 60 : 24) }]}>
                 {currentStep > 0 && currentStep < 4 && (
                     <TouchableOpacity style={styles.outlineBtn} onPress={handleBack}>
                         <ArrowLeft size={20} color={Colors.textPrimary} />
@@ -3316,9 +3393,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 visible={deleteSheetVisible}
                 onClose={() => setDeleteSheetVisible(false)}
                 onConfirm={handleConfirmDelete}
-                title="Delete Item"
-                description="Are you sure you want to delete this item?"
-                confirmText="Delete"
+                title={deleteSheetConfig.title}
+                description={deleteSheetConfig.description}
+                confirmText={deleteSheetConfig.confirmText}
                 type="danger"
             />
 
@@ -3334,7 +3411,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             <ReusableBottomDrawer
                 visible={discardDrawerVisible}
                 onClose={() => setDiscardDrawerVisible(false)}
-                height={320}
+                height="auto"
             >
                 <View style={{ padding: 20 }}>
                     <View style={{ alignItems: 'center', marginBottom: 24 }}>
@@ -4601,7 +4678,7 @@ const styles = StyleSheet.create({
     // Floating Recorder
     floatingMicBtn: {
         position: 'absolute',
-        bottom: 90,
+        bottom: 110, // Elevated further to ensure clearance above the taller footer
         right: 16,
         width: 56,
         height: 56,
@@ -4614,7 +4691,7 @@ const styles = StyleSheet.create({
     },
     floatingRecorderExpanded: {
         position: 'absolute',
-        bottom: 90,
+        bottom: 110, // Elevated further to ensure clearance above the taller footer
         right: 16,
         left: 16,
         backgroundColor: Colors.primary,

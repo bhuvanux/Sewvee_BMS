@@ -37,6 +37,10 @@ import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent } from '../config/firebase';
 
+import Constants from 'expo-constants';
+import { Linking } from 'react-native';
+import { firestore } from '../config/firebase';
+
 const { width } = Dimensions.get('window');
 
 const DashboardScreen = ({ navigation }: any) => {
@@ -47,6 +51,45 @@ const DashboardScreen = ({ navigation }: any) => {
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isActivityVisible, setIsActivityVisible] = useState(false);
+
+    // Update State
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [updateUrl, setUpdateUrl] = useState('');
+    const [updateMessage, setUpdateMessage] = useState('New update available!');
+
+    // Check for Updates
+    React.useEffect(() => {
+        const checkUpdate = async () => {
+            try {
+                // Determine current version code (Android) or build number (iOS)
+                const currentVersionCode = Platform.OS === 'android'
+                    ? Constants.expoConfig?.android?.versionCode || 1
+                    : parseInt(Constants.expoConfig?.ios?.buildNumber || '1');
+
+                const configRef = firestore().collection('settings').doc('app_config');
+                const configSnap = await configRef.get();
+
+                if (configSnap.exists) {
+                    const data = configSnap.data();
+                    if (data) {
+                        const latestVersionCode = Platform.OS === 'android'
+                            ? data.androidVersionCode || 0
+                            : parseInt(data.iosBuildNumber || '0');
+
+                        if (latestVersionCode > currentVersionCode) {
+                            setUpdateAvailable(true);
+                            setUpdateUrl(data.updateUrl || 'https://play.google.com/store/apps/details?id=com.sewvee.app');
+                            if (data.message) setUpdateMessage(data.message);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Error checking for updates:', error);
+            }
+        };
+
+        checkUpdate();
+    }, []);
 
     const activeOrderIds = new Set(orders.map(o => o.id));
     const validPayments = payments.filter(p => activeOrderIds.has(p.orderId));
@@ -88,15 +131,15 @@ const DashboardScreen = ({ navigation }: any) => {
 
     const filteredCustomers = searchQuery.length > 1
         ? customers.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.mobile.includes(searchQuery)
+            (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.mobile || '').includes(searchQuery)
         ).slice(0, 5)
         : [];
 
     const filteredOrders = searchQuery.length > 1
         ? orders.filter(o =>
-            o.billNo.includes(searchQuery) ||
-            o.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+            (o.billNo || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (o.customerName || '').toLowerCase().includes(searchQuery.toLowerCase())
         ).slice(0, 5)
         : [];
 
@@ -138,6 +181,31 @@ const DashboardScreen = ({ navigation }: any) => {
     ];
 
     const recentOrders = orders.slice(0, 5);
+
+    const recentActivities = [
+        ...orders.map(o => ({
+            id: `ord-${o.id}`,
+            type: 'order',
+            title: `Order #${o.billNo} Created`,
+            subtitle: `${o.customerName} - ₹${o.total}`,
+            date: o.date || o.createdAt,
+            timestamp: parseDate(o.date || o.createdAt).getTime(),
+            icon: Clock, // Placeholder, will set in render
+            color: '#3B82F6',
+            data: o
+        })),
+        ...payments.map(p => ({
+            id: `pay-${p.id}`,
+            type: 'payment',
+            title: `Payment Received`,
+            subtitle: `₹${p.amount} from ${orders.find(o => o.id === p.orderId)?.customerName || 'Unknown'}`,
+            date: p.date,
+            timestamp: parseDate(p.date).getTime(),
+            icon: CreditCard,
+            color: '#10B981',
+            data: p
+        }))
+    ].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -199,6 +267,26 @@ const DashboardScreen = ({ navigation }: any) => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
+                {/* Update Banner */}
+                {updateAvailable && (
+                    <View style={styles.updateBanner}>
+                        <View style={styles.updateContent}>
+                            <View style={styles.updateIconContainer}>
+                                <Flame size={24} color={Colors.white} fill={Colors.white} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.updateTitle}>{updateMessage}</Text>
+                                <Text style={styles.updateSubtitle}>Tap to update now</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.updateButton}
+                                onPress={() => Linking.openURL(updateUrl)}
+                            >
+                                <Text style={styles.updateButtonText}>Update</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
                 {/* Quick Actions at the top for better visibility */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -296,9 +384,47 @@ const DashboardScreen = ({ navigation }: any) => {
                     </View>
                 ) : (
                     recentOrders.map((item) => {
-                        const daysLeft = getDaysRemaining(item.deliveryDate);
+                        // Logic to find earliest delivery date from items or fallback to order date
+                        let targetDateVal = item.deliveryDate;
+                        let daysLeft = 999;
+                        let isUrgent = false;
+
+                        if (item.items && item.items.length > 0) {
+                            const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
+
+                            // Check urgency
+                            const hasUrgentItem = activeItems.some((i: any) => i.urgency === 'Urgent' || i.urgency === 'High');
+                            // Determine if the order itself is urgent (top level or via any item)
+                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
+
+                            // Valid dates from active items
+                            const validDates = activeItems
+                                .map((i: any) => i.deliveryDate)
+                                .filter((d: any) => d)
+                                .map((d: string) => parseDate(d).getTime());
+
+                            if (validDates.length > 0) {
+                                const minDate = Math.min(...validDates);
+                                targetDateVal = new Date(minDate).toISOString();
+
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const tDate = new Date(minDate);
+                                tDate.setHours(0, 0, 0, 0);
+                                const diff = tDate.getTime() - today.getTime();
+                                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            } else {
+                                // Fallback to order delivery date if exists
+                                daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                            }
+                        } else {
+                            // Fallback if no items
+                            daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High') && item.status !== 'Cancelled';
+                        }
+
+                        // Re-verify isNearing based on calculated daysLeft
                         const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
-                        const isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High') && item.status !== 'Cancelled';
 
                         return (
                             <TouchableOpacity
@@ -349,14 +475,12 @@ const DashboardScreen = ({ navigation }: any) => {
                                         <View style={styles.dateRow}>
                                             <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
                                             <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
-                                                {item.deliveryDate ? `Delivery: ${formatDate(item.deliveryDate)}` : formatDate(item.date || item.createdAt)}
+                                                {isNearingDeadline && daysLeft < 500
+                                                    ? `Due: ${daysLeft === 0 ? 'Today' : (daysLeft === 1 ? 'Tomorrow' : formatDate(targetDateVal))}`
+                                                    : (targetDateVal ? `Delivery: ${formatDate(targetDateVal)}` : formatDate(item.date))
+                                                }
                                             </Text>
                                         </View>
-                                        {isNearingDeadline && (
-                                            <Text style={{ fontSize: 11, color: Colors.danger, fontFamily: 'Inter-Medium', marginTop: 2 }}>
-                                                {daysLeft === 0 ? 'Delivery Today' : `Due in ${daysLeft} days`}
-                                            </Text>
-                                        )}
                                     </View>
                                     <View style={styles.amountArea}>
                                         <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
@@ -368,9 +492,9 @@ const DashboardScreen = ({ navigation }: any) => {
                                             </Text>
                                             {item.status !== 'Cancelled' && (
                                                 item.balance > 0 ? (
-                                                    <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
+                                                    <Text style={[styles.balanceTag, { fontSize: 13 }]}>Due: ₹{item.balance}</Text>
                                                 ) : (
-                                                    <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+                                                    <Text style={[styles.balanceTag, { color: Colors.success, fontSize: 13 }]}>Paid</Text>
                                                 )
                                             )}
                                         </View>
@@ -522,22 +646,29 @@ const DashboardScreen = ({ navigation }: any) => {
                         </View>
 
                         <ScrollView style={styles.activityList} contentContainerStyle={{ paddingBottom: 40 }}>
-                            {orders.length === 0 ? (
+                            {recentActivities.length === 0 ? (
                                 <View style={styles.noActivity}>
                                     <Bell size={40} color={Colors.border} />
                                     <Text style={styles.noActivityText}>No recent activity yet</Text>
                                 </View>
                             ) : (
-                                orders.slice(0, 10).map(order => (
-                                    <View key={order.id} style={styles.activityItem}>
-                                        <View style={[styles.activityIcon, { backgroundColor: order.status === 'Paid' ? '#D1FAE5' : '#FEF3C7' }]}>
-                                            <Clock size={16} color={order.status === 'Paid' ? '#10B981' : '#F59E0B'} />
+                                recentActivities.map(activity => (
+                                    <View key={activity.id} style={styles.activityItem}>
+                                        <View style={[styles.activityIcon, { backgroundColor: activity.type === 'payment' ? '#DCFCE7' : '#EFF6FF' }]}>
+                                            {activity.type === 'payment' ? (
+                                                <CreditCard size={16} color="#10B981" />
+                                            ) : (
+                                                <Receipt size={16} color="#3B82F6" />
+                                            )}
                                         </View>
                                         <View style={styles.activityContent}>
                                             <Text style={styles.activityText}>
-                                                <Text style={styles.boldText}>{order.customerName}</Text>'s order <Text style={styles.boldText}>#{order.billNo}</Text> was created.
+                                                <Text style={styles.boldText}>{activity.title}</Text>
                                             </Text>
-                                            <Text style={styles.activityTime}>{order.date}</Text>
+                                            <Text style={[styles.activityText, { fontSize: 13, color: Colors.textSecondary, marginTop: 2 }]}>
+                                                {activity.subtitle}
+                                            </Text>
+                                            <Text style={styles.activityTime}>{formatDate(activity.date)}</Text>
                                         </View>
                                     </View>
                                 ))
@@ -633,6 +764,51 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Medium',
         fontSize: 18,
         marginBottom: 8,
+    },
+    // Update Banner Styles
+    updateBanner: {
+        marginHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+        backgroundColor: '#EFF6FF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+        overflow: 'hidden'
+    },
+    updateContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        gap: 12
+    },
+    updateIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    updateTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 15,
+        color: '#1E3A8A'
+    },
+    updateSubtitle: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: '#3B82F6'
+    },
+    updateButton: {
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8
+    },
+    updateButtonText: {
+        color: Colors.white,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14
     },
     mainCardValue: {
         color: Colors.white,
@@ -962,7 +1138,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
         maxHeight: '80%',
-        ...Shadow.strong,
+        ...Shadow.large,
     },
     sheetHeader: {
         padding: 24,

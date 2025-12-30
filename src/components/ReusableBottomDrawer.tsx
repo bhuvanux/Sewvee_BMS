@@ -80,7 +80,8 @@ const ReusableBottomDrawer = ({
                         {
                             height: height as any,
                             marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
-                            paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 32 : 20)
+                            // Refined Fix: Use 80px min for Android as per user request
+                            paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32)
                         }
                     ]}
                 >

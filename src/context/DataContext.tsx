@@ -151,31 +151,52 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const { user, company } = useAuth();
 
-    // Idempotent Seeding: Creates V2 defaults only if collection is empty
-    const seedDefaultOutfits = async (uid: string) => {
+    // --- PROD: ENSURE DEFAULTS EXIST (IDEMPOTENT) ---
+    // Checks for each default outfit by name. If missing, adds it.
+    // DOES NOT duplicate if already present. Does NOT rely on collection being empty.
+    const ensureProductionDefaults = async (uid: string, existingOutfits: Outfit[]) => {
         const db = getFirestore();
         const batch = writeBatch(db);
-        DEFAULT_OUTFITS.forEach((outfit, index) => {
-            const ref = doc(collection(db, COLLECTIONS.OUTFITS));
-            batch.set(ref, {
-                ...outfit,
-                ownerId: uid,
-                createdAt: new Date().toISOString(),
-                order: index
-            });
+        let hasUpdates = false;
+
+        DEFAULT_OUTFITS.forEach((defOutfit) => {
+            // Check if user already has an outfit with this name (case-insensitive check for robustness)
+            const exists = existingOutfits.some(o => (o.name || '').toLowerCase() === defOutfit.name.toLowerCase());
+
+            if (!exists) {
+                console.log(`[Seeding] Missing default: ${defOutfit.name}. Adding...`);
+                // Calculate next order index
+                const maxOrder = existingOutfits.length > 0 ? Math.max(...existingOutfits.map(o => o.order || 0)) : -1;
+                // We append to the end or start? Requirement says "Default presence". 
+                // Let's add them with a new ref. Order is less critical than presence, but let's try to append.
+                const newRef = doc(collection(db, COLLECTIONS.OUTFITS));
+                batch.set(newRef, {
+                    ...defOutfit,
+                    ownerId: uid,
+                    createdAt: new Date().toISOString(),
+                    order: maxOrder + 1 // Simply append
+                });
+                hasUpdates = true;
+            }
         });
-        try {
-            await batch.commit();
-            console.log('[Seeding] Applied V2 Defaults.');
-        } catch (error) {
-            console.error('[Seeding] Failed:', error);
+
+        if (hasUpdates) {
+            try {
+                await batch.commit();
+                console.log('[Seeding] Production defaults checked and applied where missing.');
+            } catch (error) {
+                console.error('[Seeding] Failed to apply defaults:', error);
+            }
+        } else {
+            console.log('[Seeding] All production defaults already present.');
         }
     };
 
     // --- RESET LOGIC (STAGING ONLY) ---
     const resetEnvironment = async () => {
         if (!IS_STAGING) {
-            throw new Error("Reset allowed ONLY in Staging Environment");
+            console.error("⛔ RESET BLOCKED: Attempted reset in PRODUCTION");
+            return;
         }
         if (!user?.uid) return;
 
@@ -249,12 +270,13 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             query(collection(db, COLLECTIONS.OUTFITS), where('ownerId', '==', user.uid)),
             snapshot => {
                 if (snapshot) {
-                    // SEEDING CHECK
-                    if (snapshot.empty && user.uid) {
-                        seedDefaultOutfits(user.uid); // Trigger Seeding
-                    }
 
                     const data = snapshot.docs.map((docSnap: any) => ({ ...docSnap.data(), id: docSnap.id } as Outfit));
+
+                    // SEEDING CHECK (Run once if loaded)
+                    if (user.uid) {
+                        ensureProductionDefaults(user.uid, data);
+                    }
                     data.sort((a: any, b: any) => {
                         const orderA = a.order ?? 0;
                         const orderB = b.order ?? 0;
@@ -313,11 +335,21 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const updateCustomer = async (id: string, customer: Partial<Customer>) => {
-        runInBackground(updateDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id), customer), 'updateCustomer');
+        try {
+            await updateDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id), customer);
+        } catch (error: any) {
+            console.error('[DataContext] updateCustomer failed:', error);
+            throw error;
+        }
     };
 
     const deleteCustomer = async (id: string) => {
-        runInBackground(deleteDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id)), 'deleteCustomer');
+        try {
+            await deleteDoc(doc(getFirestore(), COLLECTIONS.CUSTOMERS, id));
+        } catch (error: any) {
+            console.error('[DataContext] deleteCustomer failed:', error);
+            throw error;
+        }
     };
 
     const addOrder = async (order: Partial<Order>) => {
@@ -372,8 +404,13 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 ownerId: user.uid
             });
         }
-        runInBackground(batch.commit(), 'addOrder');
-        return newItem as Order;
+        try {
+            await batch.commit();
+            return newItem as Order;
+        } catch (error: any) {
+            console.error('[DataContext] addOrder failed:', error);
+            throw error;
+        }
     };
 
     const updateOrder = async (id: string, orderData: Partial<Order>) => {
@@ -389,11 +426,18 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         }
         if (!updates.ownerId && user?.uid) updates.ownerId = user.uid;
         if (!updates.createdAt && !current.createdAt) updates.createdAt = new Date().toISOString();
-        runInBackground(setDoc(docRef, updates, { merge: true }), 'updateOrder');
+
+        try {
+            await setDoc(docRef, updates, { merge: true });
+        } catch (error: any) {
+            console.error('[DataContext] updateOrder failed:', error);
+            Alert.alert('Sync Error (updateOrder)', error.message);
+            throw error;
+        }
     };
 
     const deleteOrder = async (id: string) => {
-        runInBackground((async () => {
+        try {
             const db = getFirestore();
             const orderRef = doc(db, COLLECTIONS.ORDERS, id);
             const orderSnap = await getDoc(orderRef);
@@ -417,7 +461,10 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 }, { merge: true });
             }
             await batch.commit();
-        })(), 'deleteOrder');
+        } catch (error: any) {
+            console.error('[DataContext] deleteOrder failed:', error);
+            throw error;
+        }
     };
 
     const addPayment = async (payment: Partial<Payment>) => {
@@ -435,11 +482,16 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             const custRef = doc(db, COLLECTIONS.CUSTOMERS, payment.customerId);
             batch.set(custRef, { totalSpent: increment(payment.amount || 0) }, { merge: true });
         }
-        runInBackground(batch.commit(), 'addPayment');
+        try {
+            await batch.commit();
+        } catch (error: any) {
+            console.error('[DataContext] addPayment failed:', error);
+            throw error;
+        }
     };
 
     const updatePayment = async (id: string, updates: Partial<Payment>) => {
-        runInBackground((async () => {
+        try {
             const db = getFirestore();
             const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
             const paymentDocSnap = await getDoc(paymentDocRef);
@@ -461,11 +513,14 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
                 }
             }
             await batch.commit();
-        })(), 'updatePayment');
+        } catch (error: any) {
+            console.error('[DataContext] updatePayment failed:', error);
+            throw error;
+        }
     };
 
     const deletePayment = async (id: string) => {
-        runInBackground((async () => {
+        try {
             const db = getFirestore();
             const paymentDocRef = doc(db, COLLECTIONS.PAYMENTS, id);
             const paymentDocSnap = await getDoc(paymentDocRef);
@@ -483,7 +538,10 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             } else {
                 await deleteDoc(paymentDocRef);
             }
-        })(), 'deletePayment');
+        } catch (error: any) {
+            console.error('[DataContext] deletePayment failed:', error);
+            throw error;
+        }
     };
 
     const addOutfit = async (outfit: Partial<Outfit>) => {
@@ -491,11 +549,21 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const minOrder = outfits.length > 0 ? Math.min(...outfits.map(o => o.order || 0)) : 0;
         const newOrder = minOrder - 1;
         const newOutfit = { ...outfit, ownerId: user.uid, createdAt: new Date().toISOString(), order: newOrder };
-        runInBackground(addDoc(collection(getFirestore(), COLLECTIONS.OUTFITS), newOutfit), 'addOutfit');
+        try {
+            await addDoc(collection(getFirestore(), COLLECTIONS.OUTFITS), newOutfit);
+        } catch (error: any) {
+            console.error('[DataContext] addOutfit failed:', error);
+            throw error;
+        }
     };
 
     const updateOutfit = async (id: string, outfit: Partial<Outfit>) => {
-        runInBackground(updateDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id), outfit), 'updateOutfit');
+        try {
+            await updateDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id), outfit);
+        } catch (error: any) {
+            console.error('[DataContext] updateOutfit failed:', error);
+            throw error;
+        }
     };
 
     const deleteOutfit = async (id: string) => { return deleteDoc(doc(getFirestore(), COLLECTIONS.OUTFITS, id)); };
@@ -507,7 +575,12 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             const ref = doc(db, COLLECTIONS.OUTFITS, outfit.id);
             batch.update(ref, { order: index });
         });
-        runInBackground(batch.commit(), 'reorderOutfits');
+        try {
+            await batch.commit();
+        } catch (error: any) {
+            console.error('[DataContext] reorderOutfits failed:', error);
+            throw error;
+        }
     };
 
     const getCustomerOrders = (customerId: string) => { return orders.filter(o => o.customerId === customerId); };
@@ -520,7 +593,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
         const orderData = orderSnap.data() as Order;
         const newItems = [...orderData.items];
-        
+
         if (itemIndex < 0 || itemIndex >= newItems.length) throw new Error("Item index out of bounds");
 
         // Set status to Cancelled
@@ -536,7 +609,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         const paymentsQuery = query(collection(db, COLLECTIONS.PAYMENTS), where('orderId', '==', orderId));
         const paymentsSnap = await getDocs(paymentsQuery);
         let totalPaid = orderData.advance || 0;
-        
+
         // If advance is recorded as a payment, don't double count (handled by checking payment type usually, 
         // but here we just sum all payments and assume order.advance is initialized correctly or separate.
         // In existing logic, 'totalPaid' usually includes order.advance. 
@@ -545,11 +618,11 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         // However, sometimes Advance is also a Payment record. 
         // Safe bet: Fetch all payments for this order.
         const currentTotalPayments = paymentsSnap.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
-        
+
         // Logic from OrderDetailScreen:
         // const hasAdvanceRecord = billPayments.some(p => p.type === 'Advance');
         // const totalPaid = totalPaymentsRecord + (hasAdvanceRecord ? 0 : (order.advance || 0));
-        
+
         const hasAdvanceRecord = paymentsSnap.docs.some(doc => doc.data().type === 'Advance');
         const totalCollected = currentTotalPayments + (hasAdvanceRecord ? 0 : (orderData.advance || 0));
 
@@ -562,7 +635,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             newOrderStatus = 'Cancelled';
         } else if (orderData.status === 'Cancelled') {
             // If it was cancelled but now we have active items (unlikely path for cancelItem, but good for safety)
-            newOrderStatus = 'In Progress'; 
+            newOrderStatus = 'In Progress';
         }
 
         await updateDoc(orderRef, {

@@ -498,7 +498,13 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         <Text style={styles.headerSubtitle}>{currentCategory?.name || 'Category'}</Text>
                         <Text style={styles.headerTitle}>Manage Sub-Categories</Text>
                     </View>
-                    <View style={{ width: 40 }} />
+                    {!isFormVisible ? (
+                        <TouchableOpacity onPress={() => openSubCatForm(false)} style={styles.backBtn}>
+                            <Plus size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
             </View>
 
@@ -539,15 +545,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 }
             />
 
-            {!isFormVisible && (
-                <TouchableOpacity
-                    style={[styles.fab, { bottom: 24 + insets.bottom }]}
-                    onPress={() => openSubCatForm(false)}
-                >
-                    <Plus size={24} color={Colors.white} />
-                    <Text style={styles.fabText}>Add Sub Category</Text>
-                </TouchableOpacity>
-            )}
+            {/* Floating Add Button Removed */}
 
             <AlertModal
                 visible={alertVisible}

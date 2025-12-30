@@ -323,7 +323,10 @@ const OrdersListScreen = ({ navigation }: any) => {
                     activeOpacity={1}
                     onPress={() => setIsFilterVisible(false)}
                 >
-                    <View style={styles.modalContent}>
+                    <View style={[
+                        styles.modalContent,
+                        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                    ]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Filter & Sort</Text>
                             <TouchableOpacity
@@ -530,7 +533,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     },
     modalHeader: {
         flexDirection: 'row',

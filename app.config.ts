@@ -8,7 +8,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         name: isStaging ? 'Sewvee (Dev)' : 'Sewvee',
         slug: 'sewvee-mini',
         scheme: 'sewvee',
-        version: '1.0.0',
+        version: '1.0.1',
         orientation: 'portrait',
         icon: './assets/app-icon.png',
         userInterfaceStyle: 'light',
@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 backgroundColor: '#ffffff',
             },
             package: isStaging ? 'com.sewvee.app.staging' : 'com.sewvee.app',
-            versionCode: 31,
+            versionCode: 33,
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
             softwareKeyboardLayoutMode: 'resize',
@@ -66,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ],
         updates: {
             url: 'https://u.expo.dev/049c0301-9322-4f3d-ba93-8baa65a13555',
-            fallbackToCacheTimeout: 0,
+            fallbackToCacheTimeout: 30000,
         },
         runtimeVersion: {
             policy: 'appVersion',

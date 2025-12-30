@@ -11,6 +11,7 @@ import {
     ScrollView,
     Alert
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, ArrowLeft, Phone } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +19,7 @@ import PinInput from '../components/PinInput';
 import { logEvent } from '../config/firebase';
 
 const SignupScreen = ({ navigation }: any) => {
+    const insets = useSafeAreaInsets();
     const { signup } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -63,7 +65,7 @@ const SignupScreen = ({ navigation }: any) => {
                 <ArrowLeft size={24} color={Colors.textPrimary} />
             </TouchableOpacity>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 60) }]} keyboardShouldPersistTaps="handled">
                 <View style={styles.header}>
                     <Text style={styles.title}>Create Account</Text>
                     <Text style={styles.subtitle}>Join Sewvee and start managing your boutique professionally</Text>

@@ -359,7 +359,13 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                         <ArrowLeft size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.subtitle}>Manage Outfits</Text>
-                    <View style={{ width: 40 }} />
+                    {!isFormVisible ? (
+                        <TouchableOpacity onPress={openAddForm} style={styles.backBtn}>
+                            <Plus size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
             </View>
 
@@ -400,15 +406,8 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 }
             />
 
-            {/* Floating Add Button */}
-            {!isFormVisible && (
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={openAddForm}
-                >
-                    <Plus size={24} color="white" />
-                </TouchableOpacity>
-            )}
+            {/* Floating Add Button Removed as per request */}
+
 
 
             <AlertModal

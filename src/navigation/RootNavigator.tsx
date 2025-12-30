@@ -101,9 +101,11 @@ function MainTabs() {
                     backgroundColor: '#1E293B',
                     borderTopWidth: 1,
                     borderTopColor: '#334155',
-                    height: 65 + Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0),
+                    // Fix: Ensure labels are clear of system navigation bar
+                    // Standard Android nav bar is ~48dp. Fallback to ~32dp if inset is 0.
+                    height: 90 + Math.max(insets.bottom, Platform.OS === 'android' ? 32 : 0),
                     paddingTop: 12,
-                    paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 4),
+                    paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 60 : 12),
                     elevation: 8,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: -2 },

@@ -1118,7 +1118,10 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     style={{ flex: 1 }}
                 >
                     <View style={styles.modalOverlay}>
-                        <View style={styles.modalContent}>
+                        <View style={[
+                            styles.modalContent,
+                            { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                        ]}>
                             <ScrollView showsVerticalScrollIndicator={false}>
                                 <Text style={[Typography.h2, { marginBottom: Spacing.lg }]}>{editingPayment ? 'Edit Payment' : 'Add Payment'}</Text>
 
@@ -1180,7 +1183,10 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                         activeOpacity={1}
                         onPress={() => setPrintOptionsModalVisible(false)}
                     />
-                    <View style={styles.bottomSheet}>
+                    <View style={[
+                        styles.bottomSheet,
+                        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                    ]}>
                         <View style={styles.bottomSheetHeader}>
                             <Text style={styles.bottomSheetTitle}>Select Copy to Print</Text>
                             <TouchableOpacity onPress={() => setPrintOptionsModalVisible(false)}>
@@ -1314,9 +1320,9 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             <ReusableBottomDrawer
                 visible={cancelSheetVisible}
                 onClose={() => setCancelSheetVisible(false)}
-                height={380 + insets.bottom} // Add safe area inset
+                height="auto"
             >
-                <View style={{ padding: 20, paddingBottom: insets.bottom + 20 }}>
+                <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }}>
                     {(() => {
                         if (statusItemIndex === null) return null;
                         const itemToCancel = (order.items || order.outfits || [])[statusItemIndex];
@@ -1421,7 +1427,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                                 <X size={24} color={Colors.textPrimary} />
                             </TouchableOpacity>
                         </View>
-                        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 + (Platform.OS === 'android' ? 80 : 0) }}>
                             {/* Images */}
                             {selectedItem?.images && selectedItem.images.length > 0 && (
                                 <View style={{ marginBottom: 24 }}>
@@ -1863,7 +1869,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: Spacing.xl,
-        paddingBottom: Spacing.xl + (Platform.OS === 'ios' ? 24 : 0),
+        paddingBottom: Spacing.xl + Math.max(0, Platform.OS === 'android' ? 80 : (Platform.OS === 'ios' ? 24 : 0)),
     },
     inputGroup: {
         marginBottom: Spacing.lg,
@@ -1872,8 +1878,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        padding: 0, // Removed padding to let children handle it
-        paddingBottom: 40, // Increased bottom padding for the drawer
+        padding: 0,
         ...Shadow.large,
     },
     bottomSheetHeader: {

@@ -17,8 +17,10 @@ import { useAuth } from '../context/AuthContext';
 import PinInput from '../components/PinInput';
 import { logEvent } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const LoginScreen = ({ navigation }: any) => {
+    const insets = useSafeAreaInsets();
     const { loginWithPhone } = useAuth();
     const [phone, setPhone] = useState('');
     const [pin, setPin] = useState('');
@@ -68,7 +70,7 @@ const LoginScreen = ({ navigation }: any) => {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) }]}>
                 <View style={styles.header}>
                     <View style={styles.logoContainer}>
                         <Text style={styles.logoText}>SV</Text>

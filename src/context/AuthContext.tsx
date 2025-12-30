@@ -9,6 +9,7 @@ interface AuthContextType {
     company: any;
     loading: boolean;
     logout: () => void;
+    saveUser: (userData: any) => Promise<void>;
     saveCompany: (companyData: any) => Promise<void>;
     login: (email: string, pass: string) => Promise<void>;
     loginWithPhone: (phone: string, pin: string) => Promise<void>;
@@ -55,14 +56,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         ]);
                     };
 
-                    // Fetch user profile from Firestore with timeout
                     const userDoc = await fetchWithTimeout(getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid)), 15000);
                     const userData = userDoc.exists() ? userDoc.data() : null;
+                    const phoneVal = userData?.phone || userData?.mobile || firebaseUser.phoneNumber || null;
 
                     setUser({
                         uid: firebaseUser.uid,
                         email: firebaseUser.email,
-                        phone: firebaseUser.phoneNumber || null, // Fix: userData is out of scope here
+                        name: userData?.name || '',
+                        phone: phoneVal,
+                        mobile: phoneVal,
                         ...(userData || {}),
                         isPhoneVerified: userData?.isPhoneVerified || false
                     });
@@ -120,9 +123,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const loginWithPhone = async (phone: string, pin: string) => {
         const db = getFirestore();
+
+        // Normalize phone to 10 digits for consistent lookup
+        const cleanPhone = phone.replace(/\D/g, '');
+        const normalizedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+
         const userSnapshot = await getDocs(query(
             collection(db, COLLECTIONS.USERS),
-            where('phone', '==', phone)
+            where('phone', 'in', [normalizedPhone, `+91${normalizedPhone}`, `91${normalizedPhone}`])
         ));
 
         if (userSnapshot.empty) {
@@ -388,6 +396,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const saveUser = async (userData: any) => {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
+
+        try {
+            // Ensure field consistency: store both mobile and phone if one is provided
+            const phoneVal = userData.phone || userData.mobile;
+
+            const updatedProfile = {
+                ...userData,
+                phone: phoneVal,
+                mobile: phoneVal,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Optimistic Update: Update state first
+            setUser((prev: any) => ({ ...prev, ...updatedProfile }));
+
+            // Fire-and-forget Firestore update
+            updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), updatedProfile)
+                .catch(e => console.log('Background user update failed (offline?):', e));
+        } catch (error) {
+            console.error('Save User Error:', error);
+            throw error;
+        }
+    };
+
     const saveCompany = async (companyData: any) => {
         const auth = getAuth();
         const currentUser = auth.currentUser;
@@ -430,6 +466,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             company,
             loading,
             logout,
+            saveUser,
             saveCompany,
             login,
             loginWithPhone,

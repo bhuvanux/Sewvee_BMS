@@ -5,8 +5,10 @@ import {
     StyleSheet,
     Modal,
     TouchableOpacity,
-    ScrollView
+    ScrollView,
+    Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Shadow } from '../constants/theme';
 import { X } from 'lucide-react-native';
 
@@ -26,6 +28,7 @@ interface BottomActionSheetProps {
 }
 
 const BottomActionSheet = ({ visible, onClose, title, actions, children }: BottomActionSheetProps & { children?: React.ReactNode }) => {
+    const insets = useSafeAreaInsets();
     return (
         <Modal
             visible={visible}
@@ -38,7 +41,13 @@ const BottomActionSheet = ({ visible, onClose, title, actions, children }: Botto
                 activeOpacity={1}
                 onPress={onClose}
             >
-                <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+                <TouchableOpacity
+                    style={[
+                        styles.sheet,
+                        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                    ]}
+                    activeOpacity={1}
+                >
                     {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.handle} />

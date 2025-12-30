@@ -12,6 +12,11 @@ import Constants from 'expo-constants';
 // Environment Toggle - Dynamic based on EAS Build Profile or Expo Config
 export const IS_STAGING = Constants.expoConfig?.extra?.isStaging ?? true;
 
+// --- MANDATORY RUNTIME VERIFICATION ---
+console.log('🔥 Environment:', IS_STAGING ? 'STAGING/DEV' : 'PRODUCTION');
+console.log('🔥 Firebase Project:', 'sewvee'); // Hardcoded expectation for PROD
+// --------------------------------------
+
 // Constant Master Password for Firebase Auth
 export const MASTER_AUTH_PASS = "Sewvee_Auth_Secure_2025";
 export const getAuthPassword = (email: string) => MASTER_AUTH_PASS;

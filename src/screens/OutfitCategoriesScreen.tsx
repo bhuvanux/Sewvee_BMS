@@ -350,7 +350,13 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                         <Text style={styles.headerSubtitle}>Category Manager</Text>
                         <Text style={styles.headerTitle}>{outfitName}</Text>
                     </View>
-                    <View style={{ width: 40 }} />
+                    {!isFormVisible ? (
+                        <TouchableOpacity onPress={openAddForm} style={styles.backBtn}>
+                            <Plus size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
             </View>
 
@@ -389,15 +395,7 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
                 }
             />
 
-            {!isFormVisible && (
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={openAddForm}
-                >
-                    <Plus size={24} color={Colors.white} />
-                    <Text style={styles.fabText}>Add Category</Text>
-                </TouchableOpacity>
-            )}
+            {/* Floating Add Button Removed */}
 
             <AlertModal
                 visible={alertVisible}

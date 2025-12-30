@@ -21,15 +21,15 @@ import ChangePinModal from '../components/ChangePinModal';
 const EditProfileScreen = ({ navigation }: any) => {
     const { user, saveUser } = useAuth();
     const insets = useSafeAreaInsets();
-    
-    // Form State
+
+    // Form State - handle inconsistency in field names (name, phone/mobile)
     const [name, setName] = useState(user?.name || '');
     const [email, setEmail] = useState(user?.email || '');
-    const [mobile, setMobile] = useState(user?.mobile || '');
-    
+    const [mobile, setMobile] = useState(user?.mobile || user?.phone || '');
+
     const [loading, setLoading] = useState(false);
     const [successVisible, setSuccessVisible] = useState(false);
-    
+
     // PIN Modal State
     const [changePinVisible, setChangePinVisible] = useState(false);
     const [pinSuccessVisible, setPinSuccessVisible] = useState(false);
