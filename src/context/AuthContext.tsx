@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { COLLECTIONS, getAuthPassword } from '../config/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword } from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword, signInAnonymously } from '@react-native-firebase/auth';
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
 
 interface AuthContextType {
@@ -57,33 +57,46 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     };
 
                     const userDoc = await fetchWithTimeout(getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid)), 15000);
+
+                    // If user is anonymous or doc doesn't exist, we might be in a temporary state
+                    if (!userDoc.exists()) {
+                        if (firebaseUser.isAnonymous) {
+                            // Anonymous user waiting to login - do not set global user state yet
+                            return;
+                        }
+                        // Real user but no doc?
+                        // console.warn("User authenticated but no profile found");
+                    }
+
                     const userData = userDoc.exists() ? userDoc.data() : null;
-                    const phoneVal = userData?.phone || userData?.mobile || firebaseUser.phoneNumber || null;
 
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        name: userData?.name || '',
-                        phone: phoneVal,
-                        mobile: phoneVal,
-                        ...(userData || {}),
-                        isPhoneVerified: userData?.isPhoneVerified || false
-                    });
-
-                    // Fetch company data with timeout
-                    const q = query(
-                        collection(db, COLLECTIONS.COMPANIES),
-                        where('ownerId', '==', firebaseUser.uid)
-                    );
-                    const companySnapshot = await fetchWithTimeout(getDocs(q), 15000);
-
-                    if (!companySnapshot.empty) {
-                        setCompany({
-                            id: companySnapshot.docs[0].id,
-                            ...companySnapshot.docs[0].data()
+                    if (userData) {
+                        const phoneVal = userData?.phone || userData?.mobile || firebaseUser.phoneNumber || null;
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            name: userData?.name || '',
+                            phone: phoneVal,
+                            mobile: phoneVal,
+                            ...(userData || {}),
+                            isPhoneVerified: userData?.isPhoneVerified || false
                         });
-                    } else {
-                        setCompany(null);
+
+                        // Fetch company data with timeout
+                        const q = query(
+                            collection(db, COLLECTIONS.COMPANIES),
+                            where('ownerId', '==', firebaseUser.uid)
+                        );
+                        const companySnapshot = await fetchWithTimeout(getDocs(q), 15000);
+
+                        if (!companySnapshot.empty) {
+                            setCompany({
+                                id: companySnapshot.docs[0].id,
+                                ...companySnapshot.docs[0].data()
+                            });
+                        } else {
+                            setCompany(null);
+                        }
                     }
                 } catch (error) {
 
@@ -123,6 +136,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const loginWithPhone = async (phone: string, pin: string) => {
         const db = getFirestore();
+        const auth = getAuth();
+
+        // Ensure we have at least Anonymous Auth to read Firestore (if rules require it)
+        if (!auth.currentUser) {
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Anonymous auth failed", e);
+                // Continue anyway, maybe public read is allowed?
+            }
+        }
 
         // Normalize phone to 10 digits for consistent lookup
         const cleanPhone = phone.replace(/\D/g, '');
@@ -156,9 +180,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // 1. Authenticate with Firebase Auth using the Universal Master Password
         let authenticated = false;
-        const auth = getAuth();
+        // auth is already declared above
         try {
-
             await signInWithEmailAndPassword(auth, email, MASTER_AUTH_PASS);
             authenticated = true;
 

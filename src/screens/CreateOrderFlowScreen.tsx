@@ -15,7 +15,8 @@ import {
     StatusBar,
     Animated,
     Easing,
-    LayoutAnimation
+    LayoutAnimation,
+    useWindowDimensions
 } from 'react-native';
 import {
     ChevronLeft,
@@ -1308,8 +1309,10 @@ const StitchDetailsModal = ({ visible, title, content, onClose }: any) => {
 
 const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const insets = useSafeAreaInsets();
+    const window = useWindowDimensions();
     const [viewerVisible, setViewerVisible] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
+    const [isEditorLoading, setIsEditorLoading] = useState(false);
     const [sketchModalVisible, setSketchModalVisible] = useState(false); // New Modal state
     const [penWidth, setPenWidth] = useState({ min: 2, max: 4 });
     const [penColor, setPenColor] = useState('#000000');
@@ -1388,16 +1391,19 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     const handleEditStart = async () => {
         if (!selectedImage) return;
+        setIsEditorLoading(true);
         try {
             // Read file as Base64 for Canvas Background
             const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: 'base64' });
             // Prefix needed for webview
             setEditImageBase64(`data:image/jpeg;base64,${base64}`);
-            setEditorVisible(true);
-            setViewerVisible(false); // Close viewer, open editor
+            setViewerVisible(false); // Close viewer
+            setEditorVisible(true);  // Open editor
         } catch (error) {
-
+            console.error("Failed to load image for editing", error);
             if (onShowAlert) onShowAlert("Error", "Could not load image for editing");
+        } finally {
+            setIsEditorLoading(false);
         }
     };
 
@@ -1827,7 +1833,12 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                         </TouchableOpacity>
                     </View>
 
-                    {editImageBase64 && (
+                    {isEditorLoading ? (
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                            <ActivityIndicator size="large" color="white" />
+                            <Text style={{ color: 'white', marginTop: 10 }}>Preparing Image...</Text>
+                        </View>
+                    ) : editImageBase64 ? (
                         <View style={{ flex: 1 }}>
                             <SignatureScreen
                                 ref={signatureRef}
@@ -1838,9 +1849,13 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                                 confirmText="Save"
                                 webStyle={`.m-signature-pad--footer { display: none; margin: 0px; } body,html { width: 100%; height: 100%; }`}
                                 bgSrc={editImageBase64}
-                                bgWidth={350}
-                                bgHeight={500}
+                                bgWidth={window.width}
+                                bgHeight={window.height - 60} // Subtract header height
                             />
+                        </View>
+                    ) : (
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ color: '#666' }}>Error loading image.</Text>
                         </View>
                     )}
                 </View>
@@ -2372,7 +2387,7 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
 // ... existing code ...
 
-const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex }: any) => {
+const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex, editOrderId }: any) => {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -3303,7 +3318,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     {currentStep === 1 && <StepStitching state={state} onChange={updateState} outfits={outfits} />}
                     {currentStep === 2 && <StepMeasurements state={state} onChange={updateState} />}
                     {currentStep === 3 && <Step3Media state={state} onChange={updateState} onShowAlert={showAlert} />}
-                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} editItemIndex={editItemIndex} />}
+                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} editItemIndex={editItemIndex} editOrderId={editOrderId} />}
                 </View>
             </KeyboardAvoidingView>
 
