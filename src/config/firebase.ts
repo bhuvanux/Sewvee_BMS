@@ -11,7 +11,7 @@ import Constants from 'expo-constants';
 // No manual initialization needed with React Native Firebase!
 
 // Environment Toggle - Dynamic based on EAS Build Profile or Expo Config
-export const IS_STAGING = Constants.expoConfig?.extra?.isStaging ?? true;
+export const IS_STAGING = true; // Forced for staging session as requested
 
 // --- MANDATORY RUNTIME VERIFICATION ---
 console.log('🔥 Environment:', IS_STAGING ? 'STAGING/DEV' : 'PRODUCTION');

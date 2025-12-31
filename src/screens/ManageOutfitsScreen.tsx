@@ -295,61 +295,43 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     }, []);
 
     const renderItem = useCallback(({ item }: { item: Outfit }) => (
-        <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.itemRow}
-            onPress={() => handleConfigure(item)}
-        >
-            {/* Left: Icon/Image */}
-            <View style={styles.iconBox}>
-                {item.image ? (
-                    <Image
-                        source={{ uri: item.image || DEFAULT_IMAGE }}
-                        style={styles.itemImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <ImageIcon size={24} color={Colors.textSecondary} />
-                )}
-            </View>
+        <View style={styles.card}>
+            <TouchableOpacity
+                style={styles.cardContent}
+                onPress={() => item.isVisible && navigation.navigate('OutfitCategories', {
+                    outfitId: item.id,
+                    outfitName: item.name
+                })}
+                activeOpacity={item.isVisible ? 0.7 : 1}
+            >
+                <View style={[styles.iconBox, !item.isVisible && { opacity: 0.5 }]}>
+                    {item.image ? (
+                        <ExpoImage source={{ uri: item.image }} style={styles.itemImage} contentFit="cover" />
+                    ) : (
+                        <Shirt size={24} color={Colors.textSecondary} />
+                    )}
+                </View>
+                <View style={styles.itemInfo}>
+                    <Text style={[styles.itemName, !item.isVisible && { color: Colors.textSecondary }]}>
+                        {item.name}
+                    </Text>
+                    <Text style={styles.itemMeta}>
+                        {item.isVisible ? `${item.categories?.length || 0} Categories` : 'Archived'}
+                    </Text>
+                </View>
+                {item.isVisible && <ChevronRight size={20} color={Colors.textSecondary} />}
+            </TouchableOpacity>
 
-            {/* Middle: Info */}
-            <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemMeta}>{(item.categories?.length || 0)} Categories</Text>
-            </View>
-
-            {/* Right: Actions */}
             <View style={styles.actions}>
                 <TouchableOpacity
-                    onPress={() => toggleVisibility(item.id, item.isVisible)}
-                    style={{ padding: 4 }}
-                >
-                    <View style={[
-                        styles.toggleTrack,
-                        item.isVisible ? { backgroundColor: Colors.primary } : { backgroundColor: '#E2E8F0' }
-                    ]}>
-                        <View style={[
-                            styles.toggleThumb,
-                            item.isVisible ? { transform: [{ translateX: 14 }] } : {}
-                        ]} />
-                    </View>
-                </TouchableOpacity>
-
-                {/* More Menu Trigger */}
-                <TouchableOpacity
-                    style={styles.menuTrigger}
+                    style={styles.actionBtn}
                     onPress={() => openActionSheet(item)}
                 >
-                    <MoreVertical size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => handleConfigure(item)}>
-                    <ChevronRight size={20} color={Colors.textSecondary} />
+                    <MoreVertical size={18} color={Colors.textSecondary} />
                 </TouchableOpacity>
             </View>
-        </TouchableOpacity>
-    ), [handleConfigure, toggleVisibility, openActionSheet]);
+        </View>
+    ), [navigation, openActionSheet]);
 
     return (
         <View style={styles.container}>
@@ -358,7 +340,10 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <ArrowLeft size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.subtitle}>Manage Outfits</Text>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerSubtitle}>Sewvee Master</Text>
+                        <Text style={styles.headerTitle}>Manage Outfits</Text>
+                    </View>
                     {!isFormVisible ? (
                         <TouchableOpacity onPress={openAddForm} style={styles.backBtn}>
                             <Plus size={24} color={Colors.primary} />
@@ -372,6 +357,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
             <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
                 <Text style={styles.helperText}>
                     Manage and customize the types of outfits you offer.
+                    {'\n'}Categories and designs are nested within each outfit.
                 </Text>
 
                 <OutfitForm
@@ -419,13 +405,13 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
             <BottomConfirmationSheet
                 visible={deleteSheetVisible}
+                onClose={() => setDeleteSheetVisible(false)}
+                onConfirm={confirmDelete}
                 title="Delete Outfit?"
-                message={`Are you sure you want to delete "${itemToDelete?.name}"?`}
+                description={`Are you sure you want to delete "${itemToDelete?.name}"?`}
                 confirmText="Delete"
                 cancelText="Cancel"
-                isDestructive
-                onConfirm={confirmDelete}
-                onCancel={() => setDeleteSheetVisible(false)}
+                type="danger"
             />
 
             <BottomActionSheet
@@ -464,8 +450,8 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                         if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
                     }}
                 >
-                    <Trash2 size={20} color={Colors.error} />
-                    <Text style={[styles.actionText, { color: Colors.error }]}>Delete Outfit</Text>
+                    <Trash2 size={20} color={Colors.danger} />
+                    <Text style={[styles.actionText, { color: Colors.danger }]}>Delete Outfit</Text>
                 </TouchableOpacity>
             </BottomActionSheet>
 
@@ -479,292 +465,261 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     header: {
-        backgroundColor: 'white',
+        backgroundColor: Colors.white,
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        borderBottomColor: Colors.border,
     },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
+        height: 60,
     },
     backBtn: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
+        padding: 4,
+    },
+    headerTitleContainer: {
+        flex: 1,
         alignItems: 'center',
-        borderRadius: 20,
     },
-    subtitle: {
-        ...Typography.h3,
-        color: Colors.textPrimary,
-        // Reverted to original as user requested bold only on cards
-    },
-    helperText: {
-        ...Typography.bodySmall,
+    headerSubtitle: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
         color: Colors.textSecondary,
-        marginBottom: Spacing.md,
-        textAlign: 'center'
+    },
+    headerTitle: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
+        color: Colors.textPrimary,
     },
     listContent: {
         padding: Spacing.md,
-        paddingBottom: 100, // Space for FAB
+        paddingBottom: 100,
     },
-    itemRow: {
+    helperText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginBottom: Spacing.md,
+        textAlign: 'center',
+    },
+
+    // Standardized Card Styles
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'white',
+        backgroundColor: Colors.white,
         borderRadius: 12,
-        padding: 12,
         marginBottom: 12,
-        ...Shadow.sm,
+        ...Shadow.small,
         borderWidth: 1,
-        borderColor: 'transparent'
+        borderColor: Colors.border,
+        padding: 12,
+    },
+    cardContent: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     iconBox: {
         width: 48,
         height: 48,
+        backgroundColor: '#F8FAFC',
         borderRadius: 8,
-        backgroundColor: '#F1F5F9',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
-        overflow: 'hidden'
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        overflow: 'hidden',
     },
     itemImage: {
         width: '100%',
-        height: '100%'
+        height: '100%',
     },
     itemInfo: {
         flex: 1,
     },
     itemName: {
-        fontSize: 18, // Increased for readability
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
         color: Colors.textPrimary,
-        marginBottom: 2,
-        fontWeight: 'bold',
     },
     itemMeta: {
-        fontSize: 14, // Increased for readability
+        fontFamily: 'Inter-Regular',
+        fontSize: 12,
         color: Colors.textSecondary,
     },
     actions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8
+        gap: 8,
+        marginLeft: 12,
+        borderLeftWidth: 1,
+        borderLeftColor: Colors.border,
+        paddingLeft: 12,
     },
-    toggleTrack: {
-        width: 32,
-        height: 18,
-        borderRadius: 9,
-        justifyContent: 'center',
-        paddingHorizontal: 2,
-    },
-    toggleThumb: {
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        backgroundColor: 'white',
-        ...Shadow.sm
-    },
-    menuTrigger: {
-        padding: 4,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: Colors.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...Shadow.md,
-        elevation: 6
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 60,
-    },
-    emptyIconBox: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#F0F9FF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: Spacing.md
-    },
-    emptyTitle: {
-        ...Typography.h3,
-        color: Colors.textPrimary,
-        marginBottom: 4
-    },
-    emptySubtitle: {
-        ...Typography.body,
-        color: Colors.textSecondary,
-        textAlign: 'center',
-        maxWidth: 260
+    actionBtn: {
+        padding: 6,
+        borderRadius: 6,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
     },
 
     // Inline Form Styles
     inlineFormContainer: {
-        backgroundColor: 'white',
+        backgroundColor: Colors.white,
         borderRadius: 16,
-        padding: 16,
-        marginBottom: 24,
-        ...Shadow.md,
+        padding: Spacing.lg,
+        marginBottom: Spacing.xl,
         borderWidth: 1,
-        borderColor: '#E2E8F0'
+        borderColor: Colors.border,
+        ...Shadow.medium,
     },
     inlineFormHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16
+        marginBottom: 16,
     },
     inlineFormTitle: {
-        ...Typography.h4,
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
         color: Colors.textPrimary,
-        // Reverted to original
     },
     inlineFormBody: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 16,
-        marginBottom: 20
+        marginBottom: 20,
     },
     inlineImagePicker: {
         width: 80,
         height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-        overflow: 'hidden'
     },
     inlinePickedImageContainer: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F0FDF4',
-        borderWidth: 1,
-        borderColor: '#BBF7D0',
-        borderRadius: 12
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        overflow: 'hidden',
     },
     inlinePickedImage: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    photoReadyContainer: {
-        gap: 4
-    },
-    photoReadyText: {
-        ...Typography.caption,
-        color: '#166534',
-        fontSize: 10,
-        fontWeight: '600'
+        width: 80,
+        height: 80,
+        borderRadius: 8,
     },
     inlineImageOverlay: {
         position: 'absolute',
-        bottom: 0,
+        top: 0,
+        left: 0,
         right: 0,
-        backgroundColor: Colors.primary,
-        width: 24,
-        height: 24,
-        borderTopLeftRadius: 8,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
         justifyContent: 'center',
-        alignItems: 'center'
-    },
-    inlineImagePlaceholder: {
         alignItems: 'center',
-        gap: 4
-    },
-    inlineImagePlaceholderText: {
-        ...Typography.caption,
-        color: Colors.textSecondary,
-        fontSize: 10
     },
     inlineInputWrapper: {
         flex: 1,
-        justifyContent: 'center'
     },
     inlineLabel: {
-        ...Typography.caption,
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
         color: Colors.textSecondary,
-        marginBottom: 6,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5
+        marginBottom: 4,
     },
     inlineInput: {
-        ...Typography.body,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
-        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        borderRadius: 8,
+        padding: 10,
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
         color: Colors.textPrimary,
-        height: 40
+        backgroundColor: '#FAFCFC',
     },
     inlineFormFooter: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12
+        gap: 12,
     },
     inlineCancelBtn: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        backgroundColor: '#F1F5F9'
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        alignItems: 'center',
     },
     inlineCancelBtnText: {
-        ...Typography.button,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
         color: Colors.textSecondary,
-        fontSize: 14
     },
     inlineSaveBtn: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        backgroundColor: Colors.primary
+        flex: 2,
+        backgroundColor: Colors.primary,
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
     },
     inlineSaveBtnText: {
-        ...Typography.button,
-        color: 'white',
-        fontSize: 14
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.white,
     },
+
+    // Action Sheet & Helper Styles
     actionOption: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 16,
-        paddingHorizontal: 20
+        paddingHorizontal: 20,
     },
     actionText: {
-        ...Typography.body,
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
         color: Colors.textPrimary,
-        marginLeft: 16
+        marginLeft: 16,
     },
     destructiveAction: {
-        marginTop: 4
+        marginTop: 4,
     },
     actionDivider: {
         height: 1,
-        backgroundColor: '#E2E8F0',
-        marginHorizontal: 20
+        backgroundColor: Colors.border,
+        marginHorizontal: 20,
     },
-    dragHandle: {
-        paddingHorizontal: 10,
-        paddingVertical: 10,
-        marginRight: 4,
-        marginLeft: -4
-    }
+
+    // Empty State
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 60,
+        paddingHorizontal: 40,
+    },
+    emptyIconBox: {
+        width: 64,
+        height: 64,
+        backgroundColor: '#F0FDF9',
+        borderRadius: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    emptySubtitle: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 14,
+        color: Colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
 });
 
 export default ManageOutfitsScreen;

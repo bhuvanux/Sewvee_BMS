@@ -15,7 +15,7 @@ import {
     Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Camera, Layers, ChevronRight, Check } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Layers, Check, ChevronRight } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image as ExpoImage } from 'expo-image';
@@ -38,7 +38,6 @@ interface CategoryDetailFormProps {
     pickImage: () => void;
     handleSave: () => void;
     closeForm: () => void;
-    onManageSubOptions?: () => void;
 }
 
 const CategoryDetailForm = React.memo(({
@@ -51,8 +50,7 @@ const CategoryDetailForm = React.memo(({
     setInputName,
     pickImage,
     handleSave,
-    closeForm,
-    onManageSubOptions
+    closeForm
 }: CategoryDetailFormProps) => {
     if (!visible) return null;
 
@@ -113,71 +111,26 @@ const CategoryDetailForm = React.memo(({
                         placeholderTextColor={Colors.textSecondary}
                         autoFocus={!editMode}
                     />
-
-                    {/* Suggestions Chips */}
-                    {!editMode && modalType === 'subcategory' && suggestions && suggestions.length > 0 && (
-                        <View style={{ marginTop: 12 }}>
-                            <Text style={{
-                                fontFamily: 'Inter-Medium',
-                                fontSize: 11,
-                                color: Colors.textSecondary,
-                                marginBottom: 6
-                            }}>
-                                Suggestions (tap to autofill):
-                            </Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                {suggestions.map((s) => (
-                                    <TouchableOpacity
-                                        key={s}
-                                        style={{
-                                            paddingVertical: 4,
-                                            paddingHorizontal: 8,
-                                            borderRadius: 12,
-                                            backgroundColor: '#F1F5F9',
-                                            borderWidth: 1,
-                                            borderColor: '#E2E8F0'
-                                        }}
-                                        onPress={() => setInputName(s)}
-                                    >
-                                        <Text style={{ fontSize: 11, color: Colors.textPrimary, fontFamily: 'Inter-Medium' }}>
-                                            {s}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    )}
                 </View>
-
-                {/* Manage Sub-Options Link (Level 5) */}
-                {editMode && modalType === 'option' && onManageSubOptions && (
-                    <TouchableOpacity
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            alignSelf: 'flex-start',
-                            marginTop: 12,
-                            marginLeft: 4,
-                            padding: 8,
-                            backgroundColor: '#F0F9FF',
-                            borderRadius: 8,
-                            borderWidth: 1,
-                            borderColor: '#BAE6FD'
-                        }}
-                        onPress={onManageSubOptions}
-                    >
-                        <Layers size={16} color={Colors.primary} style={{ marginRight: 8 }} />
-                        <Text style={{
-                            fontFamily: 'Inter-Medium',
-                            fontSize: 13,
-                            color: Colors.primary
-                        }}>
-                            Manage Sub-Options
-                        </Text>
-                        <ChevronRight size={16} color={Colors.primary} style={{ marginLeft: 4 }} />
-                    </TouchableOpacity>
-                )}
             </View>
+
+            {/* Suggestions Chips - Moved outside body for more space */}
+            {!editMode && modalType === 'subcategory' && suggestions && suggestions.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={styles.suggestionLabel}>Suggestions (tap to autofill):</Text>
+                    <View style={styles.suggestionContainer}>
+                        {suggestions.map((s) => (
+                            <TouchableOpacity
+                                key={s}
+                                style={styles.suggestionChip}
+                                onPress={() => setInputName(s)}
+                            >
+                                <Text style={styles.suggestionText}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            )}
 
             <View style={styles.inlineFormFooter}>
                 <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
@@ -187,7 +140,7 @@ const CategoryDetailForm = React.memo(({
                     <Text style={styles.inlineSaveBtnText}>{editMode ? 'Update' : 'Save'}</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </View >
     );
 });
 
@@ -244,10 +197,11 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     // Delete State
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
     const [deleteConfig, setDeleteConfig] = useState<{
-        type: 'subcategory' | 'option',
+        type: 'subcategory' | 'option' | 'suboption',
         id: string,
         name: string,
-        parentId?: string
+        parentId?: string,
+        subCategoryId?: string
     } | null>(null);
 
     useEffect(() => {
@@ -366,14 +320,15 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
     }, [inputName, currentOutfit, currentCategory, editImage, modalType, editMode, targetId, parentId, categoryId, outfitId, updateOutfit]);
 
 
-    const handleDelete = useCallback((type: 'subcategory' | 'option', id: string, name: string, parentId?: string) => {
-        setDeleteConfig({ type, id, name, parentId });
+
+    const handleDelete = useCallback((type: 'subcategory' | 'option' | 'suboption', id: string, name: string, parentId?: string, subCategoryId?: string) => {
+        setDeleteConfig({ type, id, name, parentId, subCategoryId });
         setDeleteSheetVisible(true);
     }, []);
 
     const confirmDelete = useCallback(async () => {
         if (!deleteConfig || !currentOutfit || !currentCategory) return;
-        const { type, id, parentId } = deleteConfig;
+        const { type, id, parentId, subCategoryId } = deleteConfig;
 
         let updatedCategories = [...(currentOutfit.categories || [])];
         const catIndex = updatedCategories.findIndex(c => c.id === categoryId);
@@ -390,6 +345,19 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                 const subCat = { ...updatedSubCategories[subCatIndex] };
                 subCat.options = subCat.options.filter(opt => opt.id !== id);
                 updatedSubCategories[subCatIndex] = subCat;
+            }
+        } else if (type === 'suboption' && parentId && subCategoryId) {
+            // parentId here is optionId
+            const subCatIndex = updatedSubCategories.findIndex(sc => sc.id === subCategoryId);
+            if (subCatIndex !== -1) {
+                const subCat = { ...updatedSubCategories[subCatIndex] };
+                const optIndex = subCat.options.findIndex(o => o.id === parentId);
+                if (optIndex !== -1) {
+                    const opt = { ...subCat.options[optIndex] };
+                    opt.subOptions = (opt.subOptions || []).filter(so => so.id !== id);
+                    subCat.options[optIndex] = opt;
+                    updatedSubCategories[subCatIndex] = subCat;
+                }
             }
         }
         updatedCategory.subCategories = updatedSubCategories;
@@ -408,15 +376,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         setIsFormVisible(true);
     }, []);
 
-    const openOptionForm = useCallback((subCatId: string, edit: boolean, option?: OutfitOption) => {
-        setModalType('option');
-        setParentId(subCatId);
-        setEditMode(edit);
-        setTargetId(option?.id || null);
-        setInputName(option?.name || '');
-        setEditImage(option?.image || null);
-        setIsFormVisible(true);
-    }, []);
 
     const closeForm = useCallback(() => {
         setIsFormVisible(false);
@@ -427,19 +386,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         setEditImage(null);
     }, []);
 
-    const handleManageSubOptions = useCallback(() => {
-        if (modalType === 'option' && editMode && targetId && parentId) {
-            // Navigate to ManageSubOptions
-            navigation.navigate('ManageSubOptions', {
-                outfitId,
-                categoryId,
-                subCategoryId: parentId,
-                optionId: targetId,
-                optionName: inputName
-            });
-            closeForm();
-        }
-    }, [modalType, editMode, targetId, parentId, outfitId, categoryId, inputName, navigation, closeForm]);
 
     const pickImage = useCallback(async () => {
         try {
@@ -469,66 +415,47 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 
     const renderItem = useCallback(({ item }: { item: OutfitSubCategory }) => (
         <View style={styles.card}>
-            {/* Header: Image + Name + Actions */}
-            <View style={styles.cardHeader}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.iconBox}>
-                        {item.image ? (
-                            <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
-                        ) : (
-                            <ImageIcon size={20} color={Colors.textSecondary} />
-                        )}
-                    </View>
-                    <Text style={styles.cardTitle}>{item.name}</Text>
+            <TouchableOpacity
+                style={styles.cardContent}
+                onPress={() => navigation.navigate('ManageSubOptions', {
+                    outfitId,
+                    categoryId,
+                    subCategoryId: item.id,
+                    subCategoryName: item.name
+                })}
+            >
+                <View style={styles.iconBox}>
+                    {item.image ? (
+                        <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
+                    ) : (
+                        <ImageIcon size={20} color={Colors.textSecondary} />
+                    )}
                 </View>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => openSubCatForm(true, item)}
-                    >
-                        <Edit2 size={18} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => handleDelete('subcategory', item.id, item.name)}
-                    >
-                        <Trash2 size={18} color={Colors.danger} />
-                    </TouchableOpacity>
+                <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemMeta}>
+                        {(item.options?.length || 0)} Options
+                    </Text>
                 </View>
-            </View>
+                <ChevronRight size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.divider} />
-
-            {/* Options Body */}
-            <View style={styles.cardBody}>
-                <View style={styles.chipsContainer}>
-                    {item.options?.map((opt) => (
-                        <TouchableOpacity
-                            key={opt.id}
-                            style={styles.chip}
-                            onPress={() => openOptionForm(item.id, true, opt)}
-                        >
-                            <Text style={styles.chipText}>{opt.name}</Text>
-                            <TouchableOpacity
-                                style={styles.chipCloseBtn}
-                                onPress={() => handleDelete('option', opt.id, opt.name, item.id)}
-                            >
-                                <X size={14} color={Colors.textSecondary} />
-                            </TouchableOpacity>
-                        </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity
-                        style={styles.addChip}
-                        onPress={() => openOptionForm(item.id, false)}
-                    >
-                        <Plus size={14} color={Colors.primary} />
-                        <Text style={styles.addChipText}>Option</Text>
-                    </TouchableOpacity>
-                </View>
+            <View style={styles.actions}>
+                <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => openSubCatForm(true, item)}
+                >
+                    <Edit2 size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => handleDelete('subcategory', item.id, item.name)}
+                >
+                    <Trash2 size={18} color={Colors.danger} />
+                </TouchableOpacity>
             </View>
         </View>
-    ), [openSubCatForm, handleDelete, openOptionForm]);
+    ), [navigation, outfitId, categoryId, openSubCatForm, handleDelete]);
 
 
 
@@ -566,7 +493,6 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         handleSave={handleSave}
                         closeForm={closeForm}
                         suggestions={modalType === 'subcategory' ? suggestions : undefined}
-                        onManageSubOptions={modalType === 'option' && editMode ? handleManageSubOptions : undefined}
                     />
                 )}
             </View>
@@ -615,74 +541,41 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    header: {
-        backgroundColor: Colors.white,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    header: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: Spacing.md,
         height: 60,
     },
-    backBtn: {
-        padding: 4,
-    },
-    headerTitleContainer: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerSubtitle: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 12,
-        color: Colors.textSecondary,
-    },
-    headerTitle: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    listContent: {
-        padding: Spacing.md,
-        paddingBottom: 100, // Space for FAB
-    },
-    helperText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 13,
-        color: Colors.textSecondary,
-        marginBottom: Spacing.md,
-        textAlign: 'center',
-    },
-    // Card Styles
+    backBtn: { padding: 4 },
+    headerTitleContainer: { flex: 1, alignItems: 'center' },
+    headerSubtitle: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary },
+    headerTitle: { fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary },
+    listContent: { padding: Spacing.md, paddingBottom: 100 },
+
+    // Standardized Card Styles
     card: {
+        flexDirection: 'row',
+        alignItems: 'center',
         backgroundColor: Colors.white,
-        borderRadius: 16,
-        marginBottom: 16,
+        borderRadius: 12,
+        marginBottom: 12,
         ...Shadow.small,
         borderWidth: 1,
         borderColor: Colors.border,
-        overflow: 'hidden',
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
         padding: 12,
-        backgroundColor: '#F8FAFC',
     },
-    headerLeft: {
+    cardContent: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
     },
     iconBox: {
-        width: 36,
-        height: 36,
-        backgroundColor: Colors.white,
+        width: 48,
+        height: 48,
+        backgroundColor: '#F8FAFC',
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
@@ -694,334 +587,82 @@ const styles = StyleSheet.create({
     itemImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
     },
-    cardTitle: {
+    itemInfo: {
+        flex: 1,
+    },
+    itemName: {
         fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
+        fontSize: 15,
         color: Colors.textPrimary,
     },
-    headerActions: {
+    itemMeta: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    actions: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
+        marginLeft: 12,
+        borderLeftWidth: 1,
+        borderLeftColor: Colors.border,
+        paddingLeft: 12,
     },
     actionBtn: {
         padding: 6,
         borderRadius: 6,
-        backgroundColor: Colors.white,
+        backgroundColor: '#F8FAFC',
         borderWidth: 1,
         borderColor: '#E2E8F0',
     },
-    divider: {
-        height: 1,
-        backgroundColor: Colors.border,
-    },
-    cardBody: {
-        padding: 12,
-    },
-    chipsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    chip: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        paddingRight: 8, // Less padding on right for X icon
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    chipText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textPrimary,
-    },
-    chipCloseBtn: {
-        padding: 2,
-        backgroundColor: '#E2E8F0',
-        borderRadius: 10,
-    },
-    addChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FEF3C7', // Light orange background
-        borderRadius: 20,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderWidth: 1,
-        borderColor: '#FCD34D',
-        gap: 4,
-    },
-    addChipText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: '#D97706',
-    },
-    // FAB
-    fab: {
-        position: 'absolute',
-        right: 24,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 30,
-        ...Shadow.medium,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    fabText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
-        paddingHorizontal: 40,
-    },
-    emptyIconBox: {
-        width: 64,
-        height: 64,
-        backgroundColor: '#F0FDF9', // Light green bg
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    emptySubtitle: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 20,
-    },
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        padding: Spacing.lg,
-    },
-    modalContent: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        ...Shadow.medium,
-        width: '100%',
-        maxWidth: 400,
-        alignSelf: 'center',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.lg,
-    },
-    modalTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inputContainer: {
-        marginBottom: Spacing.xl,
-    },
-    label: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 12,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    saveBtn: {
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    saveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
+
     // Inline Form Styles
     inlineFormContainer: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        marginBottom: Spacing.xl,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        ...Shadow.medium,
+        backgroundColor: Colors.white, borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.medium,
     },
-    inlineFormHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    inlineFormTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inlineFormBody: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        marginBottom: 20,
-    },
-    inlineImagePicker: {
-        width: 80,
-        height: 80,
-    },
-    inlineImagePlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F0FDF4', // Green-50
-        borderWidth: 1.5,
-        borderColor: '#BBF7D0', // Green-200
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inlineImagePlaceholderText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 10,
-        color: '#166534', // Green-800
-        marginTop: 4,
-    },
-    inlinePickedImageContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    inlinePickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 8,
-    },
-    photoReadyContainer: {
-        backgroundColor: '#E2E8F0', // Darker grey for visibility
-        borderWidth: 2, // Thicker border
-        borderColor: '#94A3B8', // High contrast slate border
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    photoReadyText: {
-        fontSize: 11, // Slightly larger
-        fontFamily: 'Inter-Bold', // Bolder
-        color: '#475569', // Darker slate
-        marginTop: 4,
-        textAlign: 'center',
-    },
+    inlineFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    inlineFormTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary },
+    inlineFormBody: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+    inlineImagePicker: { width: 80, height: 80 },
+    inlinePickedImageContainer: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden' },
+    inlinePickedImage: { width: 80, height: 80, borderRadius: 8 },
     inlineImageOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center'
     },
-    inlineInputWrapper: {
-        flex: 1,
-    },
-    inlineLabel: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textSecondary,
-        marginBottom: 4,
-    },
+    inlineInputWrapper: { flex: 1 },
+    inlineLabel: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
     inlineInput: {
+        borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10,
+        fontFamily: 'Inter-Regular', fontSize: 16, color: Colors.textPrimary, backgroundColor: '#FAFAFC',
+    },
+    inlineFormFooter: { flexDirection: 'row', gap: 12 },
+    inlineCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    inlineCancelBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textSecondary },
+    inlineSaveBtn: { flex: 2, backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+    inlineSaveBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.white },
+    suggestionLabel: { fontFamily: 'Inter-Medium', fontSize: 11, color: Colors.textSecondary, marginBottom: 8 },
+    suggestionContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 },
+    suggestionChip: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: '#F1F5F9',
         borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 10,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-        backgroundColor: '#FAFBFC',
+        borderColor: '#CBD5E1',
+        marginRight: 8,
+        marginBottom: 8,
     },
-    inlineFormFooter: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    inlineCancelBtn: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        alignItems: 'center',
-    },
-    inlineCancelBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
-    inlineSaveBtn: {
-        flex: 2,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: 'center',
-    },
-    inlineSaveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.white,
-    },
-    imagePickerBtn: {
-        alignSelf: 'center',
-        marginBottom: 20,
-    },
-    pickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-    },
-    placeholderImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    imagePickerText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 12,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
+    suggestionText: { fontSize: 12, color: Colors.textPrimary, fontFamily: 'Inter-Medium' },
+
+    // Empty State
+    emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+    emptyIconBox: { width: 64, height: 64, backgroundColor: '#F0FDF9', borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+    emptyTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' },
+    emptySubtitle: { fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });
 
 export default EditCategoryScreen;

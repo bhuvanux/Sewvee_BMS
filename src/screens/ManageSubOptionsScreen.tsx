@@ -11,7 +11,7 @@ import {
     Keyboard
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Layers } from 'lucide-react-native';
+import { ArrowLeft, Plus, Edit2, Trash2, X, Image as ImageIcon, Layers, Check, ChevronRight } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useData, DEFAULT_OUTFITS } from '../context/DataContext';
@@ -89,26 +89,26 @@ const SubOptionForm = React.memo(({
                         placeholderTextColor={Colors.textSecondary}
                         autoFocus={!editMode}
                     />
-
-                    {/* Suggestions Chips */}
-                    {!editMode && suggestions && suggestions.length > 0 && (
-                        <View style={{ marginTop: 12 }}>
-                            <Text style={styles.suggestionLabel}>Suggestions:</Text>
-                            <View style={styles.suggestionContainer}>
-                                {suggestions.map((s) => (
-                                    <TouchableOpacity
-                                        key={s}
-                                        style={styles.suggestionChip}
-                                        onPress={() => setInputName(s)}
-                                    >
-                                        <Text style={styles.suggestionText}>{s}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    )}
                 </View>
             </View>
+
+            {/* Suggestions Chips - Moved outside body for more space */}
+            {!editMode && suggestions && suggestions.length > 0 && (
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={styles.suggestionLabel}>Suggestions:</Text>
+                    <View style={styles.suggestionContainer}>
+                        {suggestions.map((s) => (
+                            <TouchableOpacity
+                                key={s}
+                                style={styles.suggestionChip}
+                                onPress={() => setInputName(s)}
+                            >
+                                <Text style={styles.suggestionText}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            )}
 
             <View style={styles.inlineFormFooter}>
                 <TouchableOpacity style={styles.inlineCancelBtn} onPress={closeForm}>
@@ -123,11 +123,13 @@ const SubOptionForm = React.memo(({
 });
 
 const ManageSubOptionsScreen = ({ navigation, route }: any) => {
-    const { outfitId, categoryId, subCategoryId, optionId, optionName } = route.params;
+    // Determine level: if optionId is present, we are at Level 5 (Sub-options)
+    const { outfitId, categoryId, subCategoryId, subCategoryName, optionId, optionName } = route.params;
     const { outfits, updateOutfit } = useData();
     const insets = useSafeAreaInsets();
 
-    const [currentSubOptions, setCurrentSubOptions] = useState<OutfitOption[]>([]);
+    const [currentItems, setCurrentItems] = useState<any[]>([]);
+    const isLevel5 = !!optionId;
 
     // Form State
     const [isFormVisible, setIsFormVisible] = useState(false);
@@ -140,22 +142,25 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
     const [alertVisible, setAlertVisible] = useState(false);
     const [alertConfig, setAlertConfig] = useState({ title: '', message: '' });
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
+    const [deleteConfig, setDeleteConfig] = useState<{
+        type: 'option' | 'suboption',
+        id: string,
+        name: string,
+    } | null>(null);
 
     // Load Data
     useEffect(() => {
         const outfit = outfits.find(o => o.id === outfitId);
         const category = outfit?.categories?.find(c => c.id === categoryId);
         const subCategory = category?.subCategories?.find(sc => sc.id === subCategoryId);
-        const option = subCategory?.options?.find(opt => opt.id === optionId);
 
-        if (option) {
-            setCurrentSubOptions(option.subOptions || []);
+        if (isLevel5) {
+            const option = subCategory?.options?.find(opt => opt.id === optionId);
+            setCurrentItems(option?.subOptions || []);
         } else {
-            // Fallback or navigate back if not found
-            // navigation.goBack();
+            setCurrentItems(subCategory?.options || []);
         }
-    }, [outfits, outfitId, categoryId, subCategoryId, optionId]);
+    }, [outfits, outfitId, categoryId, subCategoryId, optionId, isLevel5]);
 
     const handleSave = useCallback(async () => {
         Keyboard.dismiss();
@@ -183,7 +188,6 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
             }
         }
 
-        // Deep Update Logic
         const updatedOutfits = outfits.map(o => {
             if (o.id !== outfitId) return o;
             return {
@@ -194,45 +198,54 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                         ...c,
                         subCategories: c.subCategories.map(sc => {
                             if (sc.id !== subCategoryId) return sc;
-                            return {
-                                ...sc,
-                                options: sc.options.map(opt => {
-                                    if (opt.id !== optionId) return opt;
 
-                                    let newSubOptions = [...(opt.subOptions || [])];
-                                    if (editMode && targetId) {
-                                        newSubOptions = newSubOptions.map(so =>
-                                            so.id === targetId ? { ...so, name: inputName.trim(), image: finalImage || null } : so
-                                        );
-                                    } else {
-                                        newSubOptions.push({
-                                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                                            name: inputName.trim(),
-                                            image: finalImage || null
-                                        });
-                                    }
-                                    return { ...opt, subOptions: newSubOptions };
-                                })
-                            };
+                            if (isLevel5) {
+                                return {
+                                    ...sc,
+                                    options: sc.options.map(opt => {
+                                        if (opt.id !== optionId) return opt;
+                                        let newSubOptions = [...(opt.subOptions || [])];
+                                        if (editMode && targetId) {
+                                            newSubOptions = newSubOptions.map(so =>
+                                                so.id === targetId ? { ...so, name: inputName.trim(), image: finalImage || null } : so
+                                            );
+                                        } else {
+                                            newSubOptions.push({
+                                                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                                name: inputName.trim(),
+                                                image: finalImage || null
+                                            });
+                                        }
+                                        return { ...opt, subOptions: newSubOptions };
+                                    })
+                                };
+                            } else {
+                                let newOptions = [...(sc.options || [])];
+                                if (editMode && targetId) {
+                                    newOptions = newOptions.map(opt =>
+                                        opt.id === targetId ? { ...opt, name: inputName.trim(), image: finalImage || null } : opt
+                                    );
+                                } else {
+                                    newOptions.push({
+                                        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                                        name: inputName.trim(),
+                                        image: finalImage || null
+                                    });
+                                }
+                                return { ...sc, options: newOptions };
+                            }
                         })
                     };
                 })
             };
         });
 
-        // Use updateOutfit to save the single modified outfit
         const targetOutfit = updatedOutfits.find(o => o.id === outfitId);
         if (targetOutfit) {
-            // We need to pass the partial or full update. updateOutfit usually takes partial.
-            // But here we constructed the full nested object.
-            // Assuming updateOutfit(id, partial) merges at top level.
-            // So we pass { categories: targetOutfit.categories }
             await updateOutfit(outfitId, { categories: targetOutfit.categories });
         }
-
         cleanupForm();
-
-    }, [inputName, editImage, editMode, targetId, outfitId, categoryId, subCategoryId, optionId, outfits, updateOutfit]);
+    }, [inputName, editImage, editMode, targetId, outfitId, categoryId, subCategoryId, optionId, isLevel5, outfits, updateOutfit]);
 
     const cleanupForm = () => {
         setInputName('');
@@ -241,13 +254,14 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
         setTargetId(null);
     };
 
-    const handleDelete = (id: string, name: string) => {
-        setItemToDelete({ id, name });
+    const handleDelete = (type: 'option' | 'suboption', id: string, name: string) => {
+        setDeleteConfig({ type, id, name });
         setDeleteSheetVisible(true);
     };
 
     const confirmDelete = async () => {
-        if (!itemToDelete) return;
+        if (!deleteConfig) return;
+        const { id } = deleteConfig;
 
         const updatedOutfits = outfits.map(o => {
             if (o.id !== outfitId) return o;
@@ -259,16 +273,24 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                         ...c,
                         subCategories: c.subCategories.map(sc => {
                             if (sc.id !== subCategoryId) return sc;
-                            return {
-                                ...sc,
-                                options: sc.options.map(opt => {
-                                    if (opt.id !== optionId) return opt;
-                                    return {
-                                        ...opt,
-                                        subOptions: (opt.subOptions || []).filter(so => so.id !== itemToDelete.id)
-                                    };
-                                })
-                            };
+
+                            if (isLevel5) {
+                                return {
+                                    ...sc,
+                                    options: sc.options.map(opt => {
+                                        if (opt.id !== optionId) return opt;
+                                        return {
+                                            ...opt,
+                                            subOptions: (opt.subOptions || []).filter(so => so.id !== id)
+                                        };
+                                    })
+                                };
+                            } else {
+                                return {
+                                    ...sc,
+                                    options: sc.options.filter(opt => opt.id !== id)
+                                };
+                            }
                         })
                     };
                 })
@@ -281,7 +303,7 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
         }
 
         setDeleteSheetVisible(false);
-        setItemToDelete(null);
+        setDeleteConfig(null);
     };
 
     const pickImage = async () => {
@@ -299,35 +321,68 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
         }
     };
 
-    const renderItem = ({ item }: { item: OutfitOption }) => (
-        <View style={styles.card}>
-            <View style={styles.cardContent}>
-                <View style={styles.iconBox}>
-                    {item.image ? (
-                        <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
-                    ) : (
-                        <ImageIcon size={20} color={Colors.textSecondary} />
+    const renderItem = ({ item }: { item: any }) => {
+        return (
+            <View style={styles.card}>
+                <TouchableOpacity
+                    style={styles.cardContent}
+                    onPress={() => {
+                        if (!isLevel5) {
+                            navigation.push('ManageSubOptions', {
+                                outfitId,
+                                categoryId,
+                                subCategoryId,
+                                subCategoryName,
+                                optionId: item.id,
+                                optionName: item.name
+                            });
+                        }
+                    }}
+                    activeOpacity={isLevel5 ? 1 : 0.7}
+                >
+                    <View style={styles.iconBox}>
+                        {item.image ? (
+                            <Image source={{ uri: item.image }} style={styles.itemImage} resizeMode="cover" />
+                        ) : (
+                            <ImageIcon size={20} color={Colors.textSecondary} />
+                        )}
+                    </View>
+                    <View style={styles.itemInfo}>
+                        <Text style={styles.itemName}>{item.name}</Text>
+                        {!isLevel5 && (
+                            <Text style={styles.itemMeta}>
+                                {(item.subOptions?.length || 0)} Sub Options
+                            </Text>
+                        )}
+                    </View>
+                    {!isLevel5 && (
+                        <ChevronRight size={20} color={Colors.textSecondary} />
                     )}
-                </View>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-            </View>
+                </TouchableOpacity>
 
-            <View style={styles.actions}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => {
-                    setTargetId(item.id);
-                    setInputName(item.name);
-                    setEditImage(item.image || null);
-                    setEditMode(true);
-                    setIsFormVisible(true);
-                }}>
-                    <Edit2 size={18} color={Colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item.id, item.name)}>
-                    <Trash2 size={18} color={Colors.danger} />
-                </TouchableOpacity>
+                <View style={styles.actions}>
+                    <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => {
+                            setTargetId(item.id);
+                            setInputName(item.name);
+                            setEditImage(item.image || null);
+                            setEditMode(true);
+                            setIsFormVisible(true);
+                        }}
+                    >
+                        <Edit2 size={18} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => handleDelete(isLevel5 ? 'suboption' : 'option', item.id, item.name)}
+                    >
+                        <Trash2 size={18} color={Colors.danger} />
+                    </TouchableOpacity>
+                </View>
             </View>
-        </View>
-    );
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -337,8 +392,12 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                         <ArrowLeft size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={styles.headerSubtitle}>{optionName}</Text>
-                        <Text style={styles.headerTitle}>Manage Options</Text>
+                        <Text style={styles.headerSubtitle}>
+                            {isLevel5 ? `Option: ${optionName}` : `Sub-Category: ${subCategoryName}`}
+                        </Text>
+                        <Text style={styles.headerTitle}>
+                            {isLevel5 ? 'Manage Sub-Options' : 'Manage Options'}
+                        </Text>
                     </View>
                     {!isFormVisible ? (
                         <TouchableOpacity onPress={() => { cleanupForm(); setIsFormVisible(true); }} style={styles.backBtn}>
@@ -361,12 +420,13 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                         pickImage={pickImage}
                         handleSave={handleSave}
                         closeForm={() => { setIsFormVisible(false); cleanupForm(); }}
+                        suggestions={isLevel5 ? ['Deep', 'High', 'Regular'] : ['Silk', 'Cotton', 'Linen']}
                     />
                 )}
             </View>
 
             <FlatList
-                data={currentSubOptions}
+                data={currentItems}
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContent}
@@ -375,8 +435,10 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                         <View style={styles.emptyIconBox}>
                             <Layers size={32} color={Colors.primary} />
                         </View>
-                        <Text style={styles.emptyTitle}>No Sub-Options</Text>
-                        <Text style={styles.emptySubtitle}>Add sub-options (e.g. detailed variants) for {optionName}.</Text>
+                        <Text style={styles.emptyTitle}>No Items Yet</Text>
+                        <Text style={styles.emptySubtitle}>
+                            Add {isLevel5 ? 'sub-options' : 'options'} to this selection.
+                        </Text>
                     </View>
                 ) : null}
             />
@@ -392,8 +454,8 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
                 visible={deleteSheetVisible}
                 onClose={() => setDeleteSheetVisible(false)}
                 onConfirm={confirmDelete}
-                title="Delete Sub-Option"
-                description={`Are you sure you want to delete "${itemToDelete?.name}"?`}
+                title={`Delete ${deleteConfig?.type === 'option' ? 'Option' : 'Sub-Option'}`}
+                description={`Are you sure you want to delete "${deleteConfig?.name}"?`}
                 confirmText="Delete"
                 cancelText="Cancel"
                 type="danger"
@@ -405,38 +467,82 @@ const ManageSubOptionsScreen = ({ navigation, route }: any) => {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
     header: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
-    headerTop: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, height: 60 },
+    headerTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.md,
+        height: 60,
+    },
     backBtn: { padding: 4 },
     headerTitleContainer: { flex: 1, alignItems: 'center' },
     headerSubtitle: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary },
     headerTitle: { fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary },
     listContent: { padding: Spacing.md, paddingBottom: 100 },
 
-    // Card
+    // Standardized Card Styles
     card: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         backgroundColor: Colors.white,
         borderRadius: 12,
         marginBottom: 12,
-        padding: 12,
         ...Shadow.small,
         borderWidth: 1,
         borderColor: Colors.border,
+        padding: 12,
     },
-    cardContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    cardContent: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     iconBox: {
-        width: 40, height: 40, borderRadius: 8, backgroundColor: '#F8FAFC',
-        justifyContent: 'center', alignItems: 'center', marginRight: 12,
-        borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden'
+        width: 48,
+        height: 48,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        overflow: 'hidden',
     },
-    itemImage: { width: '100%', height: '100%' },
-    cardTitle: { fontFamily: 'Inter-SemiBold', fontSize: 15, color: Colors.textPrimary },
-    actions: { flexDirection: 'row', gap: 8 },
-    actionBtn: { padding: 8, borderRadius: 8, backgroundColor: '#F1F5F9' },
+    itemImage: {
+        width: '100%',
+        height: '100%',
+    },
+    itemInfo: {
+        flex: 1,
+    },
+    itemName: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 15,
+        color: Colors.textPrimary,
+    },
+    itemMeta: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    actions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginLeft: 12,
+        borderLeftWidth: 1,
+        borderLeftColor: Colors.border,
+        paddingLeft: 12,
+    },
+    actionBtn: {
+        padding: 6,
+        borderRadius: 6,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
 
-    // Inline Form
+    // Inline Form Styles
     inlineFormContainer: {
         backgroundColor: Colors.white, borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl,
         borderWidth: 1, borderColor: Colors.border, ...Shadow.medium,
@@ -448,31 +554,35 @@ const styles = StyleSheet.create({
     inlinePickedImageContainer: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden' },
     inlinePickedImage: { width: 80, height: 80, borderRadius: 8 },
     inlineImageOverlay: {
-        position: 'absolute', bottom: 0, right: 0, backgroundColor: Colors.primary,
-        width: 24, height: 24, borderTopLeftRadius: 8, justifyContent: 'center', alignItems: 'center'
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center'
     },
     inlineInputWrapper: { flex: 1 },
     inlineLabel: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
     inlineInput: {
         borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10,
-        fontFamily: 'Inter-Regular', fontSize: 16, color: Colors.textPrimary, backgroundColor: '#FAFBFC',
+        fontFamily: 'Inter-Regular', fontSize: 16, color: Colors.textPrimary, backgroundColor: '#FAFCFC',
     },
     inlineFormFooter: { flexDirection: 'row', gap: 12 },
     inlineCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
     inlineCancelBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textSecondary },
     inlineSaveBtn: { flex: 2, backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
     inlineSaveBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.white },
-
-    // Suggestions
-    suggestionLabel: { fontFamily: 'Inter-Medium', fontSize: 11, color: Colors.textSecondary, marginBottom: 6 },
-    suggestionContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    suggestionLabel: { fontFamily: 'Inter-Medium', fontSize: 11, color: Colors.textSecondary, marginBottom: 8 },
+    suggestionContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 4 },
     suggestionChip: {
-        paddingVertical: 4, paddingHorizontal: 8, borderRadius: 12,
-        backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0'
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: '#F1F5F9',
+        borderWidth: 1,
+        borderColor: '#CBD5E1',
+        marginRight: 8,
+        marginBottom: 8,
     },
-    suggestionText: { fontSize: 11, color: Colors.textPrimary, fontFamily: 'Inter-Medium' },
+    suggestionText: { fontSize: 12, color: Colors.textPrimary, fontFamily: 'Inter-Medium' },
 
-    // Empty
+    // Empty State
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
     emptyIconBox: { width: 64, height: 64, backgroundColor: '#F0FDF9', borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
     emptyTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' },

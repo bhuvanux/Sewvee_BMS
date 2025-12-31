@@ -419,51 +419,21 @@ const OutfitCategoriesScreen = ({ navigation, route }: any) => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    header: {
-        backgroundColor: Colors.white,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    header: { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: Spacing.md,
         height: 60,
     },
-    backBtn: {
-        padding: 4,
-    },
-    headerTitleContainer: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerSubtitle: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 12,
-        color: Colors.textSecondary,
-    },
-    headerTitle: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
+    backBtn: { padding: 4 },
+    headerTitleContainer: { flex: 1, alignItems: 'center' },
+    headerSubtitle: { fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary },
+    headerTitle: { fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary },
+    listContent: { padding: Spacing.md, paddingBottom: 100 },
 
-    listContent: {
-        padding: Spacing.md,
-        paddingBottom: 40,
-    },
-    helperText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: Spacing.md,
-        textAlign: 'center'
-    },
-    // Card Styles
+    // Standardized Card Styles
     card: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -473,7 +443,7 @@ const styles = StyleSheet.create({
         ...Shadow.small,
         borderWidth: 1,
         borderColor: Colors.border,
-        padding: 12, // Inner padding for the whole card
+        padding: 12,
     },
     cardContent: {
         flex: 1,
@@ -495,7 +465,6 @@ const styles = StyleSheet.create({
     itemImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
     },
     itemInfo: {
         flex: 1,
@@ -524,222 +493,38 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: '#F8FAFC',
         borderWidth: 1,
-        borderColor: '#E2E8F0'
+        borderColor: '#E2E8F0',
     },
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        padding: Spacing.lg,
-    },
-    modalContent: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        ...Shadow.medium,
-        width: '100%',
-        maxWidth: 400,
-        alignSelf: 'center',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.lg,
-    },
-    modalTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inputContainer: {
-        marginBottom: Spacing.xl,
-    },
-    label: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 12,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    saveBtn: {
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    saveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
+
+    // Inline Form Styles
     // Inline Form Styles
     inlineFormContainer: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        marginBottom: Spacing.xl,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        ...Shadow.medium,
+        backgroundColor: Colors.white, borderRadius: 16, padding: Spacing.lg, marginBottom: Spacing.xl,
+        borderWidth: 1, borderColor: Colors.border, ...Shadow.medium,
     },
-    inlineFormHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    inlineFormTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inlineFormBody: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-        marginBottom: 20,
-    },
-    inlineImagePicker: {
-        width: 80,
-        height: 80,
-    },
-    inlineImagePlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F1F5F9', // Slightly darker slate
-        borderWidth: 1.5,
-        borderColor: '#CBD5E1', // Darker border
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inlineImagePlaceholderText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 10,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
-    inlinePickedImageContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    inlinePickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 8,
-    },
-    photoReadyContainer: {
-        backgroundColor: '#E2E8F0', // Darker grey for visibility
-        borderWidth: 2, // Thicker border
-        borderColor: '#94A3B8', // High contrast slate border
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    photoReadyText: {
-        fontSize: 11, // Slightly larger
-        fontFamily: 'Inter-Bold', // Bolder
-        color: '#475569', // Darker slate
-        marginTop: 4,
-        textAlign: 'center',
-    },
+    inlineFormHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    inlineFormTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary },
+    inlineFormBody: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+    inlineImagePicker: { width: 80, height: 80 },
+    inlinePickedImageContainer: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden' },
+    inlinePickedImage: { width: 80, height: 80, borderRadius: 8 },
     inlineImageOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center'
     },
-    inlineInputWrapper: {
-        flex: 1,
-    },
-    inlineLabel: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 13,
-        color: Colors.textSecondary,
-        marginBottom: 4,
-    },
+    inlineInputWrapper: { flex: 1 },
+    inlineLabel: { fontFamily: 'Inter-Medium', fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
     inlineInput: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 10,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-        backgroundColor: '#FAFBFC',
+        borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10,
+        fontFamily: 'Inter-Regular', fontSize: 16, color: Colors.textPrimary, backgroundColor: '#FAFAFC',
     },
-    inlineFormFooter: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    inlineCancelBtn: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        alignItems: 'center',
-    },
-    inlineCancelBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
-    inlineSaveBtn: {
-        flex: 2,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: 'center',
-    },
-    inlineSaveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.white,
-    },
-    imagePickerBtn: {
-        alignSelf: 'center',
-        marginBottom: 20,
-    },
-    pickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-    },
-    placeholderImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    imagePickerText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 12,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
+    inlineFormFooter: { flexDirection: 'row', gap: 12 },
+    inlineCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+    inlineCancelBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textSecondary },
+    inlineSaveBtn: { flex: 2, backgroundColor: Colors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+    inlineSaveBtnText: { fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.white },
+
+    // FAB
     fab: {
         position: 'absolute',
         bottom: Spacing.xl,
@@ -759,35 +544,12 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
     },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 60,
-        paddingHorizontal: 40,
-    },
-    emptyIconBox: {
-        width: 64,
-        height: 64,
-        backgroundColor: '#F0FDF9', // Light green bg
-        borderRadius: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    emptySubtitle: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 20,
-    },
+
+    // Empty State
+    emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 40 },
+    emptyIconBox: { width: 64, height: 64, backgroundColor: '#F0FDF9', borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+    emptyTitle: { fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary, marginBottom: 8, textAlign: 'center' },
+    emptySubtitle: { fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });
 
 export default OutfitCategoriesScreen;

@@ -691,6 +691,19 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                                         {selectedValue.split(' - ').slice(2).join(' - ')}
                                                     </Text>
                                                 )}
+                                                {/* Preview children if not selected or to show structure */}
+                                                {!isSelected && hasChildren && (
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                                                        {opt.subOptions.slice(0, 3).map((so: any) => (
+                                                            <View key={so.id} style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 9, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>{so.name}</Text>
+                                                            </View>
+                                                        ))}
+                                                        {opt.subOptions.length > 3 && (
+                                                            <Text style={{ fontSize: 9, color: Colors.textSecondary }}>+{opt.subOptions.length - 3} more</Text>
+                                                        )}
+                                                    </View>
+                                                )}
                                             </View>
                                         </View>
 
