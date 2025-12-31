@@ -18,8 +18,7 @@ import OfflineNotice from './src/components/OfflineNotice';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Ignore all logs for a cleaner demo experience
-LogBox.ignoreLogs(['Expo AV has been deprecated', 'The app is running using the Legacy Architecture']);
-// LogBox.ignoreAllLogs();
+
 
 SplashScreen.preventAutoHideAsync();
 
