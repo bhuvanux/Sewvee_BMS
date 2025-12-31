@@ -38,6 +38,7 @@ interface CategoryDetailFormProps {
     pickImage: () => void;
     handleSave: () => void;
     closeForm: () => void;
+    onManageSubOptions?: () => void;
 }
 
 const CategoryDetailForm = React.memo(({
@@ -50,7 +51,8 @@ const CategoryDetailForm = React.memo(({
     setInputName,
     pickImage,
     handleSave,
-    closeForm
+    closeForm,
+    onManageSubOptions
 }: CategoryDetailFormProps) => {
     if (!visible) return null;
 
@@ -146,6 +148,35 @@ const CategoryDetailForm = React.memo(({
                         </View>
                     )}
                 </View>
+
+                {/* Manage Sub-Options Link (Level 5) */}
+                {editMode && modalType === 'option' && onManageSubOptions && (
+                    <TouchableOpacity
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            alignSelf: 'flex-start',
+                            marginTop: 12,
+                            marginLeft: 4,
+                            padding: 8,
+                            backgroundColor: '#F0F9FF',
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: '#BAE6FD'
+                        }}
+                        onPress={onManageSubOptions}
+                    >
+                        <Layers size={16} color={Colors.primary} style={{ marginRight: 8 }} />
+                        <Text style={{
+                            fontFamily: 'Inter-Medium',
+                            fontSize: 13,
+                            color: Colors.primary
+                        }}>
+                            Manage Sub-Options
+                        </Text>
+                        <ChevronRight size={16} color={Colors.primary} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                )}
             </View>
 
             <View style={styles.inlineFormFooter}>
@@ -396,6 +427,20 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
         setEditImage(null);
     }, []);
 
+    const handleManageSubOptions = useCallback(() => {
+        if (modalType === 'option' && editMode && targetId && parentId) {
+            // Navigate to ManageSubOptions
+            navigation.navigate('ManageSubOptions', {
+                outfitId,
+                categoryId,
+                subCategoryId: parentId,
+                optionId: targetId,
+                optionName: inputName
+            });
+            closeForm();
+        }
+    }, [modalType, editMode, targetId, parentId, outfitId, categoryId, inputName, navigation, closeForm]);
+
     const pickImage = useCallback(async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
@@ -521,6 +566,7 @@ const EditCategoryScreen = ({ navigation, route }: any) => {
                         handleSave={handleSave}
                         closeForm={closeForm}
                         suggestions={modalType === 'subcategory' ? suggestions : undefined}
+                        onManageSubOptions={modalType === 'option' && editMode ? handleManageSubOptions : undefined}
                     />
                 )}
             </View>

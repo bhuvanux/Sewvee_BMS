@@ -73,6 +73,7 @@ export interface Payment {
     customerId: string;
     amount: number;
     mode: string;
+    type?: string;
     date: any;
     time?: any;
 }
@@ -112,7 +113,8 @@ export interface OutfitItem {
 export interface OutfitOption {
     id: string;
     name: string;
-    image?: string;
+    image?: string | null;
+    subOptions?: OutfitOption[]; // Recursive support for nested options
 }
 
 export interface OutfitSubCategory {

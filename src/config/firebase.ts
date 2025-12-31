@@ -1,5 +1,6 @@
 import { getAuth } from '@react-native-firebase/auth';
 import { getFirestore } from '@react-native-firebase/firestore';
+import { getStorage } from '@react-native-firebase/storage';
 import { getAnalytics, logEvent as firebaseLogEvent } from '@react-native-firebase/analytics';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -32,8 +33,10 @@ export const COLLECTIONS = {
 };
 
 // Export the modular getters
+// Export the modular getters
 export const auth = () => getAuth();
 export const firestore = () => getFirestore();
+export const storage = () => getStorage();
 export const analytics = () => getAnalytics();
 
 export const logEvent = async (eventName: string, params?: object) => {
@@ -61,5 +64,6 @@ export const logScreenView = async (screenName: string) => {
 export default {
     get auth() { return getAuth(); },
     get firestore() { return getFirestore(); },
+    get storage() { return getStorage(); },
     get analytics() { return getAnalytics(); }
 };

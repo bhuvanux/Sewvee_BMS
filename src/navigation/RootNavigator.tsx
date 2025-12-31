@@ -28,6 +28,7 @@ import BillSettingsScreen from '../screens/BillSettingsScreen';
 import ManageOutfitsScreen from '../screens/ManageOutfitsScreen';
 import OutfitCategoriesScreen from '../screens/OutfitCategoriesScreen';
 import EditCategoryScreen from '../screens/EditCategoryScreen';
+import ManageSubOptionsScreen from '../screens/ManageSubOptionsScreen';
 import ItemDetailScreen from '../screens/ItemDetailScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -235,6 +236,7 @@ export default function RootNavigator() {
                     <Stack.Screen name="ManageOutfits" component={ManageOutfitsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="OutfitCategories" component={OutfitCategoriesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="ManageSubOptions" component={ManageSubOptionsScreen} options={{ headerShown: false }} />
 
                     {/* Settings Screens */}
                     <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />

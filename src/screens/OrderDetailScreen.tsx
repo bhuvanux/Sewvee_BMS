@@ -9,6 +9,7 @@ import {
     AlertTriangle, Flame
 } from 'lucide-react-native';
 import { Audio } from 'expo-av';
+import CalendarModal from '../components/CalendarModal';
 import { formatDate, getCurrentDate, parseDate } from '../utils/dateUtils';
 import { Share, Platform } from 'react-native';
 import ReusableBottomDrawer from '../components/ReusableBottomDrawer';
@@ -120,6 +121,10 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const [playingUri, setPlayingUri] = useState<string | null>(null);
     const soundRef = React.useRef<Audio.Sound | null>(null);
 
+    // Date Picker State
+    const [calendarVisible, setCalendarVisible] = useState(false);
+    const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
+
     const handlePlayAudio = async (uri: string) => {
         try {
             if (playingUri === uri) {
@@ -193,9 +198,9 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
     const billPayments = payments.filter(p => p.orderId === order.id);
     const totalPaymentsRecord = billPayments.reduce((sum, p) => sum + p.amount, 0);
-    // Robust Legacy Check: Only add order.advance if no 'Advance' payment record exists to avoid double counting
-    const hasAdvanceRecord = billPayments.some(p => p.type === 'Advance');
-    const totalPaid = totalPaymentsRecord + (hasAdvanceRecord ? 0 : (order.advance || 0));
+    // Robust Logic: Math.max ensures we don't double count if order.advance is in sync with payments, 
+    // but also covers legacy cases where payments might be missing but advance is set.
+    const totalPaid = Math.max(totalPaymentsRecord, order.advance || 0);
 
     // Cancelled Item Logic
     const rawItemsForCalc = normalizeItems(order);
@@ -213,6 +218,43 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const currentBalance = finalBillAmount - totalPaid;
 
     const displayItems = rawItemsForCalc;
+
+    const handleDateUpdate = async (newDate: string) => {
+        if (!order || activeItemIndex === null) return;
+
+        try {
+            // Logic to update the specific item's delivery date
+            // We need to match displayItems index to the stored items structure.
+            // Assuming displayItems maps directly to stored items/outfits logic.
+            // If order has 'outfits' (new) vs 'items' (legacy).
+
+            // NOTE: displayItems = normalizeItems(order)
+            // We need to know if we are updating 'outfits' or 'items'.
+            // For now, let's assume 'outfits' is primary for new orders.
+
+            const isLegacy = !order.outfits;
+            let updatedItems = [];
+
+            if (isLegacy) {
+                updatedItems = [...(order.items || [])];
+                if (updatedItems[activeItemIndex]) {
+                    updatedItems[activeItemIndex] = { ...updatedItems[activeItemIndex], deliveryDate: newDate };
+                }
+                await updateOrder(order.id, { items: updatedItems });
+            } else {
+                updatedItems = [...(order.outfits || [])];
+                if (updatedItems[activeItemIndex]) {
+                    updatedItems[activeItemIndex] = { ...updatedItems[activeItemIndex], deliveryDate: newDate };
+                }
+                await updateOrder(order.id, { outfits: updatedItems });
+            }
+
+            showToast("Delivery Date Updated", "success");
+        } catch (error) {
+            console.error(error);
+            showToast("Failed to update date", "error");
+        }
+    };
 
     React.useLayoutEffect(() => {
         navigation.setOptions({
@@ -283,8 +325,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             .filter(p => p.orderId === order.id)
             .reduce((sum, p) => sum + p.amount, 0);
 
-        const hasAdvanceRecord = payments.filter(p => p.orderId === order.id).some(p => p.type === 'Advance');
-        const totalCollected = currentTotalPayments + (hasAdvanceRecord ? 0 : (order.advance || 0));
+        // Robust Logic: Math.max ensures we don't double count if order.advance is in sync with payments
+        const totalCollected = Math.max(currentTotalPayments, order.advance || 0);
         const newBalance = newTotal - totalCollected;
 
         await updateOrder(order.id, {
@@ -686,45 +728,46 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                                     </View>
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
-                                    {(item.deliveryDate || order.deliveryDate) && (
-                                        <Text style={{
-                                            fontFamily: 'Inter-SemiBold',
-                                            fontSize: 13,
-                                            textAlign: 'right',
-                                            color: (() => {
-                                                const d = item.deliveryDate || order.deliveryDate;
-                                                const isUrgent = (order as any).urgency === 'Urgent' || (order as any).urgency === 'Emergency';
+                                    <Text style={{
+                                        fontFamily: 'Inter-SemiBold',
+                                        fontSize: 13,
+                                        textAlign: 'right',
+                                        color: (() => {
+                                            const d = item.deliveryDate;
+                                            // Fix: No fallback
+                                            if (!d) return Colors.danger; // Warning color for missing date
 
-                                                const safeParse = (str: string) => {
-                                                    if (!str) return new Date();
-                                                    if (str.includes('/')) {
-                                                        const [p1, p2, y] = str.split('/').map(Number);
-                                                        if (p1 > 12) return new Date(y, p2 - 1, p1);
-                                                        return new Date(y, p2 - 1, p1);
-                                                    }
-                                                    return new Date(str);
-                                                };
+                                            const isUrgent = (order as any).urgency === 'Urgent' || (order as any).urgency === 'Emergency';
 
-                                                const checkIsNear = (dStr: string) => {
-                                                    const now = new Date();
-                                                    now.setHours(0, 0, 0, 0);
+                                            const safeParse = (str: string) => {
+                                                if (!str) return new Date();
+                                                if (str.includes('/')) {
+                                                    const [p1, p2, y] = str.split('/').map(Number);
+                                                    if (p1 > 12) return new Date(y, p2 - 1, p1);
+                                                    return new Date(y, p2 - 1, p1);
+                                                }
+                                                return new Date(str);
+                                            };
 
-                                                    const target = safeParse(dStr);
-                                                    target.setHours(0, 0, 0, 0);
+                                            const checkIsNear = (dStr: string) => {
+                                                const now = new Date();
+                                                now.setHours(0, 0, 0, 0);
 
-                                                    const diffTime = target.getTime() - now.getTime();
-                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                                    // Red if Near/Overdue (<= 3 days)
-                                                    return diffDays <= 3;
-                                                };
+                                                const target = safeParse(dStr);
+                                                target.setHours(0, 0, 0, 0);
 
-                                                const isNear = checkIsNear(d);
-                                                return (isUrgent || isNear) ? Colors.danger : Colors.textPrimary;
-                                            })()
-                                        }}>
-                                            {item.deliveryDate ? `Due: ${formatDate(item.deliveryDate)}` : formatDate(order.deliveryDate)}
-                                        </Text>
-                                    )}
+                                                const diffTime = target.getTime() - now.getTime();
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                // Red if Near/Overdue (<= 3 days)
+                                                return diffDays <= 3;
+                                            };
+
+                                            const isNear = checkIsNear(d);
+                                            return (isUrgent || isNear) ? Colors.danger : Colors.textPrimary;
+                                        })()
+                                    }}>
+                                        {item.deliveryDate ? `Due: ${formatDate(item.deliveryDate)}` : "Set Date"}
+                                    </Text>
                                     {item.totalCost && item.totalCost > 0 ? (
                                         <Text style={{ fontFamily: 'Inter-Regular', fontSize: 13, color: Colors.textSecondary, marginTop: 2 }}>{`₹${item.totalCost}`}</Text>
                                     ) : null}
@@ -790,12 +833,12 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 ) : (
                     <View style={{ gap: 12 }}>
                         {displayItems.map((item: any, index: any) => {
-                            const deliveryDate = item.deliveryDate || order.deliveryDate;
-                            const daysLeft = getDaysRemaining(deliveryDate);
+                            const deliveryDate = item.deliveryDate; // Fix: No fallback to order.deliveryDate
+                            const daysLeft = deliveryDate ? getDaysRemaining(deliveryDate) : -1;
                             const isUrgent = (order.urgency === 'Urgent' || order.urgency === 'Emergency' || item.urgency === 'Urgent' || item.urgency === 'High');
 
                             // Fix: Ensure daysLeft is calculated correctly for upcoming dates.
-                            const isNearing = daysLeft <= 3 && daysLeft >= 0 && item.status !== 'Completed' && item.status !== 'Cancelled';
+                            const isNearing = deliveryDate && daysLeft <= 3 && daysLeft >= 0 && item.status !== 'Completed' && item.status !== 'Cancelled';
                             const statusColor = getStatusColor((item.status as any) || 'Pending');
 
                             return (
@@ -818,21 +861,64 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                                                 </View>
                                             </View>
 
-                                            {deliveryDate && (
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                                    <Calendar size={14} color={isNearing ? Colors.danger : Colors.textSecondary} />
-                                                    <Text style={{
-                                                        fontSize: 14,
-                                                        fontFamily: isNearing ? 'Inter-SemiBold' : 'Inter-Medium',
-                                                        color: isNearing ? Colors.danger : Colors.textSecondary
-                                                    }}>
-                                                        {formatDate(deliveryDate)}
-                                                        {isNearing && daysLeft >= 0 && (
-                                                            <Text style={{ fontSize: 13 }}> ({daysLeft === 0 ? 'Today' : `${daysLeft}d left`})</Text>
+                                            {/* Date Logic: 
+                                                - Cancelled: Hide 'Set Date', show date if exists (read-only).
+                                                - In Progress: Show date/'Set Date' but read-only (disabled).
+                                                - Pending/Others: Editable.
+                                            */}
+                                            {(() => {
+                                                const isCancelled = order.status === 'Cancelled' || item.status === 'Cancelled';
+                                                const isInProgress = order.status === 'In Progress'; // User specified order status
+                                                const canEdit = !isCancelled && !isInProgress;
+
+                                                if (isCancelled && !deliveryDate) return null; // Hide if cancelled and no date
+
+                                                const content = (
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                                        <Calendar size={14} color={(!deliveryDate || isNearing) ? Colors.danger : Colors.textSecondary} />
+                                                        {deliveryDate ? (
+                                                            <>
+                                                                <Text style={{
+                                                                    fontSize: 14,
+                                                                    fontFamily: isNearing ? 'Inter-SemiBold' : 'Inter-Medium',
+                                                                    color: isNearing ? Colors.danger : Colors.textSecondary
+                                                                }}>
+                                                                    {formatDate(deliveryDate)}
+                                                                    {isNearing && daysLeft >= 0 && (
+                                                                        <Text style={{ fontSize: 13 }}> ({daysLeft === 0 ? 'Today' : `${daysLeft}d left`})</Text>
+                                                                    )}
+                                                                </Text>
+                                                                {canEdit && <Edit2 size={12} color={Colors.textSecondary} style={{ marginLeft: 2, opacity: 0.7 }} />}
+                                                            </>
+                                                        ) : (
+                                                            <Text style={{
+                                                                fontSize: 14,
+                                                                fontFamily: 'Inter-SemiBold',
+                                                                color: isInProgress ? Colors.textSecondary : Colors.danger, // Grey if disabled
+                                                                textDecorationLine: isInProgress ? 'none' : 'underline'
+                                                            }}>
+                                                                {isInProgress ? 'No Date Set' : 'Set Delivery Date'}
+                                                            </Text>
                                                         )}
-                                                    </Text>
-                                                </View>
-                                            )}
+                                                    </View>
+                                                );
+
+                                                if (canEdit) {
+                                                    return (
+                                                        <TouchableOpacity
+                                                            onPress={() => {
+                                                                setActiveItemIndex(index);
+                                                                setCalendarVisible(true);
+                                                            }}
+                                                        >
+                                                            {content}
+                                                        </TouchableOpacity>
+                                                    );
+                                                }
+
+                                                // Read-only view for In Progress or Cancelled (if date exists)
+                                                return <View style={{ opacity: 0.7 }}>{content}</View>;
+                                            })()}
 
                                             {isUrgent && (
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FECACA' }}>
@@ -1535,6 +1621,14 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                     )}
                 </View>
             </Modal>
+            {/* Inline Calendar Modal */}
+            <CalendarModal
+                visible={calendarVisible}
+                onClose={() => setCalendarVisible(false)}
+                onSelect={handleDateUpdate}
+                initialDate={activeItemIndex !== null ? displayItems[activeItemIndex]?.deliveryDate : null}
+                disablePastDates={true}
+            />
         </View >
     );
 };

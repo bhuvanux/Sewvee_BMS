@@ -57,6 +57,7 @@ import { useToast } from '../context/ToastContext';
 import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '../types';
 import { formatDate, getCurrentDate, getCurrentTime, parseDate } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
+import CalendarModal from '../components/CalendarModal';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -67,6 +68,7 @@ import SignatureScreen from 'react-native-signature-canvas';
 import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, getCustomerCopyHTML, printHTML } from '../services/pdfService';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
+import { uploadImage } from '../utils/storageUtils';
 import { useNavigation } from '@react-navigation/native';
 // Skia drawing temporarily disabled due to version compatibility
 
@@ -125,142 +127,7 @@ const QuantityStepper = ({ value, onChange }: { value: number, onChange: (val: n
     );
 };
 
-const CalendarModal = ({ visible, onClose, onSelect, initialDate, disablePastDates = true }: any) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Parse initialDate (DD/MM/YYYY) if exists, else today
-    let startMonth = today.getMonth();
-    let startYear = today.getFullYear();
-
-    if (initialDate && initialDate.includes('/')) {
-        const parts = initialDate.split('/');
-        if (parts.length === 3) {
-            startMonth = parseInt(parts[1]) - 1;
-            startYear = parseInt(parts[2]);
-        }
-    }
-
-    const [currentMonth, setCurrentMonth] = useState(startMonth);
-    const [currentYear, setCurrentYear] = useState(startYear);
-
-    // Update state when visible or initialDate changes
-    useEffect(() => {
-        if (visible) {
-            let m = today.getMonth();
-            let y = today.getFullYear();
-            if (initialDate && initialDate.includes('/')) {
-                const parts = initialDate.split('/');
-                if (parts.length === 3) {
-                    m = parseInt(parts[1]) - 1;
-                    y = parseInt(parts[2]);
-                }
-            }
-            setCurrentMonth(m);
-            setCurrentYear(y);
-        }
-    }, [visible, initialDate]);
-
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    const handlePrevMonth = () => {
-        if (currentMonth === 0) {
-            setCurrentMonth(11);
-            setCurrentYear(currentYear - 1);
-        } else {
-            setCurrentMonth(currentMonth - 1);
-        }
-    };
-
-    const handleNextMonth = () => {
-        if (currentMonth === 11) {
-            setCurrentMonth(0);
-            setCurrentYear(currentYear + 1);
-        } else {
-            setCurrentMonth(currentMonth + 1);
-        }
-    };
-
-    const handleDateClick = (day: number) => {
-        const d = String(day).padStart(2, '0');
-        const m = String(currentMonth + 1).padStart(2, '0');
-        const y = currentYear;
-        onSelect(`${d}/${m}/${y}`);
-        onClose();
-    };
-
-    const renderDays = () => {
-        const days = [];
-        const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-
-        // Empty slots for previous month
-        for (let i = 0; i < firstDay; i++) {
-            days.push(<View key={`empty-${i}`} style={styles.calendarDayEmpty} />);
-        }
-        // Actual days
-        for (let i = 1; i <= daysInMonth; i++) {
-            const dateStr = `${String(i).padStart(2, '0')}/${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`;
-            const cellDate = new Date(currentYear, currentMonth, i);
-            cellDate.setHours(0, 0, 0, 0);
-
-            // Check if date is in the past
-            const isPast = disablePastDates && cellDate < today;
-
-            // Highlight if matches initialDate
-            const isSelected = initialDate === dateStr;
-            const isToday = todayStr === dateStr && !isSelected;
-
-            days.push(
-                <TouchableOpacity
-                    key={i}
-                    style={[
-                        styles.calendarDay,
-                        isSelected && styles.calendarDaySelected,
-                        isToday && styles.calendarDayToday,
-                        isPast && styles.calendarDayDisabled
-                    ]}
-                    onPress={() => !isPast && handleDateClick(i)}
-                    disabled={isPast}
-                >
-                    <Text style={[
-                        styles.calendarDayText,
-                        isSelected && styles.calendarDayTextSelected,
-                        isToday && styles.calendarDayTextToday,
-                        isPast && styles.calendarDayTextDisabled
-                    ]}>{i}</Text>
-                </TouchableOpacity>
-            );
-        }
-        return days;
-    };
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-                <View style={styles.calendarContainer}>
-                    <View style={styles.calendarHeader}>
-                        <TouchableOpacity onPress={handlePrevMonth} style={{ padding: 8 }}>
-                            <ChevronDown size={20} color={Colors.textPrimary} style={{ transform: [{ rotate: '90deg' }] }} />
-                        </TouchableOpacity>
-                        <Text style={styles.calendarTitle}>{monthNames[currentMonth]} {currentYear}</Text>
-                        <TouchableOpacity onPress={handleNextMonth} style={{ padding: 8 }}>
-                            <ChevronDown size={20} color={Colors.textPrimary} style={{ transform: [{ rotate: '-90deg' }] }} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={styles.weekRow}>
-                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                            <Text key={i} style={styles.weekDayText}>{d}</Text>
-                        ))}
-                    </View>
-                    <View style={styles.daysGrid}>
-                        {renderDays()}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        </Modal>
-    );
-};
+// CalendarModal removed (imported)
 
 const OutfitDrawer = ({ visible, onClose, outfits, onSelect, currentType }: any) => {
     return (
@@ -603,6 +470,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     // State for drilling down into a sub-category
     const [viewingSubCategoryId, setViewingSubCategoryId] = useState<string | null>(null);
+    // State for drilling down into an option (Level 5)
+    const [viewingOptionId, setViewingOptionId] = useState<string | null>(null);
 
     useEffect(() => {
         if (categories.length > 0 && !selectedCategoryId) {
@@ -615,10 +484,12 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
     const onSelectCategory = (id: string) => {
         setSelectedCategoryId(id);
         setViewingSubCategoryId(null);
+        setViewingOptionId(null);
     };
 
     const activeCategory = categories.find(c => c.id === selectedCategoryId);
     const activeSubCategory = activeCategory?.subCategories?.find((s: any) => s.id === viewingSubCategoryId);
+    const activeOption = activeSubCategory?.options?.find((o: any) => o.id === viewingOptionId);
 
     const updateMeasurement = (key: string, val: string) => {
         onChange({
@@ -638,6 +509,7 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         if (opt.options && opt.options.length > 0) {
             // Drill down
             setViewingSubCategoryId(opt.id);
+            setViewingOptionId(null);
         } else {
             // Leaf node selection (Level 2)
             // If we are already in Level 3, this is called for the Option item
@@ -645,9 +517,19 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         }
     };
 
-    const handleLevel3Selection = (subCatName: string, optionName: string) => {
-        // Save as "Paan - Deep"
-        const finalValue = `${subCatName} - ${optionName}`;
+    const handleLevel4Press = (opt: any) => {
+        if (opt.subOptions && opt.subOptions.length > 0) {
+            setViewingOptionId(opt.id);
+        } else {
+            // Save as "Paan - Deep"
+            const finalValue = `${activeSubCategory.name} - ${opt.name}`;
+            updateMeasurement(activeCategory.name, finalValue);
+        }
+    };
+
+    const handleLevel5Selection = (subCatName: string, optionName: string, subOptionName: string) => {
+        // Save as "Paan - Fancy - Blue"
+        const finalValue = `${subCatName} - ${optionName} - ${subOptionName}`;
         updateMeasurement(activeCategory.name, finalValue);
     };
 
@@ -688,7 +570,69 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
             </View>
         );
 
-        // LEVEL 3: Viewing Options for a SubCategory
+        // LEVEL 4: Viewing Sub-Options for an Option (Level 5)
+        if (viewingOptionId && activeOption) {
+            const level5Options = activeOption.subOptions || [];
+            const selectedValue = state.currentOutfit.measurements?.[activeCategory.name];
+
+            return (
+                <View style={{ flex: 1 }}>
+                    {/* Header with Back Button */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                        <TouchableOpacity onPress={() => setViewingOptionId(null)} style={{ padding: 4, marginRight: 8 }}>
+                            <ArrowLeft size={20} color={Colors.textPrimary} />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerSubtitle}>{activeSubCategory.name} - {activeOption.name}</Text>
+                            <Text style={styles.sectionTitle}>Select Sub-Option</Text>
+                        </View>
+                    </View>
+
+                    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                        <View style={{ gap: 12 }}>
+                            {level5Options.map((opt: any) => {
+                                const fullValue = `${activeSubCategory.name} - ${activeOption.name} - ${opt.name}`;
+                                const isSelected = selectedValue === fullValue;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={opt.id}
+                                        style={[
+                                            styles.optionListItem,
+                                            isSelected && styles.optionListItemSelected
+                                        ]}
+                                        onPress={() => handleLevel5Selection(activeSubCategory.name, activeOption.name, opt.name)}
+                                    >
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                            <View style={styles.optionListImageContainer}>
+                                                {opt.image ? (
+                                                    <Image source={{ uri: opt.image }} style={styles.optionListImage} />
+                                                ) : (
+                                                    <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
+                                                )}
+                                            </View>
+                                            <Text
+                                                style={[
+                                                    styles.optionListText,
+                                                    isSelected && styles.optionListTextSelected
+                                                ]}
+                                            >
+                                                {opt.name}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                            {isSelected && <View style={styles.radioInner} />}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </ScrollView>
+                </View>
+            );
+        }
+
+        // LEVEL 3: Viewing Options for a SubCategory (Level 4)
         if (viewingSubCategoryId && activeSubCategory) {
             const nestedOptions = activeSubCategory.options || [];
             const selectedValue = state.currentOutfit.measurements?.[activeCategory.name];
@@ -709,8 +653,11 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
                         <View style={{ gap: 12 }}>
                             {nestedOptions.map((opt: any) => {
-                                const fullValue = `${activeSubCategory.name} - ${opt.name}`;
-                                const isSelected = selectedValue === fullValue;
+                                // Important: Check if selectedValue STARTS with this full Level 4 path
+                                // This handles BOTH direct selection and Level 5 selection
+                                const fullValue4 = `${activeSubCategory.name} - ${opt.name}`;
+                                const isSelected = selectedValue && (selectedValue === fullValue4 || selectedValue.startsWith(fullValue4 + ' - '));
+                                const hasChildren = opt.subOptions && opt.subOptions.length > 0;
 
                                 return (
                                     <TouchableOpacity
@@ -719,10 +666,9 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                             styles.optionListItem,
                                             isSelected && styles.optionListItemSelected
                                         ]}
-                                        onPress={() => handleLevel3Selection(activeSubCategory.name, opt.name)}
+                                        onPress={() => handleLevel4Press(opt)}
                                     >
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                            {/* Image or Icon */}
                                             <View style={styles.optionListImageContainer}>
                                                 {opt.image ? (
                                                     <Image source={{ uri: opt.image }} style={styles.optionListImage} />
@@ -730,22 +676,31 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                                     <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
                                                 )}
                                             </View>
-
-                                            {/* Text */}
-                                            <Text
-                                                style={[
-                                                    styles.optionListText,
-                                                    isSelected && styles.optionListTextSelected
-                                                ]}
-                                            >
-                                                {opt.name}
-                                            </Text>
+                                            <View style={{ flex: 1 }}>
+                                                <Text
+                                                    style={[
+                                                        styles.optionListText,
+                                                        isSelected && styles.optionListTextSelected
+                                                    ]}
+                                                >
+                                                    {opt.name}
+                                                </Text>
+                                                {/* Show selected sub-index if any */}
+                                                {isSelected && hasChildren && selectedValue.includes(' - ') && (
+                                                    <Text style={{ fontSize: 11, color: Colors.primary, fontFamily: 'Inter-Medium', marginTop: 2 }}>
+                                                        {selectedValue.split(' - ').slice(2).join(' - ')}
+                                                    </Text>
+                                                )}
+                                            </View>
                                         </View>
 
-                                        {/* Right Side: Radio/Check */}
-                                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
-                                            {isSelected && <View style={styles.radioInner} />}
-                                        </View>
+                                        {hasChildren ? (
+                                            <ChevronRight size={18} color={Colors.textSecondary} />
+                                        ) : (
+                                            <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                                {isSelected && <View style={styles.radioInner} />}
+                                            </View>
+                                        )}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -1326,6 +1281,10 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const { showToast } = useToast();
     // const canvasRef = useRef<any>(null); // Skia drawing temporarily disabled
     const [calendarVisible, setCalendarVisible] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { user } = useAuth();
+
+
 
     const handleDateSelect = (date: string) => {
         onChange({
@@ -1347,19 +1306,20 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         });
 
         if (!result.canceled && result.assets) {
+            setIsUploading(true);
             const newImages: string[] = [];
-
             // Process all selected images
             for (const asset of result.assets) {
                 try {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        asset.uri,
-                        [{ resize: { width: 1080 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-                    );
-                    newImages.push(manipResult.uri);
+                    // Upload to Firebase Storage
+                    const timestamp = Date.now();
+                    const path = `orders/${user?.uid || 'anonymous'}/${timestamp}_${Math.random().toString(36).substring(7)}.jpg`;
+                    const downloadUrl = await uploadImage(asset.uri, path);
+                    newImages.push(downloadUrl);
                 } catch (e) {
-                    newImages.push(asset.uri);
+                    console.error("Upload failed", e);
+                    showToast("Failed to upload image. Please try again.", "error");
+                    // Do NOT add local URI as fallback, that breaks sync.
                 }
             }
 
@@ -1370,6 +1330,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                     images: [...currentImages, ...newImages]
                 }
             });
+            setIsUploading(false);
         }
     };
 
@@ -1575,19 +1536,34 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
                     {/* Logic: If empty -> Big Box. If has images -> Small Add Button in Grid */}
                     {(!state.currentOutfit.images || state.currentOutfit.images.length === 0) ? (
-                        <TouchableOpacity style={styles.emptyUploadBox} onPress={pickImage}>
-                            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' }}>
-                                <Upload size={28} color={Colors.primary} />
-                            </View>
-                            <View style={{ alignItems: 'center' }}>
-                                <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.primary, fontSize: 15 }}>Click to Upload</Text>
-                                <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary, fontSize: 13, marginTop: 4 }}>Select multiple photos</Text>
-                            </View>
+                        <TouchableOpacity style={styles.emptyUploadBox} onPress={pickImage} disabled={isUploading}>
+                            {isUploading ? (
+                                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                                    <ActivityIndicator size="large" color={Colors.primary} />
+                                    <Text style={{ fontFamily: 'Inter-Medium', color: Colors.primary, marginTop: 10 }}>Uploading...</Text>
+                                </View>
+                            ) : (
+                                <>
+                                    <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Upload size={28} color={Colors.primary} />
+                                    </View>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.primary, fontSize: 15 }}>Click to Upload</Text>
+                                        <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary, fontSize: 13, marginTop: 4 }}>Select multiple photos</Text>
+                                    </View>
+                                </>
+                            )}
                         </TouchableOpacity>
                     ) : (
-                        <TouchableOpacity style={styles.addImageBtn} onPress={pickImage}>
-                            <Plus size={24} color={Colors.primary} />
-                            <Text style={styles.addImageText}>Add</Text>
+                        <TouchableOpacity style={styles.addImageBtn} onPress={pickImage} disabled={isUploading}>
+                            {isUploading ? (
+                                <ActivityIndicator size="small" color={Colors.primary} />
+                            ) : (
+                                <>
+                                    <Plus size={24} color={Colors.primary} />
+                                    <Text style={styles.addImageText}>Add</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
                     )}
                 </View>
@@ -2218,7 +2194,7 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                                             {(!editOrderId || !item.isExisting) && (
                                                 <TouchableOpacity
                                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                                                    onPress={() => item.isCurrent ? onChange({ currentOutfit: { ...state.currentOutfit, type: '', quantity: 1, measurements: {}, images: [], notes: '', audioUri: null, totalCost: 0 } }) : confirmDeleteItem(item.cartIndex)}
+                                                    onPress={() => confirmDeleteItem(item.isCurrent ? -1 : item.cartIndex)}
                                                 >
                                                     <Trash2 size={16} color={Colors.danger} />
                                                     <Text style={{ fontSize: 13, color: Colors.danger, fontFamily: 'Inter-SemiBold' }}>Delete</Text>
@@ -2364,7 +2340,7 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 18, color: Colors.textPrimary }}>Total Balance</Text>
+                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 18, color: Colors.textPrimary }}>Total Balance <Text style={{ fontSize: 10, color: '#ccc' }}>v1.0.2</Text></Text>
                             <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>To be collected on delivery</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
@@ -2488,6 +2464,7 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 };
 
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
+    const isDiscardingRef = useRef(false);
     const { customers, outfits, addOrder, updateOrder, addPayment, addCustomer, updateCustomer, orders } = useData();
     const { user, company } = useAuth();
     const { showToast } = useToast();
@@ -2632,41 +2609,107 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const handleConfirmDelete = () => {
         if (itemToDeleteIndex !== null) {
             handleDeleteItem(itemToDeleteIndex);
-            setDeleteSheetVisible(false);
-            setItemToDeleteIndex(null);
         }
     };
 
-    const confirmDeleteItem = (index: number) => {
-        // Check if this is the last item (New Order mode only)
-        const newCart = state.cart;
-        // Total active items = cart length + currentOutfit (if active)
-        // Actually, if we are in Step 4, we see a list.
-        // If we delete an item, checks remaining.
-        // If cart has 1 item and no current outfit, it's the last one.
-        const isLastItem = newCart.length === 1 && !state.currentOutfit.type;
+    const handleDeleteItem = (index: number | null) => {
+        // If deleting the current working item (not in cart yet)
+        if (index === -1) {
+            // Reset current outfit
+            updateState({
+                currentOutfit: {
+                    ...state.currentOutfit,
+                    type: '',
+                    quantity: 1,
+                    measurements: {},
+                    images: [],
+                    notes: '',
+                    audioUri: null,
+                    totalCost: 0
+                }
+            });
 
+            // Check if this results in a completely empty state for new orders
+            // If cart is empty and we just cleared the current item, go back
+            if (state.cart.length === 0 && !editOrderId) {
+                isDiscardingRef.current = true;
+                navigation.goBack();
+            }
+        }
+        else if (index !== null) {
+            // Deleting from cart
+            const newCart = [...state.cart];
+            newCart.splice(index, 1);
+
+            // Critical: If we just removed the last item from cart, AND current outfit has no type,
+            // we are effectively empty.
+            const remainingCount = newCart.length + (state.currentOutfit.type ? 1 : 0);
+
+            updateState({ cart: newCart });
+
+            if (remainingCount === 0 && !editOrderId) {
+                isDiscardingRef.current = true;
+                navigation.goBack();
+            }
+        }
+
+        setDeleteSheetVisible(false);
+        setItemToDeleteIndex(null);
+    };
+
+    const confirmDeleteItem = (index: number) => {
+        // Correctly calculate future items
+        // Cart items count
+        const cartCount = state.cart.length;
+        // Current working item active?
+        const currentActive = state.currentOutfit.type ? 1 : 0;
+
+        let futureTotal = 0;
+
+        if (index === -1) {
+            // Deleting current item. Future = Cart Count
+            futureTotal = cartCount;
+        } else {
+            // Deleting from cart. Future = (Cart Count - 1) + Current Active
+            futureTotal = (cartCount - 1) + currentActive;
+        }
+
+        const isLastItem = futureTotal === 0;
+
+        // Discard Order Warning (Only for New Orders when deleting the last item)
         if (isLastItem && !editOrderId) {
             setItemToDeleteIndex(index);
-            // Change sheet content dynamically
-            // Requires state for Sheet Title/Desc or passing it
-            // Assuming Sheet uses hardcoded props in render? 
-            // We need to update the state variable for the sheet? 
-            // Or use a state object for sheet config.
-
-            // Let's create a temp state for sheet config if not exists
+            setDeleteSheetConfig({
+                title: "Discard Order?",
+                description: "This is the only item in the order. Deleting it will discard the order draft. Are you sure?",
+                confirmText: "Discard",
+                isDiscard: true
+            });
             setDeleteSheetVisible(true);
             return;
         }
 
+        // Just delete the item, no scary warning
         setItemToDeleteIndex(index);
+        setDeleteSheetConfig({
+            title: "Delete Item",
+            description: "Are you sure you want to delete this item?",
+            confirmText: "Delete",
+            isDiscard: false
+        });
         setDeleteSheetVisible(true);
     };
 
     // Exit Warning Logic
     useEffect(() => {
         const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            // IF we are intentionally discarding, bypassing checks
+            if (isDiscardingRef.current) {
+                return;
+            }
+
             // If we are just navigating between steps in the stack (internal), don't block?
+
             // React Navigation 'beforeRemove' is triggered only when "leaving" the screen (pop).
 
             // Check if we have unsaved changes
@@ -2697,9 +2740,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
         return unsubscribe;
     }, [navigation, state.cart, state.currentOutfit, successModalVisible, loading]);
-
-
-
     useEffect(() => {
         // Configure Audio for playback and recording
         const configureAudio = async () => {
@@ -2745,8 +2785,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     audioUri: it.audioUri || null,
                     fabricSource: it.fabricSource || 'Customer',
                     totalCost: it.totalCost || it.rate || it.amount || 0,
-                    // Fix: Persist existing item date/urgency, fallback to order values
-                    deliveryDate: it.deliveryDate || order.deliveryDate,
+                    // Fix: Persist existing item date/urgency, NO FALLBACK to order date to prevent sync bug
+                    deliveryDate: it.deliveryDate,
                     trialDate: it.trialDate || order.trialDate,
                     urgency: it.urgency || (order as any).urgency || 'Normal',
                     isExisting: true // Mark as existing from DB
@@ -2973,63 +3013,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         setCurrentStep(0);
     };
 
-    const handleDeleteItem = (index: number) => {
-        // Special Case: If this is the LAST item in the list
-        // Calculate effective total items (cart items + current item if active)
-        // Actually, handleDeleteItem is called on cart items.
-        // If we are deleting a cart item, and it's the only one (and no current item active?)
-        // Let's rely on cart length.
 
-        const newCart = [...state.cart];
-
-        // CHECK: Is this the last item?
-        // Logic: If we are in "New Order" mode (no editOrderId) AND cart has 1 item AND we are deleting it.
-        // Also check if currentOutfit is empty/inactive.
-        const isLastItem = newCart.length === 1 && !state.currentOutfit.type;
-
-        if (isLastItem && !editOrderId) {
-            // Trigger Discard Order Warning relative to the Sheet calling this?
-            // But wait, the sheet is already closed when this executes? 
-            // No, confirmDeleteItem sets the index, then confirms.
-            // We should have intercepted this BEFORE calling handleDeleteItem ideally, or inside here we navigte back.
-            // But handleDeleteItem is called AFTER confirmation in the current code structure?
-            // Let's look at `handleConfirmDelete` -> calls `handleDeleteItem`.
-            // We need to change the CONFIRMATION text logic mainly.
-            // But if we are here, surely we proceed? 
-            // Wait, user requirement: "warn it in the drawer and close that page".
-            // So we need to change what logic happens in `confirmDeleteItem` or `handleConfirmDelete`.
-        }
-
-        newCart.splice(index, 1);
-
-        let newUpdates: any = { cart: newCart };
-
-        // If we represent the 'Current Item' as the one being edited, we must shift the index
-        // if an item BEFORE it is deleted.
-        if (editItemIndex !== undefined && editItemIndex !== null) {
-            if (index < editItemIndex) {
-                navigation.setParams({ editItemIndex: editItemIndex - 1 });
-            } else if (index === editItemIndex) {
-                // Should not happen if UI hides it, but safety:
-                navigation.setParams({ editItemIndex: undefined });
-                // Also reset current outfit if we deleted the source
-                newUpdates.currentOutfit = {
-                    id: `current_${Date.now()}`,
-                    type: 'Blouse',
-                    quantity: 1,
-                    measurements: {},
-                    images: [],
-                    notes: '',
-                    totalCost: 0
-                };
-            }
-        }
-        updateState(newUpdates);
-
-        // If we just deleted the last item and it was a new order (and we didn't just bail), 
-        // we might end up with empty screen. 
-        // Logic moved to `confirmDeleteItem` to handle the "Discard" flow BEFORE this.
-    };
 
     const handleEditItem = (index: number) => {
         const itemToEdit = state.cart[index];
