@@ -134,13 +134,52 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
     };
 
 
+    const [manualPhone, setManualPhone] = useState('');
 
-    // Render Error State if Data is Missing
+    // Render Manual Input if Phone is Missing (e.g. Offline + Email Login)
     if (!targetPhone || targetPhone.trim() === '') {
+
+        const handleManualSubmit = () => {
+            if (manualPhone.length >= 10) {
+                // Update the param so the component re-renders with the targetPhone
+                navigation.setParams({ phone: manualPhone });
+            } else {
+                showAlert('Invalid Phone', 'Please enter a valid 10-digit number', 'error');
+            }
+        };
+
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+                <View style={[styles.container, { padding: Spacing.xl, justifyContent: 'center' }]}>
+                    <Text style={styles.title}>Enter Phone Number</Text>
+                    <Text style={styles.subtitle}>
+                        We couldn't retrieve your phone number. Please enter it to proceed with verification.
+                    </Text>
+
+                    <TextInput
+                        style={[styles.otpInput, { flex: 0, width: '100%', fontSize: 18, textAlign: 'left', paddingHorizontal: 16, marginTop: 20 }]}
+                        value={manualPhone}
+                        onChangeText={setManualPhone}
+                        placeholder="10-digit mobile number"
+                        keyboardType="phone-pad"
+                        maxLength={10}
+                    />
+
+                    <TouchableOpacity
+                        style={[styles.verifyBtn, { marginTop: 20 }]}
+                        onPress={handleManualSubmit}
+                    >
+                        <Text style={styles.verifyBtnText}>Send OTP</Text>
+                        <ArrowRight size={20} color={Colors.white} />
+                    </TouchableOpacity>
+                </View>
+                <AlertModal
+                    visible={modalConfig.visible}
+                    title={modalConfig.title}
+                    message={modalConfig.message}
+                    onClose={modalConfig.onClose}
+                />
+            </KeyboardAvoidingView>
         );
     }
 
@@ -149,7 +188,7 @@ const VerifyOtpScreen = ({ route, navigation }: any) => {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.header}>
                     <View style={styles.iconContainer}>
                         <ShieldCheck size={40} color={Colors.white} />

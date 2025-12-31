@@ -91,7 +91,7 @@ const SettingsScreen = ({ navigation }: any) => {
                     </View>
                     <TouchableOpacity
                         style={styles.editProfileBtn}
-                        onPress={() => navigation.navigate('EditBusinessProfile')}
+                        onPress={() => navigation.navigate('EditProfile')}
                     >
                         <Text style={styles.editProfileText}>Edit Profile</Text>
                     </TouchableOpacity>
@@ -131,22 +131,6 @@ const SettingsScreen = ({ navigation }: any) => {
                 </View>
             </View>
 
-
-
-            <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Security</Text>
-                <View style={styles.card}>
-                    <SettingItem
-                        icon={Lock}
-                        title="Change App PIN"
-                        value="Update your 4-digit code"
-                        onPress={() => setChangePinVisible(true)}
-                        color="#EF4444"
-                        isLast={true}
-                    />
-                </View>
-            </View>
-
             <View style={styles.section}>
                 <Text style={styles.sectionLabel}>App Settings</Text>
                 <View style={styles.card}>
@@ -154,20 +138,20 @@ const SettingsScreen = ({ navigation }: any) => {
                         icon={Share2}
                         title="Share App"
                         color="#8B5CF6"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('ShareApp')}
                     />
                     <SettingItem
                         icon={HelpCircle}
                         title="Help & Support"
                         color="#F59E0B"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('HelpSupport')}
                     />
                     <SettingItem
                         icon={Info}
-                        title="About Sewvee Mini"
+                        title="About Sewvee"
                         color="#6B7280"
                         value="v1.0.2"
-                        onPress={() => { }}
+                        onPress={() => navigation.navigate('About')}
                         isLast={true}
                     />
                 </View>
@@ -179,8 +163,16 @@ const SettingsScreen = ({ navigation }: any) => {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-                <Text style={styles.footerText}>Handcrafted for Boutiques</Text>
-                <Text style={styles.versionText}>Powered by Sewvee</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={[styles.footerText, { fontStyle: 'italic', marginRight: 4 }]}>Handcrafted for</Text>
+                    <Text style={{ fontSize: 16, color: Colors.primary, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Didot-Italic' : 'serif' }}>Boutiques</Text>
+                </View>
+                <TouchableOpacity onLongPress={() => navigation.navigate('DevSettings')} delayLongPress={2000} activeOpacity={0.8}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, color: Colors.textSecondary, opacity: 0.7 }}>Powered by</Text>
+                        <Text style={{ fontSize: 12, color: Colors.textPrimary, marginLeft: 4, letterSpacing: 1, fontFamily: 'Inter-Bold' }}>SEWVEE</Text>
+                    </View>
+                </TouchableOpacity>
             </View>
 
             <View style={{ height: 40 }} />

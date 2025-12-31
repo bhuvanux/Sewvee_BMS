@@ -9,10 +9,12 @@ import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
-    Dimensions
+    Dimensions,
+    ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { X, Search, User, Plus, Check, Phone, MapPin } from 'lucide-react-native';
+import { useToast } from '../context/ToastContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,6 +26,7 @@ interface CustomerSelectionModalProps {
 }
 
 const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: CustomerSelectionModalProps) => {
+    const { showToast } = useToast();
     const [mode, setMode] = useState<'existing' | 'new'>('existing');
     const [search, setSearch] = useState('');
     const [filteredCustomers, setFilteredCustomers] = useState(customers);
@@ -54,6 +57,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
             ...newCustomer,
             isNew: true
         });
+        showToast('Customer added successfully', 'success');
         resetForm();
     };
 
@@ -74,8 +78,9 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                     style={styles.container}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
                 >
                     <View style={styles.handle} />
 
@@ -152,7 +157,11 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                             />
                         </View>
                     ) : (
-                        <View style={styles.content}>
+                        <ScrollView
+                            style={styles.content}
+                            contentContainerStyle={{ paddingBottom: 20 }}
+                            keyboardShouldPersistTaps="handled"
+                        >
                             <View style={styles.formGroup}>
                                 <View style={styles.inputRow}>
                                     <User size={20} color={Colors.textSecondary} />
@@ -198,7 +207,7 @@ const CustomerSelectionModal = ({ visible, onClose, onSelect, customers }: Custo
                             >
                                 <Text style={styles.confirmBtnText}>Add & Select Customer</Text>
                             </TouchableOpacity>
-                        </View>
+                        </ScrollView>
                     )}
                 </KeyboardAvoidingView>
             </View>

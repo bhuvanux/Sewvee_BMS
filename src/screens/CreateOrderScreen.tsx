@@ -335,7 +335,11 @@ const CreateOrderScreen = ({ route, navigation }: any) => {
     };
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView 
+            style={styles.container} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+        >
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.headerCard}>
                     <View style={styles.headerRow}>
@@ -658,7 +662,7 @@ const CreateOrderScreen = ({ route, navigation }: any) => {
                 description={alertDesc}
                 type={alertType}
             />
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 

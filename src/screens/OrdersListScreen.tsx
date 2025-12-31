@@ -11,7 +11,7 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus } from 'lucide-react-native';
+import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus, Flame } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,40 +75,149 @@ const OrdersListScreen = ({ navigation }: any) => {
         return acc;
     }, { total: 0, advance: 0, balance: 0 });
 
-    const renderItem = ({ item }: any) => (
-        <TouchableOpacity
-            style={styles.orderCard}
-            onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
-        >
-            <View style={styles.orderHeader}>
-                <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
-                </View>
-            </View>
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        const targetDate = parseDate(dateString);
+        const today = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = targetDate.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
 
-            <View style={styles.orderContent}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.customerName}>{item.customerName}</Text>
-                    <View style={styles.dateRow}>
-                        <Calendar size={12} color={Colors.textSecondary} />
-                        <Text style={styles.dateText}>{formatDate(item.date || item.createdAt)}</Text>
-                    </View>
-                </View>
-                <View style={styles.amountArea}>
-                    <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
-                        <Text style={styles.amount}>₹{item.total}</Text>
-                        {item.balance > 0 ? (
-                            <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
-                        ) : (
-                            <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+    const renderItem = ({ item }: any) => {
+        // Logic to find earliest delivery date from items or fallback to order date
+        let targetDateVal = item.deliveryDate;
+        let isNearingDeadline = false;
+        let daysLeft = 999;
+
+        // Check if we have sub-items with delivery dates
+        if (item.items && item.items.length > 0) {
+            const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
+
+            // If we have active items, use their dates. 
+            // If all items are cancelled, we might still want to show the latest date or just the order date? 
+            // User requirement: "ignore cancelled items". So if all cancelled, fallback to order date is fine, or treat as normal.
+
+            // Allow searching through all items if no active items exist? No, user wants to IGNORE cancelled.
+            // So we only look at activeItems.
+            const sourceItems = activeItems.length > 0 ? activeItems : []; // If all cancelled, we have empty list.
+
+            const validDates = sourceItems
+                .map((i: any) => i.deliveryDate)
+                .filter((d: any) => d)
+                .map((d: string) => parseDate(d).getTime());
+
+            if (validDates.length > 0) {
+                const minDate = Math.min(...validDates);
+                targetDateVal = new Date(minDate).toISOString();
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const tDate = new Date(minDate);
+                tDate.setHours(0, 0, 0, 0);
+                const diff = tDate.getTime() - today.getTime();
+                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+            } else {
+                // If no active items with dates (or all cancelled), fallback to main order delivery date
+                // But wait, if order is active but all items cancelled, logic says order should be cancelled?
+                // Assuming mixed state. Fallback to order.deliveryDate
+                daysLeft = getDaysRemaining(item.deliveryDate);
+            }
+        } else {
+            daysLeft = getDaysRemaining(item.deliveryDate);
+        }
+
+        // Re-verify isNearing based on calculated daysLeft
+        isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
+
+        // Check for urgency in any item
+        const hasUrgentItem = item.items && item.items.some((i: any) => (i.urgency === 'Urgent' || i.urgency === 'High') && i.status !== 'Cancelled');
+        const isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
+
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.orderCard,
+                    isNearingDeadline && { borderColor: '#FECACA', backgroundColor: '#FEF2F2', borderWidth: 1.5 }
+                ]}
+                onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+            >
+                <View style={styles.orderHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
+                        {isUrgent && (
+                            <View style={{ backgroundColor: '#FEE2E2', padding: 4, borderRadius: 12 }}>
+                                <Flame size={14} color={Colors.danger} fill={Colors.danger} />
+                            </View>
                         )}
                     </View>
-                    <ChevronRight size={18} color={Colors.textSecondary} />
+                    {item.items && item.items.length > 1 ? (
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {Object.entries(item.items.reduce((acc: any, i: any) => {
+                                const s = i.status || 'Pending';
+                                acc[s] = (acc[s] || 0) + 1;
+                                return acc;
+                            }, {})).map(([status, count]: any) => (
+                                <View key={status} style={{
+                                    backgroundColor: getStatusColor(status),
+                                    width: 22, height: 22, borderRadius: 11,
+                                    justifyContent: 'center', alignItems: 'center',
+                                    borderWidth: 1, borderColor: 'white',
+                                    ...Shadow.subtle
+                                }}>
+                                    <Text style={{ color: 'white', fontSize: 11, fontFamily: 'Inter-Bold' }}>{count}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+                            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+                        </View>
+                    )}
                 </View>
-            </View>
-        </TouchableOpacity>
-    );
+
+                <View style={styles.orderContent}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.customerName}>{item.customerName}</Text>
+                        <View style={styles.dateRow}>
+                            <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
+                            <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
+                                {/* Display the calculated earliest date if nearing, else standard date */}
+                                {isNearingDeadline && daysLeft < 500
+                                    ? `Due: ${daysLeft === 0 ? 'Today' : (daysLeft === 1 ? 'Tomorrow' : formatDate(targetDateVal))}`
+                                    : (targetDateVal ? `Delivery: ${formatDate(targetDateVal)}` : formatDate(item.date || item.createdAt))
+                                }
+                            </Text>
+                        </View>
+                        {isNearingDeadline && (
+                            <Text style={{ fontSize: 11, color: Colors.danger, fontFamily: 'Inter-Medium', marginTop: 2 }}>
+                                {daysLeft === 0 ? 'Delivery Today' : `Due in ${daysLeft} days`}
+                            </Text>
+                        )}
+                    </View>
+                    <View style={styles.amountArea}>
+                        <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                            <Text style={[
+                                styles.amount,
+                                item.status === 'Cancelled' && { textDecorationLine: 'line-through', color: Colors.textSecondary }
+                            ]}>
+                                ₹{item.total}
+                            </Text>
+                            {item.status !== 'Cancelled' && (
+                                item.balance > 0 ? (
+                                    <Text style={styles.balanceTag}>Due: ₹{item.balance}</Text>
+                                ) : (
+                                    <Text style={[styles.balanceTag, { color: Colors.success }]}>Paid</Text>
+                                )
+                            )}
+                        </View>
+                        <ChevronRight size={18} color={Colors.textSecondary} />
+                    </View>
+                </View>
+            </TouchableOpacity >
+        );
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -157,6 +266,13 @@ const OrdersListScreen = ({ navigation }: any) => {
                                 borderColor: Colors.white
                             }} />
                         )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
+                        onPress={() => navigation.navigate('CreateOrderFlow')}
+                    >
+                        <Plus size={20} color={Colors.white} />
                     </TouchableOpacity>
                 </View>
 
@@ -207,7 +323,10 @@ const OrdersListScreen = ({ navigation }: any) => {
                     activeOpacity={1}
                     onPress={() => setIsFilterVisible(false)}
                 >
-                    <View style={styles.modalContent}>
+                    <View style={[
+                        styles.modalContent,
+                        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                    ]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Filter & Sort</Text>
                             <TouchableOpacity
@@ -311,13 +430,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                 }
             />
 
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => navigation.navigate('CreateOrderFlow')}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>New Order</Text>
-            </TouchableOpacity>
+
         </View>
     );
 };
@@ -420,7 +533,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     },
     modalHeader: {
         flexDirection: 'row',

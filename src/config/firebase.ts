@@ -1,14 +1,22 @@
 import { getAuth } from '@react-native-firebase/auth';
 import { getFirestore } from '@react-native-firebase/firestore';
+import { getStorage } from '@react-native-firebase/storage';
 import { getAnalytics, logEvent as firebaseLogEvent } from '@react-native-firebase/analytics';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Firebase is auto-initialized from google-services.json on Android
 // and GoogleService-Info.plist on iOS
+
 // No manual initialization needed with React Native Firebase!
 
-// Environment Toggle - Update this for Production Builds
-export const IS_STAGING = false;
+// Environment Toggle - Dynamic based on EAS Build Profile or Expo Config
+export const IS_STAGING = Constants.expoConfig?.extra?.isStaging ?? false;
+
+// --- MANDATORY RUNTIME VERIFICATION ---
+console.log('🔥 Environment:', IS_STAGING ? 'STAGING/DEV' : 'PRODUCTION');
+console.log('🔥 Firebase Project:', 'sewvee'); // Hardcoded expectation for PROD
+// --------------------------------------
 
 // Constant Master Password for Firebase Auth
 export const MASTER_AUTH_PASS = "Sewvee_Auth_Secure_2025";
@@ -25,8 +33,10 @@ export const COLLECTIONS = {
 };
 
 // Export the modular getters
+// Export the modular getters
 export const auth = () => getAuth();
 export const firestore = () => getFirestore();
+export const storage = () => getStorage();
 export const analytics = () => getAnalytics();
 
 export const logEvent = async (eventName: string, params?: object) => {
@@ -52,5 +62,6 @@ export const logScreenView = async (screenName: string) => {
 export default {
     get auth() { return getAuth(); },
     get firestore() { return getFirestore(); },
+    get storage() { return getStorage(); },
     get analytics() { return getAnalytics(); }
 };

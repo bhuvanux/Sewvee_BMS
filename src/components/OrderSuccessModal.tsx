@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Dimensions, Platform } from 'react-native';
 import { Colors, Spacing, Shadow } from '../constants/theme';
 import { Check, X, Printer } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height } = Dimensions.get('window');
 
@@ -38,6 +39,8 @@ const OrderSuccessModal = ({
         }
     }, [visible]);
 
+    const insets = useSafeAreaInsets();
+
     if (!order) return null;
 
     return (
@@ -51,7 +54,10 @@ const OrderSuccessModal = ({
                 {/* Background Tap to Close */}
                 <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
 
-                <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
+                <Animated.View style={[
+                    styles.container,
+                    { transform: [{ translateY: slideAnim }], paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                ]}>
 
                     {/* Header Handle */}
                     <View style={styles.handle} />
@@ -123,7 +129,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 24,
         width: '100%',
         maxHeight: '85%',
-        paddingBottom: 34, // Safe area padding
+        paddingBottom: Math.max(34, Platform.OS === 'android' ? 80 : 34), // Standardized padding
         ...Shadow.large,
     },
     handle: {

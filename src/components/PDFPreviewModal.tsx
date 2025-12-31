@@ -1,15 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, SafeAreaView, ActivityIndicator, Share } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
+import { Colors, Shadow } from '../constants/theme';
 import { ChevronLeft, Printer, Share2, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PDFPreviewModalProps {
     visible: boolean;
     onClose: () => void;
     html: string;
-    onPrint: () => void;
-    onShare: () => void;
+    onPrint?: () => void;
+    onShare?: () => void;
     title?: string;
 }
 
@@ -21,16 +22,24 @@ const PDFPreviewModal = ({
     onShare,
     title = 'PDF Preview'
 }: PDFPreviewModalProps) => {
+    const insets = useSafeAreaInsets();
+
     return (
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="fullScreen"
+            presentationStyle="pageSheet"
             onRequestClose={onClose}
         >
-            <SafeAreaView style={styles.container}>
-                {/* Header */}
-                <View style={styles.header}>
+            <View style={[styles.container, { paddingTop: Platform.OS === 'android' ? 0 : 0 }]}>
+                {/* Header with Safe Area Padding */}
+                <View style={[
+                    styles.header,
+                    {
+                        paddingTop: insets.top,
+                        height: 60 + insets.top
+                    }
+                ]}>
                     <TouchableOpacity
                         style={styles.backButton}
                         onPress={onClose}
@@ -39,15 +48,19 @@ const PDFPreviewModal = ({
                         <ChevronLeft size={28} color={Colors.primary} />
                     </TouchableOpacity>
 
-                    <Text style={styles.headerTitle}>{title}</Text>
+                    <Text style={[styles.headerTitle, { marginTop: 0 }]}>{title}</Text>
 
                     <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.headerIcon} onPress={onPrint}>
-                            <Printer size={22} color={Colors.textPrimary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.headerIcon} onPress={onShare}>
-                            <Share2 size={22} color={Colors.textPrimary} />
-                        </TouchableOpacity>
+                        {onPrint && (
+                            <TouchableOpacity style={styles.headerIcon} onPress={onPrint}>
+                                <Printer size={22} color={Colors.textPrimary} />
+                            </TouchableOpacity>
+                        )}
+                        {onShare && (
+                            <TouchableOpacity style={styles.headerIcon} onPress={onShare}>
+                                <Share2 size={22} color={Colors.textPrimary} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -67,18 +80,20 @@ const PDFPreviewModal = ({
                 </View>
 
                 {/* Footer Actions */}
-                <View style={styles.footer}>
+                <View style={[styles.footer, { paddingBottom: insets.bottom + (Platform.OS === 'android' ? 24 : 16) }]}>
                     <TouchableOpacity style={[styles.footerBtn, styles.closeBtn]} onPress={onClose}>
                         <X size={20} color={Colors.textSecondary} style={{ marginRight: 8 }} />
                         <Text style={styles.closeBtnText}>Close Preview</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={[styles.footerBtn, styles.printBtn]} onPress={onPrint}>
-                        <Printer size={20} color={Colors.white} style={{ marginRight: 8 }} />
-                        <Text style={styles.printBtnText}>Print Now</Text>
-                    </TouchableOpacity>
+                    {onPrint && (
+                        <TouchableOpacity style={[styles.footerBtn, styles.printBtn]} onPress={onPrint}>
+                            <Printer size={20} color={Colors.white} style={{ marginRight: 8 }} />
+                            <Text style={styles.printBtnText}>Print Now</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
-            </SafeAreaView>
+            </View>
         </Modal >
     );
 };
@@ -89,7 +104,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
     },
     header: {
-        height: 60,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -98,10 +112,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
         ...Shadow.subtle,
+        paddingBottom: 8 // Slight padding at bottom of header content
     },
     backButton: {
         padding: 8,
         marginLeft: -8,
+        marginTop: 0 // removed marginTop as logic handles it
     },
     headerTitle: {
         fontFamily: 'Inter-Bold',
@@ -131,6 +147,7 @@ const styles = StyleSheet.create({
     },
     footer: {
         padding: 16,
+        paddingTop: 16,
         flexDirection: 'row',
         backgroundColor: Colors.white,
         borderTopWidth: 1,

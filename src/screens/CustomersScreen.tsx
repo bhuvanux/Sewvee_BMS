@@ -114,6 +114,16 @@ const CustomersScreen = ({ navigation }: any) => {
                     >
                         <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
+                        onPress={() => {
+                            logEvent('add_customer_click');
+                            navigation.navigate('AddCustomer');
+                        }}
+                    >
+                        <Plus size={20} color={Colors.white} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.searchContainer}>
@@ -174,7 +184,10 @@ const CustomersScreen = ({ navigation }: any) => {
                     activeOpacity={1}
                     onPress={() => setIsFilterVisible(false)}
                 >
-                    <View style={styles.modalContent}>
+                    <View style={[
+                        styles.modalContent,
+                        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                    ]}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Filter & Sort</Text>
                             <TouchableOpacity
@@ -219,16 +232,7 @@ const CustomersScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
             </Modal>
 
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => {
-                    logEvent('add_customer_click');
-                    navigation.navigate('AddCustomer');
-                }}
-            >
-                <Plus size={24} color={Colors.white} />
-                <Text style={styles.fabText}>Add Client</Text>
-            </TouchableOpacity>
+
         </View>
     );
 };
@@ -435,7 +439,6 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.white,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
         ...Shadow.large,
     },
     modalHeader: {

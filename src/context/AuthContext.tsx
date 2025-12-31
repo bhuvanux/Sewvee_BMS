@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Alert } from 'react-native';
 import { COLLECTIONS, getAuthPassword } from '../config/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword } from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword, signInAnonymously } from '@react-native-firebase/auth';
 import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
 
 interface AuthContextType {
@@ -8,6 +9,7 @@ interface AuthContextType {
     company: any;
     loading: boolean;
     logout: () => void;
+    saveUser: (userData: any) => Promise<void>;
     saveCompany: (companyData: any) => Promise<void>;
     login: (email: string, pass: string) => Promise<void>;
     loginWithPhone: (phone: string, pin: string) => Promise<void>;
@@ -42,38 +44,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-
             if (firebaseUser) {
                 try {
                     const db = getFirestore();
-                    // Fetch user profile from Firestore
-                    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid));
+
+                    // Helper to prevent infinite hang on initial load (3 sec timeout)
+                    const fetchWithTimeout = (promise: Promise<any>, ms: number) => {
+                        return Promise.race([
+                            promise,
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth fetch timeout')), ms))
+                        ]);
+                    };
+
+                    const userDoc = await fetchWithTimeout(getDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid)), 15000);
+
+                    // If user is anonymous or doc doesn't exist, we might be in a temporary state
+                    if (!userDoc.exists()) {
+                        if (firebaseUser.isAnonymous) {
+                            // Anonymous user waiting to login - do not set global user state yet
+                            return;
+                        }
+                        // Real user but no doc?
+                        // console.warn("User authenticated but no profile found");
+                    }
+
                     const userData = userDoc.exists() ? userDoc.data() : null;
 
+                    if (userData) {
+                        const phoneVal = userData?.phone || userData?.mobile || firebaseUser.phoneNumber || null;
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            name: userData?.name || '',
+                            phone: phoneVal,
+                            mobile: phoneVal,
+                            ...(userData || {}),
+                            isPhoneVerified: userData?.isPhoneVerified || false
+                        });
+
+                        // Fetch company data with timeout
+                        const q = query(
+                            collection(db, COLLECTIONS.COMPANIES),
+                            where('ownerId', '==', firebaseUser.uid)
+                        );
+                        const companySnapshot = await fetchWithTimeout(getDocs(q), 15000);
+
+                        if (!companySnapshot.empty) {
+                            setCompany({
+                                id: companySnapshot.docs[0].id,
+                                ...companySnapshot.docs[0].data()
+                            });
+                        } else {
+                            setCompany(null);
+                        }
+                    }
+                } catch (error) {
+
+                    // Fallback for timeout/offline: 
+                    // Set minimal user so app doesn't hang on loading.
                     setUser({
                         uid: firebaseUser.uid,
                         email: firebaseUser.email,
-                        ...(userData || {}),
-                        isPhoneVerified: userData?.isPhoneVerified || false
+                        phone: firebaseUser.phoneNumber || null,
+                        isPhoneVerified: false
                     });
-
-                    // Fetch company data
-                    const q = query(
-                        collection(db, COLLECTIONS.COMPANIES),
-                        where('ownerId', '==', firebaseUser.uid)
-                    );
-                    const companySnapshot = await getDocs(q);
-
-                    if (!companySnapshot.empty) {
-                        setCompany({
-                            id: companySnapshot.docs[0].id,
-                            ...companySnapshot.docs[0].data()
-                        });
-                    } else {
-                        setCompany(null);
-                    }
-                } catch (error) {
-                    console.error("AuthContext Error:", error);
                 }
             } else {
                 setUser(null);
@@ -102,9 +136,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const loginWithPhone = async (phone: string, pin: string) => {
         const db = getFirestore();
+        const auth = getAuth();
+
+        // Ensure we have at least Anonymous Auth to read Firestore (if rules require it)
+        if (!auth.currentUser) {
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Anonymous auth failed", e);
+                // Continue anyway, maybe public read is allowed?
+            }
+        }
+
+        // Normalize phone to 10 digits for consistent lookup
+        const cleanPhone = phone.replace(/\D/g, '');
+        const normalizedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+
         const userSnapshot = await getDocs(query(
             collection(db, COLLECTIONS.USERS),
-            where('phone', '==', phone)
+            where('phone', 'in', [normalizedPhone, `+91${normalizedPhone}`, `91${normalizedPhone}`])
         ));
 
         if (userSnapshot.empty) {
@@ -123,16 +173,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // 1. First Verify if the PIN matches our Firestore record (if it exists)
         // This is the source of truth for the user's intended 4-digit code.
         if (storedPin && storedPin !== pin) {
+
             throw new Error('Incorrect PIN');
         }
 
         // 1. Authenticate with Firebase Auth using the Universal Master Password
         let authenticated = false;
-        const auth = getAuth();
+        // auth is already declared above
         try {
             await signInWithEmailAndPassword(auth, email, MASTER_AUTH_PASS);
             authenticated = true;
+
         } catch (error: any) {
+
 
             // Only try legacy if it's a password related error
             if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -143,14 +196,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
                 for (const attemptPass of legacyAttempts) {
                     try {
+
                         await signInWithEmailAndPassword(auth, email, attemptPass);
                         const userObj = auth.currentUser;
                         if (userObj) {
+
                             await updatePassword(userObj, MASTER_AUTH_PASS);
                             authenticated = true;
                             break;
                         }
                     } catch (e) {
+
                     }
                 }
             } else {
@@ -165,6 +221,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // 2. Once Auth is successful, verify the 4-digit PIN against Firestore
         // This is now the ONLY dynamic check for 'Universal' PIN logic.
         if (storedPin !== pin) {
+
             throw new Error('Incorrect PIN');
         }
 
@@ -179,13 +236,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const auth = getAuth();
         const { user: newUser } = await createUserWithEmailAndPassword(auth, email, getAuthPassword(email));
         if (newUser) {
-            await setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
+            // Optimistic profile creation: Don't await this so UI unblocks immediately
+            setDoc(doc(getFirestore(), COLLECTIONS.USERS, newUser.uid), {
                 name,
                 email,
                 phone,
                 pin: pass, // Store the 4-digit PIN
                 isPhoneVerified: false,
                 createdAt: new Date().toISOString()
+            }).catch(err => {
+                console.error('Background profile creation failed:', err);
+                Alert.alert("Sync Error", "Could not save profile to cloud: " + err.message);
             });
 
             // Manually set user state to avoid race condition with onAuthStateChanged
@@ -205,6 +266,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
         if (USE_MOCK_OTP) {
+
             setActiveOtp('123456'); // Keep 123456 for manual testing if mock is on
             return "MOCK_VERIFICATION_ID";
         }
@@ -219,6 +281,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const finalPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
 
             const url = `https://www.fast2sms.com/dev/whatsapp/v24.0/${PHONE_NUMBER_ID}/messages`;
+
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -256,6 +319,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
             const result = await response.json();
 
+
             // Meta API returns messages array on success
             if (result.messages && result.messages.length > 0) {
                 setActiveOtp(otpCode);
@@ -277,9 +341,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const auth = getAuth();
             const currentUser = auth.currentUser;
             if (currentUser) {
-                await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
+                // Optimistic update: Don't await this so UI unblocks immediately even if offline
+                updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), {
                     isPhoneVerified: true
-                });
+                }).catch(err => { });
+
                 setUser((prev: any) => ({ ...prev, isPhoneVerified: true }));
             }
             return true;
@@ -288,6 +354,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const resetPinWithPhone = async (phone: string, newPin: string) => {
+
         const db = getFirestore();
         const userSnapshot = await getDocs(query(
             collection(db, COLLECTIONS.USERS),
@@ -295,6 +362,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         ));
 
         if (userSnapshot.empty) {
+
+            // console.log('ResetPIN: User not found in Firestore');
             throw new Error('User not found');
         }
 
@@ -303,9 +372,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // 1. Update the PIN in Firestore (Primary source of truth for the 4-digit code)
         try {
+            // console.log('ResetPIN: Updating Firestore PIN...');
             await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userId), {
                 pin: newPin
             });
+            // console.log('ResetPIN: Firestore update SUCCESS');
         } catch (err: any) {
             console.error('ResetPIN: Firestore update FAILED', err);
             throw new Error('Could not update PIN. Please try again.');
@@ -347,6 +418,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const saveUser = async (userData: any) => {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
+
+        try {
+            // Ensure field consistency: store both mobile and phone if one is provided
+            const phoneVal = userData.phone || userData.mobile;
+
+            const updatedProfile = {
+                ...userData,
+                phone: phoneVal,
+                mobile: phoneVal,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Optimistic Update: Update state first
+            setUser((prev: any) => ({ ...prev, ...updatedProfile }));
+
+            // Fire-and-forget Firestore update
+            updateDoc(doc(getFirestore(), COLLECTIONS.USERS, currentUser.uid), updatedProfile)
+                .catch(e => console.log('Background user update failed (offline?):', e));
+        } catch (error) {
+            console.error('Save User Error:', error);
+            throw error;
+        }
+    };
+
     const saveCompany = async (companyData: any) => {
         const auth = getAuth();
         const currentUser = auth.currentUser;
@@ -360,11 +459,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             };
 
             if (company?.id) {
-                await setDoc(doc(getFirestore(), COLLECTIONS.COMPANIES, company.id), companyWithId, { merge: true });
+                // Optimistic Update: Update state first
                 setCompany((prev: any) => ({ ...prev, ...companyWithId }));
+
+                // Fire-and-forget Firestore update
+                setDoc(doc(getFirestore(), COLLECTIONS.COMPANIES, company.id), companyWithId, { merge: true })
+                    .catch(e => console.log('Background company update failed (offline?):', e));
             } else {
-                const newCompanyRef = await addDoc(collection(getFirestore(), COLLECTIONS.COMPANIES), companyWithId);
+                // Generate ID synchronously
+                const newCompanyRef = doc(collection(getFirestore(), COLLECTIONS.COMPANIES));
+
+                // Optimistic Update
                 setCompany({ id: newCompanyRef.id, ...companyWithId });
+
+                // Fire-and-forget Firestore create
+                setDoc(newCompanyRef, companyWithId)
+                    .catch(e => console.log('Background company creation failed (offline?):', e));
             }
         } catch (error) {
             console.error('Save Company Error:', error);
@@ -378,6 +488,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             company,
             loading,
             logout,
+            saveUser,
             saveCompany,
             login,
             loginWithPhone,

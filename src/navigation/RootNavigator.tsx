@@ -28,12 +28,18 @@ import BillSettingsScreen from '../screens/BillSettingsScreen';
 import ManageOutfitsScreen from '../screens/ManageOutfitsScreen';
 import OutfitCategoriesScreen from '../screens/OutfitCategoriesScreen';
 import EditCategoryScreen from '../screens/EditCategoryScreen';
+import ManageSubOptionsScreen from '../screens/ManageSubOptionsScreen';
 import ItemDetailScreen from '../screens/ItemDetailScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import ForgotPinScreen from '../screens/ForgotPinScreen';
 import ResetPinScreen from '../screens/ResetPinScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import ShareAppScreen from '../screens/ShareAppScreen';
+import HelpSupportScreen from '../screens/HelpSupportScreen';
+import AboutScreen from '../screens/AboutScreen';
+import DevSettingsScreen from '../screens/DevSettingsScreen';
 
 
 const CustomerStack = createNativeStackNavigator();
@@ -64,19 +70,7 @@ function OrderNavigator() {
     );
 }
 
-const SettingsStack = createNativeStackNavigator();
-function SettingsNavigator() {
-    return (
-        <SettingsStack.Navigator screenOptions={{
-            headerShown: false
-        }}>
-            <SettingsStack.Screen name="SettingsHome" component={SettingsScreen} />
-            <SettingsStack.Screen name="EditBusinessProfile" component={EditBusinessProfileScreen} />
-            <SettingsStack.Screen name="BillSettings" component={BillSettingsScreen} />
 
-        </SettingsStack.Navigator>
-    );
-}
 
 const AuthStack = createNativeStackNavigator();
 function AuthNavigator() {
@@ -105,26 +99,24 @@ function MainTabs() {
                 tabBarActiveTintColor: '#FFFFFF',
                 tabBarInactiveTintColor: '#94A3B8',
                 tabBarStyle: {
-                    position: 'absolute',
-                    backgroundColor: '#121212',
-                    borderTopWidth: 0,
-                    height: Platform.OS === 'ios' ? 90 : (60 + (insets.bottom > 0 ? insets.bottom - 10 : 0)),
-                    marginHorizontal: 16,
-                    marginBottom: Platform.OS === 'ios' ? 30 : (insets.bottom > 0 ? insets.bottom : 16),
-                    borderRadius: 25,
-                    paddingBottom: Platform.OS === 'ios' ? 25 : (insets.bottom > 0 ? 10 : 10),
-                    paddingTop: 10,
+                    backgroundColor: '#1E293B',
+                    borderTopWidth: 1,
+                    borderTopColor: '#334155',
+                    // Fix: Ensure labels are clear of system navigation bar
+                    // Standard Android nav bar is ~48dp. Fallback to ~32dp if inset is 0.
+                    height: 90 + Math.max(insets.bottom, Platform.OS === 'android' ? 32 : 0),
+                    paddingTop: 12,
+                    paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 60 : 12),
+                    elevation: 8,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 10 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 20,
-                    elevation: 10,
+                    shadowOffset: { width: 0, height: -2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
                 },
                 tabBarLabelStyle: {
-                    fontFamily: 'Inter-SemiBold',
-                    fontSize: 12,
-                    marginTop: 2,
-                    marginBottom: Platform.OS === 'ios' ? 0 : 5,
+                    fontFamily: 'Inter-Medium',
+                    fontSize: 11,
+                    marginTop: 4,
                 },
                 headerShown: false
             }}
@@ -135,9 +127,8 @@ function MainTabs() {
                 options={{
                     tabBarLabel: 'Home',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={focused ? styles.activeTabContainer : styles.tabIconContainer}>
-                            <LayoutGrid size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                            {focused && <View style={[styles.activeDot, { backgroundColor: '#FFFFFF' }]} />}
+                        <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
+                            <LayoutGrid size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
                 }}
@@ -148,9 +139,8 @@ function MainTabs() {
                 options={{
                     tabBarLabel: 'Clients',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={focused ? styles.activeTabContainer : styles.tabIconContainer}>
-                            <Users size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                            {focused && <View style={[styles.activeDot, { backgroundColor: '#FFFFFF' }]} />}
+                        <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
+                            <Users size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
                 }}
@@ -161,9 +151,8 @@ function MainTabs() {
                 options={{
                     tabBarLabel: 'Orders',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={focused ? styles.activeTabContainer : styles.tabIconContainer}>
-                            <ShoppingBag size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                            {focused && <View style={[styles.activeDot, { backgroundColor: '#FFFFFF' }]} />}
+                        <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
+                            <ShoppingBag size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
                 }}
@@ -174,9 +163,8 @@ function MainTabs() {
                 options={{
                     tabBarLabel: 'Payment',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={focused ? styles.activeTabContainer : styles.tabIconContainer}>
-                            <CreditCard size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                            {focused && <View style={[styles.activeDot, { backgroundColor: '#FFFFFF' }]} />}
+                        <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
+                            <CreditCard size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
                     headerShown: false,
@@ -185,13 +173,12 @@ function MainTabs() {
             />
             <Tab.Screen
                 name="Settings"
-                component={SettingsNavigator}
+                component={SettingsScreen}
                 options={{
                     tabBarLabel: 'Profile',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={focused ? styles.activeTabContainer : styles.tabIconContainer}>
-                            <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                            {focused && <View style={[styles.activeDot, { backgroundColor: '#FFFFFF' }]} />}
+                        <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
+                            <User size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
                 }}
@@ -204,19 +191,13 @@ const styles = StyleSheet.create({
     tabIconContainer: {
         alignItems: 'center',
         justifyContent: 'center',
+        paddingVertical: 4,
+        paddingHorizontal: 16,
+        borderRadius: 20,
     },
-    activeTabContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 2,
-    },
-    activeDot: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
+    activeTabBg: {
         backgroundColor: Colors.primary,
-        marginTop: 4,
-    }
+    },
 });
 
 import { useAuth } from '../context/AuthContext';
@@ -255,6 +236,16 @@ export default function RootNavigator() {
                     <Stack.Screen name="ManageOutfits" component={ManageOutfitsScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="OutfitCategories" component={OutfitCategoriesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="ManageSubOptions" component={ManageSubOptionsScreen} options={{ headerShown: false }} />
+
+                    {/* Settings Screens */}
+                    <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="EditBusinessProfile" component={EditBusinessProfileScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="BillSettings" component={BillSettingsScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="ShareApp" component={ShareAppScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="HelpSupport" component={HelpSupportScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="About" component={AboutScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="DevSettings" component={DevSettingsScreen} options={{ headerShown: false }} />
                 </>
             )}
         </Stack.Navigator>

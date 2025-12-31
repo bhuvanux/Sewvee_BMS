@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     FlatList,
-    TouchableOpacity,
     TextInput,
     Switch,
     Modal,
@@ -13,12 +12,14 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     Keyboard,
-    Image
+    Image,
+    TouchableOpacity
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { ArrowLeft, Plus, Edit2, Trash2, ChevronRight, Image as ImageIcon, MoreVertical, X, Camera, Shirt, Layers, Check, CheckCircle2, AlertCircle, PlayCircle, StopCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+
 import { Image as ExpoImage } from 'expo-image';
 
 import { useData } from '../context/DataContext';
@@ -66,22 +67,38 @@ const OutfitForm = React.memo(({
             <View style={styles.inlineFormBody}>
                 {/* Image Picker */}
                 <TouchableOpacity style={styles.inlineImagePicker} onPress={pickImage}>
-                    {editImage ? (
-                        <View style={styles.inlinePickedImageContainer}>
-                            <View style={[styles.inlinePickedImage, styles.photoReadyContainer]}>
-                                <Check size={24} color={Colors.textSecondary} />
-                                <Text style={styles.photoReadyText}>Photo Uploaded</Text>
-                            </View>
-                            <View style={styles.inlineImageOverlay}>
-                                <Edit2 size={16} color="white" />
-                            </View>
+                    <View style={styles.inlinePickedImageContainer}>
+                        {editImage ? (
+                            <Image
+                                source={{ uri: editImage }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        ) : (
+                            // Fallback just in case, though editImage should always be set
+                            <Image
+                                source={{ uri: "https://placehold.co/600x600/e2e8f0/475569.png?text=Stitched\\nOutfit&font=roboto" }}
+                                style={styles.inlinePickedImage}
+                                resizeMode="cover"
+                            />
+                        )}
+
+                        <View style={{
+                            position: 'absolute',
+                            bottom: 4,
+                            left: 4,
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                            paddingHorizontal: 4,
+                            paddingVertical: 2,
+                            borderRadius: 4
+                        }}>
+                            <Text style={{ color: 'white', fontSize: 8, fontWeight: '600' }}>Upload Photo</Text>
                         </View>
-                    ) : (
-                        <View style={styles.inlineImagePlaceholder}>
-                            <Camera size={20} color={Colors.textSecondary} />
-                            <Text style={styles.inlineImagePlaceholderText}>Add Photo</Text>
+
+                        <View style={styles.inlineImageOverlay}>
+                            <Edit2 size={16} color="white" />
                         </View>
-                    )}
+                    </View>
                 </TouchableOpacity>
 
                 <View style={styles.inlineInputWrapper}>
@@ -110,7 +127,6 @@ const OutfitForm = React.memo(({
 });
 
 import AlertModal from '../components/AlertModal';
-
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import BottomActionSheet from '../components/BottomActionSheet';
 
@@ -134,6 +150,11 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
 
+    // Default Image for outfits
+    // Default Image for outfits - Stitching/Fashion Theme
+    // Default Image for outfits - Stitching/Fashion Theme
+    const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1556905055-8f358a18e474?q=80&w=1080&auto=format&fit=crop";
+
     // Bottom Action Sheet State
     const [actionSheetVisible, setActionSheetVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<Outfit | null>(null);
@@ -141,14 +162,14 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     const openAddForm = useCallback(() => {
         setEditId(null);
         setEditName('');
-        setEditImage(null);
+        setEditImage(DEFAULT_IMAGE); // Pre-fill with default
         setIsFormVisible(true);
     }, []);
 
     const openEditForm = useCallback((outfit: Outfit) => {
         setEditId(outfit.id);
         setEditName(outfit.name);
-        setEditImage(outfit.image || null);
+        setEditImage(outfit.image || DEFAULT_IMAGE);
         setIsFormVisible(true);
     }, []);
 
@@ -246,9 +267,14 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
 
     const confirmDelete = useCallback(async () => {
         if (itemToDelete) {
-            await deleteOutfit(itemToDelete.id);
-            setDeleteSheetVisible(false);
-            setItemToDelete(null);
+            try {
+                await deleteOutfit(itemToDelete.id);
+                setDeleteSheetVisible(false);
+                setItemToDelete(null);
+            } catch (error: any) {
+                console.error("Delete failed:", error);
+                Alert.alert("Delete Error", "Could not delete outfit. Please try again.");
+            }
         }
     }, [itemToDelete, deleteOutfit]);
 
@@ -269,62 +295,43 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
     }, []);
 
     const renderItem = useCallback(({ item }: { item: Outfit }) => (
-        <View style={styles.itemRow}>
-            {/* Left: Icon/Image */}
-            <View style={styles.iconBox}>
-                {item.image ? (
-                    <Image
-                        source={{ uri: item.image }}
-                        style={styles.itemImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <ImageIcon size={24} color={Colors.textSecondary} />
-                )}
-            </View>
-
-            {/* Middle: Info */}
+        <View style={styles.card}>
             <TouchableOpacity
-                style={styles.itemInfo}
-                onPress={() => handleConfigure(item)}
+                style={styles.cardContent}
+                onPress={() => item.isVisible && navigation.navigate('OutfitCategories', {
+                    outfitId: item.id,
+                    outfitName: item.name
+                })}
+                activeOpacity={item.isVisible ? 0.7 : 1}
             >
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemMeta}>{(item.categories?.length || 0)} Categories</Text>
+                <View style={[styles.iconBox, !item.isVisible && { opacity: 0.5 }]}>
+                    {item.image ? (
+                        <ExpoImage source={{ uri: item.image }} style={styles.itemImage} contentFit="cover" />
+                    ) : (
+                        <Shirt size={24} color={Colors.textSecondary} />
+                    )}
+                </View>
+                <View style={styles.itemInfo}>
+                    <Text style={[styles.itemName, !item.isVisible && { color: Colors.textSecondary }]}>
+                        {item.name}
+                    </Text>
+                    <Text style={styles.itemMeta}>
+                        {item.isVisible ? `${item.categories?.length || 0} Categories` : 'Archived'}
+                    </Text>
+                </View>
+                {item.isVisible && <ChevronRight size={20} color={Colors.textSecondary} />}
             </TouchableOpacity>
 
-            {/* Right: Actions */}
             <View style={styles.actions}>
                 <TouchableOpacity
-                    onPress={() => toggleVisibility(item.id, item.isVisible)}
-                    style={{ padding: 4 }}
-                >
-                    <View style={[
-                        styles.toggleTrack,
-                        item.isVisible ? { backgroundColor: Colors.primary } : { backgroundColor: '#E2E8F0' }
-                    ]}>
-                        <View style={[
-                            styles.toggleThumb,
-                            item.isVisible ? { transform: [{ translateX: 14 }] } : {}
-                        ]} />
-                    </View>
-                </TouchableOpacity>
-
-                {/* More Menu Trigger */}
-                <TouchableOpacity
-                    style={styles.menuTrigger}
+                    style={styles.actionBtn}
                     onPress={() => openActionSheet(item)}
                 >
-                    <MoreVertical size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => handleConfigure(item)}>
-                    <ChevronRight size={20} color={Colors.textSecondary} />
+                    <MoreVertical size={18} color={Colors.textSecondary} />
                 </TouchableOpacity>
             </View>
         </View>
-    ), [handleConfigure, toggleVisibility, openActionSheet]);
-
-
+    ), [navigation, openActionSheet]);
 
     return (
         <View style={styles.container}>
@@ -333,14 +340,24 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                         <ArrowLeft size={24} color={Colors.textPrimary} />
                     </TouchableOpacity>
-                    <Text style={styles.subtitle}>Manage Outfits</Text>
-                    <View style={{ width: 40 }} />
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={styles.headerSubtitle}>Sewvee Master</Text>
+                        <Text style={styles.headerTitle}>Manage Outfits</Text>
+                    </View>
+                    {!isFormVisible ? (
+                        <TouchableOpacity onPress={openAddForm} style={styles.backBtn}>
+                            <Plus size={24} color={Colors.primary} />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
             </View>
 
             <View style={{ paddingHorizontal: Spacing.md, paddingTop: Spacing.md }}>
                 <Text style={styles.helperText}>
                     Manage and customize the types of outfits you offer.
+                    {'\n'}Categories and designs are nested within each outfit.
                 </Text>
 
                 <OutfitForm
@@ -375,15 +392,7 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 }
             />
 
-            {!isFormVisible && (
-                <TouchableOpacity
-                    style={[styles.fab, { bottom: 24 + (insets.bottom || 0), zIndex: 9999 }]}
-                    onPress={openAddForm}
-                >
-                    <Plus size={24} color={Colors.white} />
-                    <Text style={styles.fabText}>Add Outfit</Text>
-                </TouchableOpacity>
-            )}
+            {/* Floating Add Button Removed as per request */}
 
 
 
@@ -394,45 +403,61 @@ const ManageOutfitsScreen = ({ navigation }: any) => {
                 onClose={() => setAlertVisible(false)}
             />
 
-            <BottomActionSheet
-                visible={actionSheetVisible}
-                onClose={() => setActionSheetVisible(false)}
-                title={selectedItem?.name}
-                actions={[
-                    {
-                        id: 'edit',
-                        label: 'Edit Outfit',
-                        icon: Edit2,
-                        onPress: () => {
-                            if (selectedItem) openEditForm(selectedItem);
-                        }
-                    },
-                    {
-                        id: 'delete',
-                        label: 'Delete Outfit',
-                        icon: Trash2,
-                        type: 'danger',
-                        onPress: () => {
-                            if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
-                        }
-                    }
-                ]}
-            />
-
             <BottomConfirmationSheet
                 visible={deleteSheetVisible}
                 onClose={() => setDeleteSheetVisible(false)}
                 onConfirm={confirmDelete}
-                title="Delete Outfit"
-                description={`Are you sure you want to delete "${itemToDelete?.name}"? This action cannot be undone.`}
-                confirmText="Delete Outfit"
+                title="Delete Outfit?"
+                description={`Are you sure you want to delete "${itemToDelete?.name}"?`}
+                confirmText="Delete"
                 cancelText="Cancel"
                 type="danger"
             />
-        </View >
+
+            <BottomActionSheet
+                visible={actionSheetVisible}
+                onClose={() => setActionSheetVisible(false)}
+                title={selectedItem?.name || 'Outfit Options'}
+            >
+                <TouchableOpacity
+                    style={styles.actionOption}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) openEditForm(selectedItem);
+                    }}
+                >
+                    <Edit2 size={20} color={Colors.textPrimary} />
+                    <Text style={styles.actionText}>Edit Details</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.actionOption}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) handleConfigure(selectedItem);
+                    }}
+                >
+                    <Shirt size={20} color={Colors.textPrimary} />
+                    <Text style={styles.actionText}>Manage Categories</Text>
+                </TouchableOpacity>
+
+                <View style={styles.actionDivider} />
+
+                <TouchableOpacity
+                    style={[styles.actionOption, styles.destructiveAction]}
+                    onPress={() => {
+                        setActionSheetVisible(false);
+                        if (selectedItem) handleDelete(selectedItem.id, selectedItem.name);
+                    }}
+                >
+                    <Trash2 size={20} color={Colors.danger} />
+                    <Text style={[styles.actionText, { color: Colors.danger }]}>Delete Outfit</Text>
+                </TouchableOpacity>
+            </BottomActionSheet>
+
+        </View>
     );
 };
-
 
 const styles = StyleSheet.create({
     container: {
@@ -447,41 +472,54 @@ const styles = StyleSheet.create({
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        height: 56,
         paddingHorizontal: Spacing.md,
+        height: 60,
     },
     backBtn: {
         padding: 4,
     },
-    subtitle: {
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    headerSubtitle: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    headerTitle: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
         color: Colors.textPrimary,
-        flex: 1,
-        textAlign: 'center',
     },
     listContent: {
         padding: Spacing.md,
-        paddingBottom: 140,
+        paddingBottom: 100,
     },
     helperText: {
         fontFamily: 'Inter-Regular',
-        fontSize: 14,
+        fontSize: 13,
         color: Colors.textSecondary,
         marginBottom: Spacing.md,
-        lineHeight: 20,
+        textAlign: 'center',
     },
-    itemRow: {
+
+    // Standardized Card Styles
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
         backgroundColor: Colors.white,
         borderRadius: 12,
         marginBottom: 12,
         ...Shadow.small,
         borderWidth: 1,
         borderColor: Colors.border,
+        padding: 12,
+    },
+    cardContent: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     iconBox: {
         width: 48,
@@ -490,7 +528,7 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: 12,
         borderWidth: 1,
         borderColor: '#E2E8F0',
         overflow: 'hidden',
@@ -498,143 +536,37 @@ const styles = StyleSheet.create({
     itemImage: {
         width: '100%',
         height: '100%',
-        resizeMode: 'cover',
     },
     itemInfo: {
         flex: 1,
     },
     itemName: {
         fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
+        fontSize: 15,
         color: Colors.textPrimary,
-        marginBottom: 2,
     },
     itemMeta: {
         fontFamily: 'Inter-Regular',
-        fontSize: 13,
+        fontSize: 12,
         color: Colors.textSecondary,
     },
     actions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 8,
+        marginLeft: 12,
+        borderLeftWidth: 1,
+        borderLeftColor: Colors.border,
+        paddingLeft: 12,
     },
-    menuTrigger: {
-        padding: 4,
-    },
-    imagePickerBtn: {
-        alignSelf: 'center',
-        marginBottom: 20,
-    },
-    pickedImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F8FAFC',
-    },
-    placeholderImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
+    actionBtn: {
+        padding: 6,
+        borderRadius: 6,
         backgroundColor: '#F8FAFC',
         borderWidth: 1,
         borderColor: '#E2E8F0',
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
     },
-    imagePickerText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 12,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
-    toggleTrack: {
-        width: 36,
-        height: 20,
-        borderRadius: 12,
-        justifyContent: 'center',
-        padding: 2,
-    },
-    toggleThumb: {
-        width: 16,
-        height: 16,
-        backgroundColor: Colors.white,
-        borderRadius: 8,
-        ...Shadow.subtle,
-    },
-    fab: {
-        position: 'absolute',
-        right: 24,
-        backgroundColor: Colors.primary,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderRadius: 30,
-        ...Shadow.medium,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    fabText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        padding: Spacing.lg,
-    },
-    modalContent: {
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        padding: Spacing.lg,
-        ...Shadow.medium,
-        width: '100%',
-        maxWidth: 400,
-        alignSelf: 'center',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.lg,
-    },
-    modalTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    inputContainer: {
-        marginBottom: Spacing.xl,
-    },
-    label: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: 8,
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: 8,
-        padding: 12,
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    saveBtn: {
-        backgroundColor: Colors.primary,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    saveBtnText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.white,
-    },
+
     // Inline Form Styles
     inlineFormContainer: {
         backgroundColor: Colors.white,
@@ -666,48 +598,16 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
     },
-    inlineImagePlaceholder: {
-        width: 80,
-        height: 80,
-        borderRadius: 12,
-        backgroundColor: '#F1F5F9', // Slightly darker slate
-        borderWidth: 1.5,
-        borderColor: '#CBD5E1', // Darker border
-        borderStyle: 'dashed',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    inlineImagePlaceholderText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 10,
-        color: Colors.textSecondary,
-        marginTop: 4,
-    },
     inlinePickedImageContainer: {
         width: 80,
         height: 80,
-        borderRadius: 12,
+        borderRadius: 8,
         overflow: 'hidden',
-        position: 'relative',
     },
     inlinePickedImage: {
         width: 80,
         height: 80,
         borderRadius: 8,
-    },
-    photoReadyContainer: {
-        backgroundColor: '#E2E8F0', // Darker grey for visibility
-        borderWidth: 2, // Thicker border
-        borderColor: '#94A3B8', // High contrast slate border
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    photoReadyText: {
-        fontSize: 11, // Slightly larger
-        fontFamily: 'Inter-Bold', // Bolder
-        color: '#475569', // Darker slate
-        marginTop: 4,
-        textAlign: 'center',
     },
     inlineImageOverlay: {
         position: 'absolute',
@@ -736,7 +636,7 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Regular',
         fontSize: 16,
         color: Colors.textPrimary,
-        backgroundColor: '#FAFBFC',
+        backgroundColor: '#FAFCFC',
     },
     inlineFormFooter: {
         flexDirection: 'row',
@@ -767,6 +667,30 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: Colors.white,
     },
+
+    // Action Sheet & Helper Styles
+    actionOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+    },
+    actionText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        marginLeft: 16,
+    },
+    destructiveAction: {
+        marginTop: 4,
+    },
+    actionDivider: {
+        height: 1,
+        backgroundColor: Colors.border,
+        marginHorizontal: 20,
+    },
+
+    // Empty State
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',

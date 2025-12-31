@@ -90,17 +90,27 @@ const PaymentsScreen = () => {
             const order = orders.find(o => o.id === p.orderId);
             const query = search.toLowerCase();
             return (
-                (order?.customerName || '').toLowerCase().includes(query) ||
                 (order?.billNo || '').toLowerCase().includes(query) ||
                 p.amount.toString().includes(query)
             );
-        }).sort((a, b) => b.id.localeCompare(a.id));
+        }).sort((a, b) => {
+            // Sort by date descending (newest first)
+            const dateA = parseDate(a.date).getTime();
+            const dateB = parseDate(b.date).getTime();
+            if (dateA !== dateB) return dateB - dateA;
+            // Fallback to ID
+            return b.id.localeCompare(a.id);
+        });
     }, [payments, currentDate, search, orders]);
 
     const filteredOrders = useMemo(() => {
         return orders.filter(o => {
             const oDate = parseDate(o.date);
             return oDate.getMonth() === currentDate.getMonth() && oDate.getFullYear() === currentDate.getFullYear();
+        }).sort((a, b) => {
+            const dateA = parseDate(a.date).getTime();
+            const dateB = parseDate(b.date).getTime();
+            return dateB - dateA;
         });
     }, [orders, currentDate]);
 

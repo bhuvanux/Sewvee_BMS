@@ -15,10 +15,12 @@ import {
     StatusBar,
     Animated,
     Easing,
-    LayoutAnimation
+    LayoutAnimation,
+    useWindowDimensions
 } from 'react-native';
 import {
     ChevronLeft,
+    Info,
     ArrowLeft,
     Check,
     ArrowRight,
@@ -42,7 +44,10 @@ import {
     AlertTriangle,
     Pen,
     Eraser,
-    Undo2
+    Undo2,
+    Calendar,
+    History,
+    Flame
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
@@ -50,8 +55,9 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '../types';
-import { formatDate, getCurrentDate, getCurrentTime } from '../utils/dateUtils';
+import { formatDate, getCurrentDate, getCurrentTime, parseDate } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
+import CalendarModal from '../components/CalendarModal';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -62,6 +68,7 @@ import SignatureScreen from 'react-native-signature-canvas';
 import { generateInvoicePDF, generateTailorCopyPDF, generateCustomerCopyPDF, getCustomerCopyHTML, printHTML } from '../services/pdfService';
 import PDFPreviewModal from '../components/PDFPreviewModal';
 import { transcribeAudioWithWhisper } from '../services/openaiService';
+import { uploadImage } from '../utils/storageUtils';
 import { useNavigation } from '@react-navigation/native';
 // Skia drawing temporarily disabled due to version compatibility
 
@@ -120,142 +127,7 @@ const QuantityStepper = ({ value, onChange }: { value: number, onChange: (val: n
     );
 };
 
-const CalendarModal = ({ visible, onClose, onSelect, initialDate, disablePastDates = true }: any) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Parse initialDate (DD/MM/YYYY) if exists, else today
-    let startMonth = today.getMonth();
-    let startYear = today.getFullYear();
-
-    if (initialDate && initialDate.includes('/')) {
-        const parts = initialDate.split('/');
-        if (parts.length === 3) {
-            startMonth = parseInt(parts[1]) - 1;
-            startYear = parseInt(parts[2]);
-        }
-    }
-
-    const [currentMonth, setCurrentMonth] = useState(startMonth);
-    const [currentYear, setCurrentYear] = useState(startYear);
-
-    // Update state when visible or initialDate changes
-    useEffect(() => {
-        if (visible) {
-            let m = today.getMonth();
-            let y = today.getFullYear();
-            if (initialDate && initialDate.includes('/')) {
-                const parts = initialDate.split('/');
-                if (parts.length === 3) {
-                    m = parseInt(parts[1]) - 1;
-                    y = parseInt(parts[2]);
-                }
-            }
-            setCurrentMonth(m);
-            setCurrentYear(y);
-        }
-    }, [visible, initialDate]);
-
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-    const handlePrevMonth = () => {
-        if (currentMonth === 0) {
-            setCurrentMonth(11);
-            setCurrentYear(currentYear - 1);
-        } else {
-            setCurrentMonth(currentMonth - 1);
-        }
-    };
-
-    const handleNextMonth = () => {
-        if (currentMonth === 11) {
-            setCurrentMonth(0);
-            setCurrentYear(currentYear + 1);
-        } else {
-            setCurrentMonth(currentMonth + 1);
-        }
-    };
-
-    const handleDateClick = (day: number) => {
-        const d = String(day).padStart(2, '0');
-        const m = String(currentMonth + 1).padStart(2, '0');
-        const y = currentYear;
-        onSelect(`${d}/${m}/${y}`);
-        onClose();
-    };
-
-    const renderDays = () => {
-        const days = [];
-        const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-
-        // Empty slots for previous month
-        for (let i = 0; i < firstDay; i++) {
-            days.push(<View key={`empty-${i}`} style={styles.calendarDayEmpty} />);
-        }
-        // Actual days
-        for (let i = 1; i <= daysInMonth; i++) {
-            const dateStr = `${String(i).padStart(2, '0')}/${String(currentMonth + 1).padStart(2, '0')}/${currentYear}`;
-            const cellDate = new Date(currentYear, currentMonth, i);
-            cellDate.setHours(0, 0, 0, 0);
-
-            // Check if date is in the past
-            const isPast = disablePastDates && cellDate < today;
-
-            // Highlight if matches initialDate
-            const isSelected = initialDate === dateStr;
-            const isToday = todayStr === dateStr && !isSelected;
-
-            days.push(
-                <TouchableOpacity
-                    key={i}
-                    style={[
-                        styles.calendarDay,
-                        isSelected && styles.calendarDaySelected,
-                        isToday && styles.calendarDayToday,
-                        isPast && styles.calendarDayDisabled
-                    ]}
-                    onPress={() => !isPast && handleDateClick(i)}
-                    disabled={isPast}
-                >
-                    <Text style={[
-                        styles.calendarDayText,
-                        isSelected && styles.calendarDayTextSelected,
-                        isToday && styles.calendarDayTextToday,
-                        isPast && styles.calendarDayTextDisabled
-                    ]}>{i}</Text>
-                </TouchableOpacity>
-            );
-        }
-        return days;
-    };
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-                <View style={styles.calendarContainer}>
-                    <View style={styles.calendarHeader}>
-                        <TouchableOpacity onPress={handlePrevMonth} style={{ padding: 8 }}>
-                            <ChevronDown size={20} color={Colors.textPrimary} style={{ transform: [{ rotate: '90deg' }] }} />
-                        </TouchableOpacity>
-                        <Text style={styles.calendarTitle}>{monthNames[currentMonth]} {currentYear}</Text>
-                        <TouchableOpacity onPress={handleNextMonth} style={{ padding: 8 }}>
-                            <ChevronDown size={20} color={Colors.textPrimary} style={{ transform: [{ rotate: '-90deg' }] }} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={styles.weekRow}>
-                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                            <Text key={i} style={styles.weekDayText}>{d}</Text>
-                        ))}
-                    </View>
-                    <View style={styles.daysGrid}>
-                        {renderDays()}
-                    </View>
-                </View>
-            </TouchableOpacity>
-        </Modal>
-    );
-};
+// CalendarModal removed (imported)
 
 const OutfitDrawer = ({ visible, onClose, outfits, onSelect, currentType }: any) => {
     return (
@@ -295,7 +167,10 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
 
     const handleDateSelect = (date: string) => {
         if (dateField) {
-            onChange({ [dateField]: date });
+            onChange({
+                [dateField]: date,
+                currentOutfit: { ...state.currentOutfit, [dateField]: date }
+            });
         }
     };
 
@@ -325,7 +200,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 100, gap: 28 }}>
 
-            {/* Customer Section - Modern Card */}
+            {/* 1. Customer Section - Modern Card */}
             <View>
                 <Text style={styles.newSectionTitle}>Customer</Text>
                 <TouchableOpacity
@@ -349,9 +224,34 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         </View>
                     </View>
                 </TouchableOpacity>
+            </View>
 
-                {/* Order Type Section - Just below Customer */}
-                <View style={{ marginTop: 20 }}>
+            {/* 2. Outfit Details - Type & Qty */}
+            <View style={{ gap: 24 }}>
+                <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.modernLabel}>Outfit Type</Text>
+                        <TouchableOpacity
+                            style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
+                            onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => onShowAlert('Editing Restricted', 'Cannot change outfit type while editing an item.')}
+                            disabled={editItemIndex !== undefined}
+                        >
+                            <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
+                            {editItemIndex === undefined && <ChevronDown size={20} color="#64748B" />}
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ width: 130 }}>
+                        <Text style={styles.modernLabel}>Quantity</Text>
+                        <QuantityStepper
+                            value={state.currentOutfit.quantity || 1}
+                            onChange={handleQuantityChange}
+                        />
+                    </View>
+                </View>
+
+                {/* 3. Order Type Section */}
+                <View>
                     <Text style={styles.modernLabel}>Order Type</Text>
                     <View style={styles.chipGroup}>
                         {['Stitching', 'Alteration'].map((t) => {
@@ -360,7 +260,10 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                                 <TouchableOpacity
                                     key={t}
                                     style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                    onPress={() => onChange({ orderType: t })}
+                                    onPress={() => onChange({
+                                        orderType: t,
+                                        currentOutfit: { ...state.currentOutfit, orderType: t }
+                                    })}
                                 >
                                     <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
                                         {t}
@@ -370,10 +273,53 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                         })}
                     </View>
                 </View>
-            </View>
 
-            {/* Dates Section - Modern Card Grid */}
-            <View>
+                {/* 4. Urgency */}
+                <View>
+                    <Text style={styles.modernLabel}>Order Urgency</Text>
+                    <View style={styles.chipGroup}>
+                        {['Normal', 'Urgent'].map((u) => {
+                            const isSelected = state.urgency === u;
+                            return (
+                                <TouchableOpacity
+                                    key={u}
+                                    style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                    onPress={() => onChange({
+                                        urgency: u,
+                                        currentOutfit: { ...state.currentOutfit, urgency: u }
+                                    })}
+                                >
+                                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                                        {u}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* 5. Fabric Source */}
+                <View>
+                    <Text style={styles.modernLabel}>Fabric Source</Text>
+                    <View style={styles.chipGroup}>
+                        {['Customer', 'Boutique'].map((s) => {
+                            const isSelected = state.currentOutfit.fabricSource === s;
+                            return (
+                                <TouchableOpacity
+                                    key={s}
+                                    style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
+                                    onPress={() => onChange({ currentOutfit: { ...state.currentOutfit, fabricSource: s } })}
+                                >
+                                    <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
+                                        {s}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* 6. Dates Section - Modern Card Grid */}
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                     <TouchableOpacity
                         style={styles.dateModernCard}
@@ -397,77 +343,6 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                 </View>
             </View>
 
-            {/* Outfit Details - Clean Form */}
-            <View>
-
-                <View style={{ gap: 20 }}>
-                    {/* Type & Qty Row */}
-                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-end' }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.modernLabel}>Outfit Type</Text>
-                            <TouchableOpacity
-                                style={[styles.modernDropdown, editItemIndex !== undefined && { opacity: 0.6, backgroundColor: '#F8FAFC' }]}
-                                onPress={editItemIndex === undefined ? () => setOutfitDrawerVisible(true) : () => { }}
-                                disabled={editItemIndex !== undefined}
-                            >
-                                <Text style={styles.modernDropdownText}>{state.currentOutfit.type}</Text>
-                                {editItemIndex === undefined && <ChevronDown size={20} color="#64748B" />}
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ width: 130 }}>
-                            <Text style={styles.modernLabel}>Quantity</Text>
-                            <QuantityStepper
-                                value={state.currentOutfit.quantity || 1}
-                                onChange={handleQuantityChange}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Urgency */}
-                    <View>
-                        <Text style={styles.modernLabel}>Order Urgency</Text>
-                        <View style={styles.chipGroup}>
-                            {['Normal', 'Urgent'].map((u) => {
-                                const isSelected = state.urgency === u;
-                                return (
-                                    <TouchableOpacity
-                                        key={u}
-                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                        onPress={() => onChange({ urgency: u })}
-                                    >
-                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                                            {u}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-
-                    {/* Fabric Source */}
-                    <View>
-                        <Text style={styles.modernLabel}>Fabric Source</Text>
-                        <View style={styles.chipGroup}>
-                            {['Customer', 'Boutique'].map((s) => {
-                                const isSelected = state.currentOutfit.fabricSource === s;
-                                return (
-                                    <TouchableOpacity
-                                        key={s}
-                                        style={[styles.chipBtn, isSelected && styles.chipBtnActive]}
-                                        onPress={() => onChange({ currentOutfit: { ...state.currentOutfit, fabricSource: s } })}
-                                    >
-                                        <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                                            {s}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-                </View>
-            </View>
-
             <CalendarModal
                 visible={calendarVisible}
                 onClose={() => setCalendarVisible(false)}
@@ -478,7 +353,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
             <OutfitDrawer
                 visible={outfitDrawerVisible}
                 onClose={() => setOutfitDrawerVisible(false)}
-                outfits={outfits}
+                outfits={outfits.filter((o: any) => o.isVisible !== false)}
                 onSelect={handleTypeSelect}
                 currentType={state.currentOutfit.type}
             />
@@ -595,6 +470,8 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     // State for drilling down into a sub-category
     const [viewingSubCategoryId, setViewingSubCategoryId] = useState<string | null>(null);
+    // State for drilling down into an option (Level 5)
+    const [viewingOptionId, setViewingOptionId] = useState<string | null>(null);
 
     useEffect(() => {
         if (categories.length > 0 && !selectedCategoryId) {
@@ -607,10 +484,12 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
     const onSelectCategory = (id: string) => {
         setSelectedCategoryId(id);
         setViewingSubCategoryId(null);
+        setViewingOptionId(null);
     };
 
     const activeCategory = categories.find(c => c.id === selectedCategoryId);
     const activeSubCategory = activeCategory?.subCategories?.find((s: any) => s.id === viewingSubCategoryId);
+    const activeOption = activeSubCategory?.options?.find((o: any) => o.id === viewingOptionId);
 
     const updateMeasurement = (key: string, val: string) => {
         onChange({
@@ -630,6 +509,7 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         if (opt.options && opt.options.length > 0) {
             // Drill down
             setViewingSubCategoryId(opt.id);
+            setViewingOptionId(null);
         } else {
             // Leaf node selection (Level 2)
             // If we are already in Level 3, this is called for the Option item
@@ -637,9 +517,19 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
         }
     };
 
-    const handleLevel3Selection = (subCatName: string, optionName: string) => {
-        // Save as "Paan - Deep"
-        const finalValue = `${subCatName} - ${optionName}`;
+    const handleLevel4Press = (opt: any) => {
+        if (opt.subOptions && opt.subOptions.length > 0) {
+            setViewingOptionId(opt.id);
+        } else {
+            // Save as "Paan - Deep"
+            const finalValue = `${activeSubCategory.name} - ${opt.name}`;
+            updateMeasurement(activeCategory.name, finalValue);
+        }
+    };
+
+    const handleLevel5Selection = (subCatName: string, optionName: string, subOptionName: string) => {
+        // Save as "Paan - Fancy - Blue"
+        const finalValue = `${subCatName} - ${optionName} - ${subOptionName}`;
         updateMeasurement(activeCategory.name, finalValue);
     };
 
@@ -680,7 +570,69 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
             </View>
         );
 
-        // LEVEL 3: Viewing Options for a SubCategory
+        // LEVEL 4: Viewing Sub-Options for an Option (Level 5)
+        if (viewingOptionId && activeOption) {
+            const level5Options = activeOption.subOptions || [];
+            const selectedValue = state.currentOutfit.measurements?.[activeCategory.name];
+
+            return (
+                <View style={{ flex: 1 }}>
+                    {/* Header with Back Button */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+                        <TouchableOpacity onPress={() => setViewingOptionId(null)} style={{ padding: 4, marginRight: 8 }}>
+                            <ArrowLeft size={20} color={Colors.textPrimary} />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerSubtitle}>{activeSubCategory.name} - {activeOption.name}</Text>
+                            <Text style={styles.sectionTitle}>Select Sub-Option</Text>
+                        </View>
+                    </View>
+
+                    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                        <View style={{ gap: 12 }}>
+                            {level5Options.map((opt: any) => {
+                                const fullValue = `${activeSubCategory.name} - ${activeOption.name} - ${opt.name}`;
+                                const isSelected = selectedValue === fullValue;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={opt.id}
+                                        style={[
+                                            styles.optionListItem,
+                                            isSelected && styles.optionListItemSelected
+                                        ]}
+                                        onPress={() => handleLevel5Selection(activeSubCategory.name, activeOption.name, opt.name)}
+                                    >
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                            <View style={styles.optionListImageContainer}>
+                                                {opt.image ? (
+                                                    <Image source={{ uri: opt.image }} style={styles.optionListImage} />
+                                                ) : (
+                                                    <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
+                                                )}
+                                            </View>
+                                            <Text
+                                                style={[
+                                                    styles.optionListText,
+                                                    isSelected && styles.optionListTextSelected
+                                                ]}
+                                            >
+                                                {opt.name}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                            {isSelected && <View style={styles.radioInner} />}
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </ScrollView>
+                </View>
+            );
+        }
+
+        // LEVEL 3: Viewing Options for a SubCategory (Level 4)
         if (viewingSubCategoryId && activeSubCategory) {
             const nestedOptions = activeSubCategory.options || [];
             const selectedValue = state.currentOutfit.measurements?.[activeCategory.name];
@@ -701,8 +653,11 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
                         <View style={{ gap: 12 }}>
                             {nestedOptions.map((opt: any) => {
-                                const fullValue = `${activeSubCategory.name} - ${opt.name}`;
-                                const isSelected = selectedValue === fullValue;
+                                // Important: Check if selectedValue STARTS with this full Level 4 path
+                                // This handles BOTH direct selection and Level 5 selection
+                                const fullValue4 = `${activeSubCategory.name} - ${opt.name}`;
+                                const isSelected = selectedValue && (selectedValue === fullValue4 || selectedValue.startsWith(fullValue4 + ' - '));
+                                const hasChildren = opt.subOptions && opt.subOptions.length > 0;
 
                                 return (
                                     <TouchableOpacity
@@ -711,10 +666,9 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                             styles.optionListItem,
                                             isSelected && styles.optionListItemSelected
                                         ]}
-                                        onPress={() => handleLevel3Selection(activeSubCategory.name, opt.name)}
+                                        onPress={() => handleLevel4Press(opt)}
                                     >
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                            {/* Image or Icon */}
                                             <View style={styles.optionListImageContainer}>
                                                 {opt.image ? (
                                                     <Image source={{ uri: opt.image }} style={styles.optionListImage} />
@@ -722,22 +676,44 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
                                                     <ImageIcon size={20} color={Colors.textSecondary} opacity={0.5} />
                                                 )}
                                             </View>
-
-                                            {/* Text */}
-                                            <Text
-                                                style={[
-                                                    styles.optionListText,
-                                                    isSelected && styles.optionListTextSelected
-                                                ]}
-                                            >
-                                                {opt.name}
-                                            </Text>
+                                            <View style={{ flex: 1 }}>
+                                                <Text
+                                                    style={[
+                                                        styles.optionListText,
+                                                        isSelected && styles.optionListTextSelected
+                                                    ]}
+                                                >
+                                                    {opt.name}
+                                                </Text>
+                                                {/* Show selected sub-index if any */}
+                                                {isSelected && hasChildren && selectedValue.includes(' - ') && (
+                                                    <Text style={{ fontSize: 11, color: Colors.primary, fontFamily: 'Inter-Medium', marginTop: 2 }}>
+                                                        {selectedValue.split(' - ').slice(2).join(' - ')}
+                                                    </Text>
+                                                )}
+                                                {/* Preview children if not selected or to show structure */}
+                                                {!isSelected && hasChildren && (
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                                                        {opt.subOptions.slice(0, 3).map((so: any) => (
+                                                            <View key={so.id} style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                                                <Text style={{ fontSize: 9, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>{so.name}</Text>
+                                                            </View>
+                                                        ))}
+                                                        {opt.subOptions.length > 3 && (
+                                                            <Text style={{ fontSize: 9, color: Colors.textSecondary }}>+{opt.subOptions.length - 3} more</Text>
+                                                        )}
+                                                    </View>
+                                                )}
+                                            </View>
                                         </View>
 
-                                        {/* Right Side: Radio/Check */}
-                                        <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
-                                            {isSelected && <View style={styles.radioInner} />}
-                                        </View>
+                                        {hasChildren ? (
+                                            <ChevronRight size={18} color={Colors.textSecondary} />
+                                        ) : (
+                                            <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                                                {isSelected && <View style={styles.radioInner} />}
+                                            </View>
+                                        )}
                                     </TouchableOpacity>
                                 );
                             })}
@@ -848,16 +824,15 @@ const StepStitching = ({ state, onChange, outfits }: any) => {
 
 const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const [historyVisible, setHistoryVisible] = useState(false);
+    const { updateCustomer } = useData();
+    const { showToast } = useToast();
 
     // Use actual customer history or empty
     const historyData = state.selectedCustomer?.measurementHistory || [];
 
     // Filter by measurement type relevant to current outfit
-    const sortedHistory = [...historyData].sort((a: any, b: any) => {
-        if (a.type === state.currentOutfit.type && b.type !== state.currentOutfit.type) return -1;
-        if (a.type !== state.currentOutfit.type && b.type === state.currentOutfit.type) return 1;
-        return 0; // Simple fallback sort
-    });
+    // Filter by measurement type relevant to current outfit
+    const sortedHistory = historyData.filter((item: any) => item.type === state.currentOutfit.type);
 
     const applyHistory = (data: any) => {
         onChange({
@@ -867,6 +842,37 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
             }
         });
         setHistoryVisible(false);
+    };
+
+    const deleteHistoryItem = async (historyId: string) => {
+        if (!state.selectedCustomer) return;
+
+        Alert.alert(
+            "Delete History",
+            "Are you sure you want to delete this measurement entry?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        const currentHistory = state.selectedCustomer.measurementHistory || [];
+                        const updatedHistory = currentHistory.filter((h: any) => h.id !== historyId);
+
+                        try {
+                            await updateCustomer(state.selectedCustomer.id, { measurementHistory: updatedHistory });
+                            onChange({
+                                selectedCustomer: { ...state.selectedCustomer, measurementHistory: updatedHistory }
+                            });
+                            showToast('History entry deleted', 'success');
+                        } catch (e) {
+                            console.error("Failed to delete history item", e);
+                            showToast('Failed to delete history', 'error');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const updateMeasurement = (key: string, val: string) => {
@@ -887,7 +893,7 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
     const SECTIONS = [
         {
             title: "Body",
-            fields: ["Upper Chest", "Middle Chest", "Waist", "Hip"]
+            fields: ["Height", "Upper Chest", "Middle Chest", "Waist", "Hip"]
         },
         {
             title: "Shoulder & Neck",
@@ -916,13 +922,48 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                 {/* Header / History Link */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: -8 }}>
                     <Text style={styles.sectionTitle}>Measurements</Text>
-                    {historyData.length > 0 && (
-                        <TouchableOpacity onPress={() => setHistoryVisible(true)}>
-                            <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
-                                View History
-                            </Text>
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#EFF6FF', // Light blue bg
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: '#BFDBFE',
+                            gap: 6
+                        }}
+                        onPress={() => {
+                            if (historyData.length > 0) {
+                                setHistoryVisible(true);
+                            } else {
+                                Alert.alert('No History', 'No previous measurement history found for this customer.');
+                            }
+                        }}
+                    >
+                        <History size={14} color={Colors.primary} />
+                        <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>
+                            View History
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Auto-save Hint */}
+                <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#ECFDF5',
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    marginTop: 4,
+                    marginBottom: 4
+                }}>
+                    <Info size={14} color={Colors.primary} style={{ marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: '#047857', fontFamily: 'Inter-Medium', flex: 1 }}>
+                        Measurements entered here will be saved to this customer's profile for future use.
+                    </Text>
                 </View>
 
                 {/* Sections Loop */}
@@ -1064,18 +1105,32 @@ const StepMeasurements = ({ state, onChange, outfits }: any) => {
                                 {sortedHistory.length > 0 ? (
                                     sortedHistory.map((item: any) => (
                                         <View key={item.id} style={styles.tableRow}>
-                                            <View style={{ flex: 1 }}>
+                                            <View style={{ flex: 1.2 }}>
                                                 <Text style={styles.tableCellDate}>{item.date}</Text>
                                             </View>
-                                            <View style={{ flex: 1 }}>
+                                            <View style={{ flex: 0.8 }}>
                                                 <Text style={styles.tableCellText}>{item.type}</Text>
                                             </View>
-                                            <TouchableOpacity
-                                                style={styles.applyBtn}
-                                                onPress={() => applyHistory(item.data)}
-                                            >
-                                                <Text style={styles.applyBtnText}>Apply</Text>
-                                            </TouchableOpacity>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    style={{
+                                                        padding: 8,
+                                                        backgroundColor: '#FEF2F2',
+                                                        borderRadius: 8,
+                                                        borderWidth: 1,
+                                                        borderColor: '#FEE2E2'
+                                                    }}
+                                                    onPress={() => deleteHistoryItem(item.id)}
+                                                >
+                                                    <Trash2 size={14} color={Colors.danger} />
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={styles.applyBtn}
+                                                    onPress={() => applyHistory(item.data)}
+                                                >
+                                                    <Text style={styles.applyBtnText}>Apply</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     ))
                                 ) : (
@@ -1220,8 +1275,11 @@ const StitchDetailsModal = ({ visible, title, content, onClose }: any) => {
 };
 
 const Step3Media = ({ state, onChange, onShowAlert }: any) => {
+    const insets = useSafeAreaInsets();
+    const window = useWindowDimensions();
     const [viewerVisible, setViewerVisible] = useState(false);
     const [editorVisible, setEditorVisible] = useState(false);
+    const [isEditorLoading, setIsEditorLoading] = useState(false);
     const [sketchModalVisible, setSketchModalVisible] = useState(false); // New Modal state
     const [penWidth, setPenWidth] = useState({ min: 2, max: 4 });
     const [penColor, setPenColor] = useState('#000000');
@@ -1234,6 +1292,21 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
     const signatureRef = useRef<any>(null);
     const { showToast } = useToast();
     // const canvasRef = useRef<any>(null); // Skia drawing temporarily disabled
+    const [calendarVisible, setCalendarVisible] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const { user } = useAuth();
+
+
+
+    const handleDateSelect = (date: string) => {
+        onChange({
+            currentOutfit: {
+                ...state.currentOutfit,
+                deliveryDate: date
+            }
+        });
+        setCalendarVisible(false); // Close after select (CalendarModal might handle close too but this is safe)
+    };
 
     const pickImage = async () => {
         // 1. Multiple Selection Enabled (Editing disabled to allow multiple)
@@ -1245,19 +1318,20 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         });
 
         if (!result.canceled && result.assets) {
+            setIsUploading(true);
             const newImages: string[] = [];
-
             // Process all selected images
             for (const asset of result.assets) {
                 try {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        asset.uri,
-                        [{ resize: { width: 1080 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-                    );
-                    newImages.push(manipResult.uri);
+                    // Upload to Firebase Storage
+                    const timestamp = Date.now();
+                    const path = `orders/${user?.uid || 'anonymous'}/${timestamp}_${Math.random().toString(36).substring(7)}.jpg`;
+                    const downloadUrl = await uploadImage(asset.uri, path);
+                    newImages.push(downloadUrl);
                 } catch (e) {
-                    newImages.push(asset.uri);
+                    console.error("Upload failed", e);
+                    showToast("Failed to upload image. Please try again.", "error");
+                    // Do NOT add local URI as fallback, that breaks sync.
                 }
             }
 
@@ -1268,6 +1342,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                     images: [...currentImages, ...newImages]
                 }
             });
+            setIsUploading(false);
         }
     };
 
@@ -1289,15 +1364,19 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     const handleEditStart = async () => {
         if (!selectedImage) return;
+        setIsEditorLoading(true);
         try {
             // Read file as Base64 for Canvas Background
             const base64 = await FileSystem.readAsStringAsync(selectedImage, { encoding: 'base64' });
             // Prefix needed for webview
             setEditImageBase64(`data:image/jpeg;base64,${base64}`);
-            setEditorVisible(true);
-            setViewerVisible(false); // Close viewer, open editor
+            setViewerVisible(false); // Close viewer
+            setEditorVisible(true);  // Open editor
         } catch (error) {
+            console.error("Failed to load image for editing", error);
             if (onShowAlert) onShowAlert("Error", "Could not load image for editing");
+        } finally {
+            setIsEditorLoading(false);
         }
     };
 
@@ -1376,6 +1455,11 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     const handleEditSketch = async (uri: string, index: number) => {
         try {
+            const fileInfo = await FileSystem.getInfoAsync(uri);
+            if (!fileInfo.exists) {
+                Alert.alert("Error", "Sketch file not found. It may have been deleted.");
+                return;
+            }
             // Read file to get base64
             const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
             setInitialSketchData(`data:image/png;base64,${base64}`);
@@ -1438,6 +1522,8 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
     return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100, gap: 16 }}>
+
+
             {/* Reference Images */}
             <View style={styles.section}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -1461,19 +1547,34 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
 
                     {/* Logic: If empty -> Big Box. If has images -> Small Add Button in Grid */}
                     {(!state.currentOutfit.images || state.currentOutfit.images.length === 0) ? (
-                        <TouchableOpacity style={styles.emptyUploadBox} onPress={pickImage}>
-                            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' }}>
-                                <Upload size={28} color={Colors.primary} />
-                            </View>
-                            <View style={{ alignItems: 'center' }}>
-                                <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.primary, fontSize: 15 }}>Click to Upload</Text>
-                                <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary, fontSize: 13, marginTop: 4 }}>Select multiple photos</Text>
-                            </View>
+                        <TouchableOpacity style={styles.emptyUploadBox} onPress={pickImage} disabled={isUploading}>
+                            {isUploading ? (
+                                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                                    <ActivityIndicator size="large" color={Colors.primary} />
+                                    <Text style={{ fontFamily: 'Inter-Medium', color: Colors.primary, marginTop: 10 }}>Uploading...</Text>
+                                </View>
+                            ) : (
+                                <>
+                                    <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Upload size={28} color={Colors.primary} />
+                                    </View>
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.primary, fontSize: 15 }}>Click to Upload</Text>
+                                        <Text style={{ fontFamily: 'Inter-Regular', color: Colors.textSecondary, fontSize: 13, marginTop: 4 }}>Select multiple photos</Text>
+                                    </View>
+                                </>
+                            )}
                         </TouchableOpacity>
                     ) : (
-                        <TouchableOpacity style={styles.addImageBtn} onPress={pickImage}>
-                            <Plus size={24} color={Colors.primary} />
-                            <Text style={styles.addImageText}>Add</Text>
+                        <TouchableOpacity style={styles.addImageBtn} onPress={pickImage} disabled={isUploading}>
+                            {isUploading ? (
+                                <ActivityIndicator size="small" color={Colors.primary} />
+                            ) : (
+                                <>
+                                    <Plus size={24} color={Colors.primary} />
+                                    <Text style={styles.addImageText}>Add</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
                     )}
                 </View>
@@ -1563,7 +1664,7 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                         />
 
                         {/* EXPLICIT TOOLBAR (2 Rows) */}
-                        <View style={{ padding: 16, paddingBottom: 30, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 16 }}>
+                        <View style={{ padding: 16, paddingBottom: Math.max(insets.bottom, 20) + 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 16 }}>
 
                             {/* Row 1: Tools (Colors & Sizes) */}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1719,7 +1820,12 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                         </TouchableOpacity>
                     </View>
 
-                    {editImageBase64 && (
+                    {isEditorLoading ? (
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                            <ActivityIndicator size="large" color="white" />
+                            <Text style={{ color: 'white', marginTop: 10 }}>Preparing Image...</Text>
+                        </View>
+                    ) : editImageBase64 ? (
                         <View style={{ flex: 1 }}>
                             <SignatureScreen
                                 ref={signatureRef}
@@ -1730,9 +1836,13 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
                                 confirmText="Save"
                                 webStyle={`.m-signature-pad--footer { display: none; margin: 0px; } body,html { width: 100%; height: 100%; }`}
                                 bgSrc={editImageBase64}
-                                bgWidth={350}
-                                bgHeight={500}
+                                bgWidth={window.width}
+                                bgHeight={window.height - 60} // Subtract header height
                             />
+                        </View>
+                    ) : (
+                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ color: '#666' }}>Error loading image.</Text>
                         </View>
                     )}
                 </View>
@@ -1740,10 +1850,11 @@ const Step3Media = ({ state, onChange, onShowAlert }: any) => {
         </ScrollView>
     );
 };
-const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep }: any) => {
+const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex, editOrderId }: any) => {
     // Merge cart and current item for unified display logic
     const currentItem = { ...state.currentOutfit, id: 'current', isCurrent: true };
-    const allItems = [...state.cart.map((i: any, idx: number) => ({ ...i, cartIndex: idx, isCurrent: false }))];
+    const allItems = [...state.cart.map((i: any, idx: number) => ({ ...i, cartIndex: idx, isCurrent: false }))]
+        .filter((item) => item.cartIndex !== editItemIndex); // Filter out the item being edited to avoid duplication
     // Only show currentItem if it has a Type
     if (state.currentOutfit.type) {
         allItems.push(currentItem);
@@ -1752,9 +1863,34 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
     const [linkModal, setLinkModal] = useState({ visible: false, title: '', content: [] as string[] });
     const [expandedIndex, setExpandedIndex] = useState<number | null>(allItems.length > 0 ? allItems.length - 1 : 0); // Initialize LAST item as expanded
 
+    // Date Logic Helper
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        try {
+            const targetDate = parseDate(dateString);
+            if (isNaN(targetDate.getTime())) return 999;
+
+            const today = new Date();
+            targetDate.setHours(0, 0, 0, 0);
+            today.setHours(0, 0, 0, 0);
+
+            const diffTime = targetDate.getTime() - today.getTime();
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        } catch {
+            return 999;
+        }
+    };
+
     const calculateTotal = () => {
-        const cartTotal = state.cart.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
-        const currentTotal = Number(state.currentOutfit.totalCost) || 0;
+        const cartTotal = state.cart.reduce((sum: number, item: any, index: number) => {
+            // If we are currently editing this item (and it's in the cart), don't count it from the cart
+            // because it's being counted via state.currentOutfit below.
+            if (index === editItemIndex) return sum;
+            // Exclude cancelled items from total
+            if (item.status === 'Cancelled') return sum;
+            return sum + (Number(item.totalCost) || 0);
+        }, 0);
+        const currentTotal = (state.currentOutfit.status === 'Cancelled') ? 0 : (Number(state.currentOutfit.totalCost) || 0);
         return cartTotal + currentTotal;
     };
 
@@ -1813,36 +1949,87 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                 const stitchOptions = getSelectedOptions(item.measurements);
                 const isExpanded = expandedIndex === index;
 
+                const deliveryDate = item.deliveryDate || state.deliveryDate;
+                const daysLeft = getDaysRemaining(deliveryDate);
+                const isUrgent = (state.urgency === 'Urgent' || state.urgency === 'Emergency' || item.urgency === 'Urgent' || item.urgency === 'High');
+                // Days Left <= 3 and positive
+                const isNearing = daysLeft <= 3 && daysLeft >= 0;
+
                 return (
-                    <View key={index} style={[styles.accordionCard, isExpanded && styles.accordionCardExpanded]}>
-                        {/* Card Header (Always Visible) */}
+                    <View key={index} style={{
+                        backgroundColor: isNearing ? '#FEF2F2' : Colors.white,
+                        borderRadius: 16,
+                        marginBottom: 16,
+                        borderWidth: 1,
+                        borderColor: isNearing ? '#FECACA' : Colors.border,
+                        overflow: 'hidden',
+                        ...Shadow.subtle
+                    }}>
+                        {/* Card Header (Click to Expand logic moved to internal view to allow buttons to work? No, entire card can toggle, but buttons stop prop) */}
                         <TouchableOpacity
-                            style={styles.accordionHeader}
+                            activeOpacity={0.8}
                             onPress={() => toggleAccordion(index)}
-                            activeOpacity={0.7}
+                            style={{ padding: 16 }}
                         >
-                            <View style={{ flex: 4 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>{item.type}</Text>
-                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                        <Text style={{ fontSize: 11, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold' }}>x{item.quantity || 1}</Text>
-                                    </View>
+                            {/* Top Row: Name and Price */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>{item.type}</Text>
                                     {item.isCurrent && (!item.id || item.id.toString().startsWith('current_')) && (
                                         <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                                             <Text style={{ fontSize: 10, color: '#166534', fontFamily: 'Inter-Bold' }}>NEW</Text>
                                         </View>
                                     )}
+
+                                    <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                                        <Text style={{ fontSize: 12, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary }}>x{item.quantity || 1}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary }}>₹{item.totalCost || 0}</Text>
+                                    <ChevronRight
+                                        size={20}
+                                        color={Colors.textSecondary}
+                                        style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+                                    />
                                 </View>
                             </View>
 
-                            <View style={{ flex: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                                <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: Colors.textPrimary }}>₹{item.totalCost || 0}</Text>
-                                <ChevronRight
-                                    size={20}
-                                    color={Colors.textSecondary}
-                                    style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
-                                />
-                            </View>
+                            {/* Middle Row: Delivery Date (Prominent) */}
+                            {deliveryDate && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: isUrgent ? 12 : 0 }}>
+                                    <View style={{
+                                        backgroundColor: isNearing ? '#FEE2E2' : '#EFF6FF',
+                                        padding: 8,
+                                        borderRadius: 8
+                                    }}>
+                                        <Calendar size={18} color={isNearing ? Colors.danger : Colors.primary} />
+                                    </View>
+                                    <View>
+                                        <Text style={{ fontFamily: 'Inter-Medium', fontSize: 12, color: Colors.textSecondary, marginBottom: 2 }}>Expected Delivery</Text>
+                                        <Text style={{
+                                            fontSize: 16,
+                                            fontFamily: 'Inter-Bold',
+                                            color: isNearing ? Colors.danger : Colors.textPrimary
+                                        }}>
+                                            {formatDate(deliveryDate)}
+                                            {isNearing && daysLeft >= 0 && (
+                                                <Text style={{ color: Colors.danger, fontSize: 14 }}>  ({daysLeft === 0 ? 'Today' : `${daysLeft}d left`})</Text>
+                                            )}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Urgency Badge */}
+                            {isUrgent && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#FECACA', alignSelf: 'flex-start' }}>
+                                    <Flame size={14} color={Colors.danger} fill={Colors.danger} />
+                                    <Text style={{ fontSize: 11, fontFamily: 'Inter-Bold', color: Colors.danger, textTransform: 'uppercase' }}>Urgent</Text>
+                                </View>
+                            )}
+
                         </TouchableOpacity>
 
                         {/* Card Content (Visible when Expanded) */}
@@ -1850,38 +2037,145 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             <View style={styles.accordionContent}>
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />
 
-                                <View style={{ marginBottom: 16, backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, gap: 8 }}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Delivery Date</Text>
-                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.deliveryDate || 'Not set'}</Text>
+                                {/* Falls & Lining Section */}
+                                {/* Cost Breakdown Section (UX Enhanced) */}
+                                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, flex: 1 }}>Service</Text>
+                                        <Text style={{ fontSize: 13, fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, width: 100, textAlign: 'center' }}>Amount (₹)</Text>
                                     </View>
-                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Fabric Source</Text>
-                                        <Text style={{ fontSize: 13, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.fabricSource || 'Not set'}</Text>
+
+                                    {/* Stitching Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Stitching</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.stitchingCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const sCost = parseFloat(val) || 0;
+                                                    const fCost = item.fallsCost || 0;
+                                                    const lCost = item.liningCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                stitchingCost: sCost,
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            stitchingCost: sCost,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
                                     </View>
-                                    <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                        <Text style={{ fontSize: 13, color: Colors.textSecondary, fontFamily: 'Inter-Medium' }}>Urgency</Text>
-                                        <Text style={{ fontSize: 13, color: state.urgency === 'Urgent' ? Colors.danger : Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>{state.urgency || 'Normal'}</Text>
+
+                                    {/* Lining Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Lining</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.liningCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const lCost = parseFloat(val) || 0;
+                                                    const sCost = item.stitchingCost || 0;
+                                                    const fCost = item.fallsCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                liningCost: lCost,
+                                                                lining: lCost > 0, // Auto-enable constraint if needed, or just track cost
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            liningCost: lCost,
+                                                            lining: lCost > 0,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    {/* Falls Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-Medium', flex: 1 }}>Falls</Text>
+                                        <View style={priceInputStyle}>
+                                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
+                                            <TextInput
+                                                style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
+                                                value={item.fallsCost?.toString()}
+                                                onChangeText={(val) => {
+                                                    const fCost = parseFloat(val) || 0;
+                                                    const sCost = item.stitchingCost || 0;
+                                                    const lCost = item.liningCost || 0;
+                                                    const newTotal = sCost + fCost + lCost;
+
+                                                    if (item.isCurrent) {
+                                                        onChange({
+                                                            currentOutfit: {
+                                                                ...state.currentOutfit,
+                                                                fallsCost: fCost,
+                                                                falls: fCost > 0,
+                                                                totalCost: newTotal
+                                                            }
+                                                        });
+                                                    } else {
+                                                        const newCart = [...state.cart];
+                                                        newCart[item.cartIndex] = {
+                                                            ...newCart[item.cartIndex],
+                                                            fallsCost: fCost,
+                                                            falls: fCost > 0,
+                                                            totalCost: newTotal
+                                                        };
+                                                        onChange({ cart: newCart });
+                                                    }
+                                                }}
+                                                keyboardType="numeric"
+                                                placeholder="0"
+                                                placeholderTextColor={Colors.textSecondary}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    {/* Divider */}
+                                    <View style={{ height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 }} />
+
+                                    {/* Total Item Cost */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 15, color: Colors.textPrimary, fontFamily: 'Inter-Bold' }}>Total Item Price</Text>
+                                        <Text style={{ fontSize: 16, color: Colors.primary, fontFamily: 'Inter-Bold' }}>₹{item.totalCost || 0}</Text>
                                     </View>
                                 </View>
 
-                                <View style={{ height: 1, backgroundColor: '#F3F4F6', marginBottom: 16 }} />
-
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 14, color: Colors.textPrimary, fontFamily: 'Inter-SemiBold' }}>Price</Text>
-                                    <View style={priceInputStyle}>
-                                        <Text style={{ fontSize: 12, color: Colors.textSecondary, marginRight: 2 }}>₹</Text>
-                                        <TextInput
-                                            style={{ flex: 1, fontFamily: 'Inter-SemiBold', fontSize: 14, color: Colors.textPrimary, textAlign: 'center', paddingRight: 4, height: '100%' }}
-                                            value={item.totalCost?.toString()}
-                                            onChangeText={(val) => updateItemCost(item, val)}
-                                            keyboardType="numeric"
-                                            placeholder="0"
-                                        />
-                                    </View>
-                                </View>
 
                                 <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 16 }} />
 
@@ -1905,13 +2199,18 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
                                     <View style={{ flexDirection: 'row', gap: 16 }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                            <TouchableOpacity
-                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                                                onPress={() => item.isCurrent ? onChange({ currentOutfit: { ...state.currentOutfit, type: '', quantity: 1, measurements: {}, images: [], notes: '', audioUri: null, totalCost: 0 } }) : confirmDeleteItem(item.cartIndex)}
-                                            >
-                                                <Trash2 size={16} color={Colors.danger} />
-                                                <Text style={{ fontSize: 13, color: Colors.danger, fontFamily: 'Inter-SemiBold' }}>Delete</Text>
-                                            </TouchableOpacity>
+                                            {/* Delete Icon Logic */}
+                                            {/* Hide if Edit Mode AND Item is Existing (from DB) */}
+                                            {/* Show if New Order OR (Edit Mode AND Item is New/Local) */}
+                                            {(!editOrderId || !item.isExisting) && (
+                                                <TouchableOpacity
+                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                                    onPress={() => confirmDeleteItem(item.isCurrent ? -1 : item.cartIndex)}
+                                                >
+                                                    <Trash2 size={16} color={Colors.danger} />
+                                                    <Text style={{ fontSize: 13, color: Colors.danger, fontFamily: 'Inter-SemiBold' }}>Delete</Text>
+                                                </TouchableOpacity>
+                                            )}
 
                                             <TouchableOpacity
                                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 16 }}
@@ -1950,9 +2249,18 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
             </TouchableOpacity>
 
 
-            {/* Advance Payment Section (Restored) */}
+            {/* Advance Payment Section */}
             <View style={{ marginBottom: 16, marginTop: 10 }}>
-                <Text style={[styles.fieldLabel, { marginBottom: 10 }]}>Advance Payment</Text>
+                {Number(state.existingAdvance) > 0 && (
+                    <View style={{ marginBottom: 12, padding: 12, backgroundColor: '#ECFDF5', borderRadius: 10, borderWidth: 1, borderColor: '#6EE7B7' }}>
+                        <Text style={{ fontFamily: 'Inter-Medium', color: '#047857', fontSize: 13 }}>Previously Paid</Text>
+                        <Text style={{ fontFamily: 'Inter-Bold', color: '#065F46', fontSize: 18 }}>₹{state.existingAdvance}</Text>
+                    </View>
+                )}
+
+                <Text style={[styles.fieldLabel, { marginBottom: 10 }]}>
+                    {Number(state.existingAdvance) > 0 ? "Add Payment" : "Advance Payment"}
+                </Text>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     {/* Payment Mode Toggle */}
@@ -2019,8 +2327,8 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                             placeholder="0"
                             placeholderTextColor={Colors.textSecondary}
                             keyboardType="numeric"
-                            value={state.advance?.toString()}
-                            onChangeText={(t) => onChange({ advance: t })}
+                            value={state.paymentInput} // Bind to paymentInput
+                            onChangeText={(t) => onChange({ paymentInput: t })} // Update paymentInput
                         />
                     </View>
                 </View>
@@ -2035,18 +2343,19 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.textSecondary, fontSize: 14 }}>Advance Paid</Text>
-                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success, fontSize: 16 }}>- ₹{Number(state.advance) || 0}</Text>
+                        {/* Show Total Advance (Existing + New Input) */}
+                        <Text style={{ fontFamily: 'Inter-SemiBold', color: Colors.success, fontSize: 16 }}>- ₹{(Number(state.existingAdvance) || 0) + (Number(state.paymentInput) || 0)}</Text>
                     </View>
 
                     <View style={{ height: 1, backgroundColor: Colors.primary + '20', marginVertical: 4 }} />
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
-                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 18, color: Colors.textPrimary }}>Total Balance</Text>
+                            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 18, color: Colors.textPrimary }}>Total Balance <Text style={{ fontSize: 10, color: '#ccc' }}>v1.0.2</Text></Text>
                             <Text style={{ fontSize: 12, color: Colors.textSecondary, fontFamily: 'Inter-SemiBold', marginTop: 2 }}>To be collected on delivery</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.primary }}>₹{balance.toFixed(0)}</Text>
+                            <Text style={{ fontFamily: 'Inter-Bold', fontSize: 26, color: Colors.primary }}>₹{(total - ((Number(state.existingAdvance) || 0) + (Number(state.paymentInput) || 0))).toFixed(0)}</Text>
                         </View>
                     </View>
                 </View>
@@ -2065,14 +2374,14 @@ const Step4Billing = ({ state, onChange, onAddAnother, onDeleteItem, confirmDele
 
 // ... existing code ...
 
-const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep }: any) => {
+const Step4BillingWrapper = ({ state, onChange, onAddAnother, onDeleteItem, confirmDeleteItem, onEditItem, onShowAlert, onGoToStep, editItemIndex, editOrderId }: any) => {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
         >
-            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} />
+            <Step4Billing state={state} onChange={onChange} onAddAnother={onAddAnother} onDeleteItem={onDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={onEditItem} onShowAlert={onShowAlert} onGoToStep={onGoToStep} editItemIndex={editItemIndex} editOrderId={editOrderId} />
         </KeyboardAvoidingView>
     );
 };
@@ -2166,8 +2475,9 @@ const FloatingAudioRecorder = ({ onRecordingComplete, onShowAlert }: { onRecordi
 };
 
 const CreateOrderFlowScreen = ({ navigation, route }: any) => {
-    const { customers, outfits, addOrder, updateOrder, addCustomer, updateCustomer, orders } = useData();
-    const { user } = useAuth();
+    const isDiscardingRef = useRef(false);
+    const { customers, outfits, addOrder, updateOrder, addPayment, addCustomer, updateCustomer, orders } = useData();
+    const { user, company } = useAuth();
     const { showToast } = useToast();
 
     const editOrderId = route.params?.editOrderId;
@@ -2189,7 +2499,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         cart: [],
         currentOutfit: {
             id: '1',
-            type: 'Blouse',
+            type: '',
             quantity: 1,
             measurements: {},
             images: [],
@@ -2199,17 +2509,46 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             totalCost: 0
         },
 
-        advance: '',
-        advanceMode: 'Cash'
+        paymentMode: 'Cash',
+        advance: ''
     });
+
+    // EFFECT: Set default outfit to first visible if "Blouse" (default) is hidden
+    useEffect(() => {
+        if (outfits.length > 0) {
+            const visibleOutfits = outfits.filter((o: any) => o.isVisible !== false);
+            const firstVisible = visibleOutfits[0]?.name;
+
+            // If current type is not in visible list, or is strictly default 'Blouse' but Blouse is hidden
+            const currentIsVisible = visibleOutfits.find((o: any) => o.name === state.currentOutfit.type);
+
+            if (!currentIsVisible && firstVisible) {
+                setState((prev: any) => ({
+                    ...prev,
+                    currentOutfit: {
+                        ...prev.currentOutfit,
+                        type: firstVisible
+                    }
+                }));
+            }
+        }
+    }, [outfits]);
 
     const [alert, setAlert] = useState<{ visible: boolean, title: string, message: string, type: 'info' | 'success' | 'error' | 'warning', onConfirm?: () => void }>({ visible: false, title: '', message: '', type: 'info', onConfirm: undefined });
     const [customerModalVisible, setCustomerModalVisible] = useState(false);
     const [successModalVisible, setSuccessModalVisible] = useState(false);
+    const [discardDrawerVisible, setDiscardDrawerVisible] = useState(false);
+    const [pendingAction, setPendingAction] = useState<any>(null);
     const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(false);
     // Delete Confirmation State
     const [deleteSheetVisible, setDeleteSheetVisible] = useState(false);
+    const [deleteSheetConfig, setDeleteSheetConfig] = useState({
+        title: "Delete Item",
+        description: "Are you sure you want to delete this item?",
+        confirmText: "Delete",
+        isDiscard: false
+    });
     const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(null);
     const [previewVisible, setPreviewVisible] = useState(false);
     const [previewHtml, setPreviewHtml] = useState('');
@@ -2218,14 +2557,27 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         if (!createdOrder) return;
 
         try {
-            const companyData = {
+            // Use the authoritative company profile if available, otherwise fallback to user details
+            const companyData = company ? {
+                name: company.name,
+                address: company.address,
+                phone: company.phone,
+                gstin: company.gstin,
+                email: company.email
+            } : {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
-                address: user?.address || '',
-                phone: user?.mobile || user?.phone || '',
+                address: user?.address || 'Your Address Here',
+                phone: user?.mobile || user?.phone || 'Your Phone Here',
                 gstin: user?.gstin || ''
             };
+            // Enrich Order with Customer Display ID
+            const customer = customers.find(c => c.id === createdOrder.customerId);
+            const enrichedOrder = {
+                ...createdOrder,
+                customerDisplayId: customer?.displayId
+            };
 
-            const html = getCustomerCopyHTML(createdOrder, companyData);
+            const html = getCustomerCopyHTML(enrichedOrder, companyData);
             setPreviewHtml(html);
             setPreviewVisible(true);
         } catch (error) {
@@ -2246,11 +2598,19 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         try {
             const companyData = {
                 name: user?.boutiqueName || user?.name || 'My Boutique',
-                address: user?.address || '',
-                phone: user?.mobile || user?.phone || '',
+                address: user?.address || 'Your Address Here',
+                phone: user?.mobile || user?.phone || 'Your Phone Here',
                 gstin: user?.gstin || ''
             };
-            await generateCustomerCopyPDF(createdOrder, companyData);
+
+            // Enrich Order with Customer Display ID
+            const customer = customers.find(c => c.id === createdOrder.customerId);
+            const enrichedOrder = {
+                ...createdOrder,
+                customerDisplayId: customer?.displayId
+            };
+
+            await generateCustomerCopyPDF(enrichedOrder, companyData);
         } catch (error) {
             showAlert('Error', 'Failed to share PDF');
         }
@@ -2259,16 +2619,137 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
     const handleConfirmDelete = () => {
         if (itemToDeleteIndex !== null) {
             handleDeleteItem(itemToDeleteIndex);
-            setDeleteSheetVisible(false);
-            setItemToDeleteIndex(null);
         }
     };
 
+    const handleDeleteItem = (index: number | null) => {
+        // If deleting the current working item (not in cart yet)
+        if (index === -1) {
+            // Reset current outfit
+            updateState({
+                currentOutfit: {
+                    ...state.currentOutfit,
+                    type: '',
+                    quantity: 1,
+                    measurements: {},
+                    images: [],
+                    notes: '',
+                    audioUri: null,
+                    totalCost: 0
+                }
+            });
+
+            // Check if this results in a completely empty state for new orders
+            // If cart is empty and we just cleared the current item, go back
+            if (state.cart.length === 0 && !editOrderId) {
+                isDiscardingRef.current = true;
+                navigation.goBack();
+            }
+        }
+        else if (index !== null) {
+            // Deleting from cart
+            const newCart = [...state.cart];
+            newCart.splice(index, 1);
+
+            // Critical: If we just removed the last item from cart, AND current outfit has no type,
+            // we are effectively empty.
+            const remainingCount = newCart.length + (state.currentOutfit.type ? 1 : 0);
+
+            updateState({ cart: newCart });
+
+            if (remainingCount === 0 && !editOrderId) {
+                isDiscardingRef.current = true;
+                navigation.goBack();
+            }
+        }
+
+        setDeleteSheetVisible(false);
+        setItemToDeleteIndex(null);
+    };
+
     const confirmDeleteItem = (index: number) => {
+        // Correctly calculate future items
+        // Cart items count
+        const cartCount = state.cart.length;
+        // Current working item active?
+        const currentActive = state.currentOutfit.type ? 1 : 0;
+
+        let futureTotal = 0;
+
+        if (index === -1) {
+            // Deleting current item. Future = Cart Count
+            futureTotal = cartCount;
+        } else {
+            // Deleting from cart. Future = (Cart Count - 1) + Current Active
+            futureTotal = (cartCount - 1) + currentActive;
+        }
+
+        const isLastItem = futureTotal === 0;
+
+        // Discard Order Warning (Only for New Orders when deleting the last item)
+        if (isLastItem && !editOrderId) {
+            setItemToDeleteIndex(index);
+            setDeleteSheetConfig({
+                title: "Discard Order?",
+                description: "This is the only item in the order. Deleting it will discard the order draft. Are you sure?",
+                confirmText: "Discard",
+                isDiscard: true
+            });
+            setDeleteSheetVisible(true);
+            return;
+        }
+
+        // Just delete the item, no scary warning
         setItemToDeleteIndex(index);
+        setDeleteSheetConfig({
+            title: "Delete Item",
+            description: "Are you sure you want to delete this item?",
+            confirmText: "Delete",
+            isDiscard: false
+        });
         setDeleteSheetVisible(true);
     };
 
+    // Exit Warning Logic
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            // IF we are intentionally discarding, bypassing checks
+            if (isDiscardingRef.current) {
+                return;
+            }
+
+            // If we are just navigating between steps in the stack (internal), don't block?
+
+            // React Navigation 'beforeRemove' is triggered only when "leaving" the screen (pop).
+
+            // Check if we have unsaved changes
+            const hasItems = state.cart.length > 0;
+            // Check if current outfit has ANY modified data (type is default 'Blouse', but check if other fields have data)
+            const hasData = (state.currentOutfit.type !== 'Blouse') ||
+                (Object.keys(state.currentOutfit.measurements || {}).length > 0) ||
+                !!state.currentOutfit.notes ||
+                (state.currentOutfit.images && state.currentOutfit.images.length > 0);
+
+            // If we are on Step 0 and everything is empty, don't block
+            if (!hasItems && !hasData && !loading) {
+                return;
+            }
+
+            // If success modal is visible, safe to leave (order created)
+            if (successModalVisible) {
+                return;
+            }
+
+            // Prevent default behavior of leaving the screen
+            e.preventDefault();
+
+            // Set pending action and show the drawer
+            setPendingAction(e.data.action);
+            setDiscardDrawerVisible(true);
+        });
+
+        return unsubscribe;
+    }, [navigation, state.cart, state.currentOutfit, successModalVisible, loading]);
     useEffect(() => {
         // Configure Audio for playback and recording
         const configureAudio = async () => {
@@ -2285,21 +2766,40 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             }
         };
         configureAudio();
+    }, []);
 
+    const initializedOrderId = useRef<string | null>(null);
+
+    useEffect(() => {
         if (editOrderId && orders.length > 0) {
+            // Guard: Prevent re-initialization if already loaded for this order ID
+            // This prevents overwriting local state (cart modifications, etc.) 
+            // when navigation params (like editItemIndex) change.
+            if (initializedOrderId.current === editOrderId) {
+                return;
+            }
+
             const order = orders.find(o => o.id === editOrderId);
             if (order) {
                 // Determine items to load into cart
-                const initialCart = order.outfits || (order.items || []).map((it: any) => ({
+                // Fix: Normalize BOTH outfits and items to ensure defaults (like fabricSource) are always present
+                const sourceItems = order.outfits || order.items || [];
+                const initialCart = sourceItems.map((it: any) => ({
+                    ...it, // Keep existing props
                     id: it.id || Date.now().toString() + Math.random(),
                     type: it.type || it.name || 'Blouse',
                     quantity: it.quantity || it.qty || 1,
                     measurements: it.measurements || {},
                     images: it.images || [],
-                    notes: it.description || '',
+                    notes: it.description || it.notes || '',
                     audioUri: it.audioUri || null,
                     fabricSource: it.fabricSource || 'Customer',
-                    totalCost: it.rate || it.amount || 0
+                    totalCost: it.totalCost || it.rate || it.amount || 0,
+                    // Fix: Persist existing item date/urgency, NO FALLBACK to order date to prevent sync bug
+                    deliveryDate: it.deliveryDate,
+                    trialDate: it.trialDate || order.trialDate,
+                    urgency: it.urgency || (order as any).urgency || 'Normal',
+                    isExisting: true // Mark as existing from DB
                 }));
 
                 const selectedCust = customers.find(c => c.id === order.customerId) || null;
@@ -2314,10 +2814,11 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     customerName: order.customerName || '',
                     customerMobile: order.customerMobile || '',
                     selectedCustomer: selectedCust,
-                    trialDate: order.trialDate || null,
-                    deliveryDate: order.deliveryDate || null,
-                    urgency: (order as any).urgency || 'Normal',
-                    orderType: (order as any).orderType || 'Stitching',
+                    // Fix: Prioritize item-level dates and urgency when editing
+                    trialDate: itemToEdit ? (itemToEdit.trialDate || null) : null,
+                    deliveryDate: itemToEdit ? (itemToEdit.deliveryDate || null) : null,
+                    urgency: itemToEdit ? (itemToEdit.urgency || 'Normal') : ((order as any).urgency || 'Normal'),
+                    orderType: itemToEdit ? (itemToEdit.orderType || (order as any).orderType || 'Stitching') : ((order as any).orderType || 'Stitching'),
                     cart: initialCart,
                     // If editing an item, pre-fill currentOutfit with that item's data
                     // Otherwise start fresh
@@ -2333,8 +2834,12 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                         totalCost: 0
                     },
                     advance: order.advance?.toString() || '',
+                    existingAdvance: order.advance || 0, // Store existing advance from DB
+                    paymentInput: '', // Input is empty for adding NEW payment
                     paymentMode: (order as any).advanceMode || (order as any).paymentMode || 'Cash'
                 });
+
+                initializedOrderId.current = editOrderId;
             }
         }
     }, [editOrderId, orders.length, editItemIndex]);
@@ -2379,14 +2884,35 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
         if (Object.keys(validMeasurements).length === 0) return;
 
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
         const newHistoryItem: MeasurementHistoryItem = {
             id: Date.now().toString(),
-            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), // e.g., 22 Oct 2024
+            date: `${dateStr}, ${timeStr}`,
             type: outfit.type,
-            data: validMeasurements as MeasurementProfile
+            data: validMeasurements as MeasurementProfile,
+            timestamp: now.getTime()
         };
 
         const currentHistory = state.selectedCustomer.measurementHistory || [];
+
+        // Check against latest history entry for this outfit type
+        const latestEntry = currentHistory.find((h: any) => h.type === outfit.type);
+        if (latestEntry) {
+            const newKeys = Object.keys(validMeasurements);
+            const oldKeys = Object.keys(latestEntry.data || {});
+
+            if (newKeys.length === oldKeys.length) {
+                const isIdentical = newKeys.every(key => validMeasurements[key] === latestEntry.data[key]);
+                if (isIdentical) {
+                    console.log("Measurements identical to last history. Skipping save.");
+                    return;
+                }
+            }
+        }
+
         const updatedHistory = [newHistoryItem, ...currentHistory];
 
         try {
@@ -2402,60 +2928,83 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         }
     };
 
+
     const handleAddAnother = async () => {
         // Auto-save measurements to history
         await saveMeasurementHistory(state.currentOutfit);
 
-        // Smart Grouping Logic
-        // Check if an identical item exists in the cart (Type, Measurements, Notes)
-        const cartIndex = state.cart.findIndex((item: any) => {
-            const isTypeMatch = item.type === state.currentOutfit.type;
-            const isMeasurementsMatch = JSON.stringify(item.measurements) === JSON.stringify(state.currentOutfit.measurements);
-            const isNotesMatch = (item.notes || '').trim() === (state.currentOutfit.notes || '').trim();
-            // We ignore images/audio for grouping? User said "measurements and stitching options". 
-            // Let's be strict: if notes differ, it's different.
-
-            return isTypeMatch && isMeasurementsMatch && isNotesMatch;
-        });
-
-        if (cartIndex !== -1) {
-            // Match found! Increment quantity
+        // EDIT MODE: If we are editing a specific item index, update it directly
+        if (editItemIndex !== undefined && editItemIndex !== null && editItemIndex >= 0) {
             const newCart = [...state.cart];
-            newCart[cartIndex].quantity += (state.currentOutfit.quantity || 1);
-            // Update total cost? Usually rate * qty. 
-            // If rate is per item, we should sum it up.
-            // Assuming totalCost held the total for that row.
-            // Let's verify how totalCost is calculated. If it's manual input, we differ.
-            // If manual price input, we probably shouldn't merge automatically if prices differ?
-            // "if all options are same". Price is usually derived or same.
-            // Let's assume price per unit is `item.totalCost / item.quantity`.
-            // User manually inputs "Total Price" for the row in Step 4.
-            // If merging, we should probably add the costs?
-            // "Price" input in UI is for the row.
-
-            // Safer to just add the cost of currentOutfit to the existing item's cost
-            newCart[cartIndex].totalCost = (Number(newCart[cartIndex].totalCost) || 0) + (Number(state.currentOutfit.totalCost) || 0);
+            newCart[editItemIndex] = {
+                ...state.currentOutfit,
+                // Ensure we keep the original ID if valid
+                id: state.currentOutfit.id || newCart[editItemIndex].id
+            };
 
             updateState({ cart: newCart });
-        } else {
-            // No match, add as new item
-            const cartItem = {
-                ...state.currentOutfit,
-                // Preserve ID if it exists and is not a temp "current_" ID (meaning it's an existing item from DB)
-                // Otherwise generate a new temp ID
-                id: (state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_'))
-                    ? state.currentOutfit.id
-                    : Date.now().toString(),
-            };
-            updateState({
-                cart: [...state.cart, cartItem],
+
+            // Clear the edit param so subsequent adds are new items? 
+            // In this flow, usually 'Add Another' means 'Save & Close' or 'Save & Add New'.
+            // Given the UI, this acts as "Save Current Item".
+            // We should probably clear the route param or handle navigation, but modifying the cart is the key fix.
+            navigation.setParams({ editItemIndex: undefined });
+        }
+        else {
+            // NORMAL ADD MODE
+            // Smart Grouping Logic
+            // Check if an identical item exists in the cart (Type, Measurements, Notes)
+            const cartIndex = state.cart.findIndex((item: any) => {
+                const isTypeMatch = item.type === state.currentOutfit.type;
+                const isMeasurementsMatch = JSON.stringify(item.measurements) === JSON.stringify(state.currentOutfit.measurements);
+                const isNotesMatch = (item.notes || '').trim() === (state.currentOutfit.notes || '').trim();
+                // We ignore images/audio for grouping? User said "measurements and stitching options". 
+                // Let's be strict: if notes differ, it's different.
+
+                return isTypeMatch && isMeasurementsMatch && isNotesMatch;
             });
+
+            if (cartIndex !== -1) {
+                // Match found! Increment quantity
+                const newCart = [...state.cart];
+                newCart[cartIndex].quantity += (state.currentOutfit.quantity || 1);
+                // Update total cost? Usually rate * qty. 
+                // If rate is per item, we should sum it up.
+                // Assuming totalCost held the total for that row.
+                // Let's verify how totalCost is calculated. If it's manual input, we differ.
+                // If manual price input, we probably shouldn't merge automatically if prices differ?
+                // "if all options are same". Price is usually derived or same.
+                // Let's assume price per unit is `item.totalCost / item.quantity`.
+                // User manually inputs "Total Price" for the row in Step 4.
+                // If merging, we should probably add the costs?
+                // "Price" input in UI is for the row.
+
+                // Safer to just add the cost of currentOutfit to the existing item's cost
+                newCart[cartIndex].totalCost = (Number(newCart[cartIndex].totalCost) || 0) + (Number(state.currentOutfit.totalCost) || 0);
+
+                updateState({ cart: newCart });
+            } else {
+                // No match, add as new item
+                const cartItem = {
+                    ...state.currentOutfit,
+                    // Preserve ID if it exists and is not a temp "current_" ID (meaning it's an existing item from DB)
+                    // Otherwise generate a new temp ID
+                    id: (state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_'))
+                        ? state.currentOutfit.id
+                        : Date.now().toString(),
+                    // Fix: Explicitly save the current selected date to this item
+                    deliveryDate: state.deliveryDate,
+                };
+                updateState({
+                    cart: [...state.cart, cartItem],
+                });
+            }
         }
 
         // Reset current outfit
         const newOutfit = {
-            id: (Date.now() + 1).toString(),
-            type: 'Blouse',
+            id: `current_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: outfits.filter((o: any) => o.isVisible !== false)[0]?.name || 'Blouse',
             quantity: 1,
             measurements: {},
             images: [],
@@ -2468,17 +3017,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         updateState({
             currentOutfit: {
                 ...newOutfit,
-                sketchUri: undefined
+                sketchUri: null
             }
         });
         setCurrentStep(0);
     };
 
-    const handleDeleteItem = (index: number) => {
-        const newCart = [...state.cart];
-        newCart.splice(index, 1);
-        updateState({ cart: newCart });
-    };
+
 
     const handleEditItem = (index: number) => {
         const itemToEdit = state.cart[index];
@@ -2492,7 +3037,12 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
         // but user might want to change Type (Step 0). Step 0 is safer.
         updateState({
             cart: newCart,
-            currentOutfit: { ...itemToEdit, isCurrent: true, id: itemToEdit.id || Date.now().toString() }
+            currentOutfit: { ...itemToEdit, isCurrent: true, id: itemToEdit.id || Date.now().toString() },
+            // Fix: Populate Date & Urgency from item being edited
+            trialDate: itemToEdit.trialDate || state.trialDate,
+            deliveryDate: itemToEdit.deliveryDate || state.deliveryDate,
+            urgency: itemToEdit.urgency || state.urgency,
+            orderType: itemToEdit.orderType || state.orderType,
         });
         setCurrentStep(0); // Go to start of flow
     };
@@ -2508,9 +3058,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             }
         });
 
-        try {
-            let text = "";
+        let text = "";
 
+        try {
             try {
                 text = await transcribeAudioWithWhisper(uri);
             } catch (whisperError: any) {
@@ -2518,7 +3068,6 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 if (showAlert) showAlert("Transcription Failed", `OpenAI Error: ${whisperError.message}`);
                 text = ""; // Continue even if transcription fails, don't crash the save
             }
-
 
             // Append to existing notes
             const currentNotes = state.currentOutfit.notes || '';
@@ -2546,6 +3095,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
             if (showAlert) showAlert("Error", "Could not save recording updates.");
         }
     };
+
+
+
 
     const handleCreateOrder = async () => {
         setLoading(true);
@@ -2576,13 +3128,41 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 // This prevents duplicate items when updating an order (backend upsert logic)
                 const itemId = state.currentOutfit.id && !state.currentOutfit.id.startsWith('current_')
                     ? state.currentOutfit.id
-                    : 'current_' + Date.now();
+                    : `final_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-                finalItems.push({ ...state.currentOutfit, id: itemId });
+                // Fix: Explicitly save metadata for the final item being added
+                const itemToSave = {
+                    ...state.currentOutfit,
+                    id: itemId,
+                    deliveryDate: state.deliveryDate, // Persist date
+                    trialDate: state.trialDate, // Persist trial date
+                    urgency: state.urgency // Persist urgency
+                };
+
+                // LOGIC TO PREVENT DUPLICATES:
+                // 1. Check if item with same ID exists in cart (Priority)
+                const existingIndexById = finalItems.findIndex((i: any) => i.id === itemId);
+
+                if (existingIndexById !== -1) {
+                    // Replace existing item found by ID
+                    finalItems[existingIndexById] = itemToSave;
+                }
+                // 2. Fallback: If editItemIndex passed via route param matches a position in cart
+                // (Only if we haven't matched by ID already)
+                else if (editItemIndex !== undefined && editItemIndex !== null && editItemIndex >= 0 && editItemIndex < finalItems.length) {
+                    finalItems[editItemIndex] = itemToSave;
+                }
+                else {
+                    // 3. New Item -> Push
+                    finalItems.push(itemToSave);
+                }
             }
 
-            // Validate: check if prices are set?
-            const totalValue = finalItems.reduce((sum: number, item: any) => sum + (Number(item.totalCost) || 0), 0);
+            // Validate: check if prices are set? (Exclude Cancelled)
+            const totalValue = finalItems.reduce((sum: number, item: any) => {
+                if (item.status === 'Cancelled') return sum;
+                return sum + (Number(item.totalCost) || 0);
+            }, 0);
 
             if (finalItems.length === 0) {
                 showToast('Please add at least one item to the order.', 'warning');
@@ -2596,26 +3176,49 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 return;
             }
 
+            const currentInputAdvance = Number(state.paymentInput) || 0;
+            const existingAdvanceVal = Number(state.existingAdvance) || 0;
+            // For New Order: Total = Input
+            // For Edit Order: Total = Existing + Input (Additive)
+            // But wait, if we are in New Order mode, existingAdvance is 0. So logic holds.
+            const totalAdvance = existingAdvanceVal + currentInputAdvance;
+
             const newOrderData: Partial<Order> = {
                 customerId: state.selectedCustomer?.id,
                 customerName: state.customerName || state.selectedCustomer?.name,
                 customerMobile: state.customerMobile || state.selectedCustomer?.mobile,
-                items: finalItems, // For legacy compatibility
-                outfits: finalItems, // For rich data (measurements, images, audio)
-                status: 'Pending',
-                paymentStatus: Number(state.advance) >= totalValue ? 'Paid' : (Number(state.advance) > 0 ? 'Partial' : 'Pending'),
+                items: finalItems.map(i => ({ ...i, status: i.status || 'Pending' })), // Ensure items have status
+                outfits: finalItems.map(i => ({ ...i, status: i.status || 'Pending' })), // Ensure outfits have status
+                status: editOrderId && orders.find(o => o.id === editOrderId)?.status ? orders.find(o => o.id === editOrderId)?.status! : 'Pending', // Preserve status on edit
+                paymentStatus: totalAdvance >= totalValue ? 'Paid' : (totalAdvance > 0 ? 'Partial' : 'Pending'),
                 total: totalValue,
-                advance: Number(state.advance) || 0,
-                balance: totalValue - (Number(state.advance) || 0),
+                advance: totalAdvance,
+                balance: totalValue - totalAdvance,
                 notes: state.currentOutfit.notes,
                 deliveryDate: state.deliveryDate,
                 trialDate: state.trialDate,
+                // Fix: Save Urgency and Order Type
+                urgency: state.urgency,
+                orderType: state.orderType,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
 
             if (editOrderId) {
                 const existingOrder = orders.find(o => o.id === editOrderId);
+
+                // PAYMENT RECONCILIATION:
+                // If user added a payment (paymentInput > 0), record it.
+                if (currentInputAdvance > 0) {
+                    await addPayment({
+                        orderId: editOrderId,
+                        customerId: existingOrder?.customerId,
+                        amount: currentInputAdvance,
+                        date: new Date().toISOString(),
+                        mode: (state.paymentMode || 'Cash') as any
+                    });
+                }
+
                 await updateOrder(editOrderId, newOrderData);
                 setCreatedOrder({ ...existingOrder, ...newOrderData, id: editOrderId } as Order);
                 setSuccessModalVisible(true);
@@ -2628,8 +3231,8 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     showAlert('Error', 'Failed to create order. Please try again.');
                 }
             }
-        } catch (e) {
-            showAlert('Error', 'An unexpected error occurred.');
+        } catch (e: any) {
+            showAlert('Error', e.message || 'An unexpected error occurred.');
             console.error(e);
         } finally {
             setLoading(false);
@@ -2721,13 +3324,13 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     {currentStep === 1 && <StepStitching state={state} onChange={updateState} outfits={outfits} />}
                     {currentStep === 2 && <StepMeasurements state={state} onChange={updateState} />}
                     {currentStep === 3 && <Step3Media state={state} onChange={updateState} onShowAlert={showAlert} />}
-                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} />}
+                    {currentStep === 4 && <Step4BillingWrapper state={state} onChange={updateState} onAddAnother={handleAddAnother} onDeleteItem={handleDeleteItem} confirmDeleteItem={confirmDeleteItem} onEditItem={handleEditItem} onShowAlert={showAlert} onGoToStep={setCurrentStep} editItemIndex={editItemIndex} editOrderId={editOrderId} />}
                 </View>
             </KeyboardAvoidingView>
 
             {/* Footer Buttons */}
             {/* Footer Buttons */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 60 : 24) }]}>
                 {currentStep > 0 && currentStep < 4 && (
                     <TouchableOpacity style={styles.outlineBtn} onPress={handleBack}>
                         <ArrowLeft size={20} color={Colors.textPrimary} />
@@ -2811,9 +3414,9 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 visible={deleteSheetVisible}
                 onClose={() => setDeleteSheetVisible(false)}
                 onConfirm={handleConfirmDelete}
-                title="Delete Item"
-                description="Are you sure you want to delete this item?"
-                confirmText="Delete"
+                title={deleteSheetConfig.title}
+                description={deleteSheetConfig.description}
+                confirmText={deleteSheetConfig.confirmText}
                 type="danger"
             />
 
@@ -2825,6 +3428,44 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                 onPrint={handleActualPrint}
                 onShare={handleActualShare}
             />
+
+            <ReusableBottomDrawer
+                visible={discardDrawerVisible}
+                onClose={() => setDiscardDrawerVisible(false)}
+                height="auto"
+            >
+                <View style={{ padding: 20 }}>
+                    <View style={{ alignItems: 'center', marginBottom: 24 }}>
+                        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                            <AlertTriangle size={28} color={Colors.danger} />
+                        </View>
+                        <Text style={{ fontFamily: 'Inter-Bold', fontSize: 18, color: Colors.textPrimary, marginBottom: 8 }}>Discard changes?</Text>
+                        <Text style={{ fontFamily: 'Inter-Regular', fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+                            You have unsaved changes. Are you sure you want to discard them and leave?
+                        </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <TouchableOpacity
+                            style={[styles.outlineBtn, { flex: 1 }]}
+                            onPress={() => setDiscardDrawerVisible(false)}
+                        >
+                            <Text style={styles.outlineBtnText}>Don't leave</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.primaryBtn, { flex: 1, backgroundColor: Colors.danger }]}
+                            onPress={() => {
+                                setDiscardDrawerVisible(false);
+                                if (pendingAction) {
+                                    navigation.dispatch(pendingAction);
+                                }
+                            }}
+                        >
+                            <Text style={styles.primaryBtnText}>Discard</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </ReusableBottomDrawer>
         </View>
     );
 };
@@ -4058,7 +4699,7 @@ const styles = StyleSheet.create({
     // Floating Recorder
     floatingMicBtn: {
         position: 'absolute',
-        bottom: 90,
+        bottom: 110, // Elevated further to ensure clearance above the taller footer
         right: 16,
         width: 56,
         height: 56,
@@ -4071,7 +4712,7 @@ const styles = StyleSheet.create({
     },
     floatingRecorderExpanded: {
         position: 'absolute',
-        bottom: 90,
+        bottom: 110, // Elevated further to ensure clearance above the taller footer
         right: 16,
         left: 16,
         backgroundColor: Colors.primary,

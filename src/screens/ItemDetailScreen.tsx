@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions, Alert } from 'react-native';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
-import { ChevronLeft, Edit2, Trash2, PlayCircle, StopCircle, User, PenTool, X } from 'lucide-react-native';
+import { ChevronLeft, Edit2, Trash2, PlayCircle, StopCircle, User, PenTool, X, Plus } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,6 +116,34 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
         navigation.navigate('CreateOrderFlow', { editOrderId: orderId, editItemIndex: itemIndex });
     };
 
+    const handleAddPhoto = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0].uri) {
+                const newUri = result.assets[0].uri;
+                // Add to item images
+                const newItems = [...order.items];
+                const currentItemImages = newItems[itemIndex].images || [];
+                newItems[itemIndex] = {
+                    ...newItems[itemIndex],
+                    images: [...currentItemImages, newUri]
+                };
+
+                await updateOrder(orderId, {
+                    items: newItems,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+        } catch (error) {
+            Alert.alert("Error", "Could not upload photo");
+        }
+    };
+
     // Prepare measurements split
     const measurements = currentItem.measurements || {};
     const numericMeasurements: any = {};
@@ -143,7 +172,13 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
                 {/* Images */}
                 {currentItem.images && currentItem.images.length > 0 ? (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Photos / Designs</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Photos / Designs</Text>
+                            <TouchableOpacity onPress={handleAddPhoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Plus size={16} color={Colors.primary} />
+                                <Text style={{ color: Colors.primary, fontFamily: 'Inter-SemiBold', fontSize: 13 }}>Add Photo</Text>
+                            </TouchableOpacity>
+                        </View>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
                             {currentItem.images.map((img: string, i: number) => (
                                 <TouchableOpacity key={i} onPress={() => setPreviewImageUri(img)} style={{ width: (width - 44) / 2, aspectRatio: 1 }}>
@@ -250,11 +285,7 @@ const ItemDetailScreen = ({ route, navigation }: any) => {
 
             {/* Bottom Actions */}
             <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
-                <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteItem}>
-                    <Trash2 size={20} color={Colors.danger} />
-                    <Text style={styles.deleteBtnText}>Delete</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.editBtn} onPress={handleEditItem}>
+                <TouchableOpacity style={[styles.editBtn, { flex: 1 }]} onPress={handleEditItem}>
                     <Edit2 size={20} color={Colors.white} />
                     <Text style={styles.editBtnText}>Edit Item</Text>
                 </TouchableOpacity>

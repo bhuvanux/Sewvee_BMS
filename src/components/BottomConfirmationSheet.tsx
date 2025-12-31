@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions, Platform } from 'react-native';
 import { Colors, Spacing, Shadow, Typography } from '../constants/theme';
 import { AlertCircle, X, Check } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +28,7 @@ const BottomConfirmationSheet = ({
     cancelText = 'Cancel',
     type = 'danger'
 }: BottomConfirmationSheetProps) => {
+    const insets = useSafeAreaInsets();
 
     // Determine colors based on type
     const getIconColor = () => {
@@ -51,12 +53,16 @@ const BottomConfirmationSheet = ({
             transparent={true}
             animationType="slide"
             onRequestClose={onClose}
+            statusBarTranslucent
         >
             <View style={styles.overlay}>
                 {/* Close on tap outside */}
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
-                <View style={styles.sheet}>
+                <View style={[
+                    styles.sheet,
+                    { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 80 : 32) }
+                ]}>
                     <View style={styles.contentRow}>
                         {/* Icon */}
                         <View style={[styles.iconBox, { backgroundColor: getIconBg() }]}>

@@ -4,7 +4,7 @@
 # CONFIG
 # -----------------------------
 # ⚠️  UPDATE THIS IP if your phone's IP changes (Settings > About Phone > Status > IP Address)
-PHONE_IP="192.168.1.44"
+PHONE_IP="192.168.29.95"
 ADB_PORT=5555
 JAVA_HOME_PATH="/opt/homebrew/opt/openjdk@17"
 ANDROID_HOME_PATH="/opt/homebrew/share/android-commandlinetools"
@@ -29,7 +29,7 @@ PORT_PID=$(lsof -t -i:8089)
 if [ ! -z "$PORT_PID" ]; then
     echo "⚠️  Port 8089 is already in use by PID: $PORT_PID"
     # Try to find if it's THIS project
-    if ps -p $PORT_PID -o command | grep -q "sewvee_mini"; then
+    if ps -p $PORT_PID -o command | grep -q "sewvee"; then
         echo "✅ Existing process belongs to this project. Continuing..."
     else
         echo "🛑 Port 8089 is used by another process."
@@ -101,5 +101,5 @@ adb devices
 # Expo expects model names with underscores (as seen in adb devices -l)
 MODEL_NAME=$(adb -s $PHONE_IP:$ADB_PORT shell getprop ro.product.model | tr -d '\r' | tr ' ' '_')
 echo "📱 Launching app on $MODEL_NAME ($PHONE_IP)..."
-npx expo run:android --device "$MODEL_NAME" --port 8010
+EAS_BUILD_PROFILE=staging npx expo run:android --device "$MODEL_NAME" --port 8010
 # Note: if the above fails, you can try: npx expo run:android --device $PHONE_IP:$ADB_PORT

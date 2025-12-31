@@ -35,6 +35,7 @@ export const transcribeAudio = async (uri: string): Promise<string> => {
         }
 
 
+
         // 4. Initialize the model (using stable v1 for reliability)
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: "v1" });
 

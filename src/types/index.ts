@@ -12,6 +12,7 @@ export interface MeasurementHistoryItem {
     date: string;
     type: string;
     data: MeasurementProfile;
+    timestamp?: number;
 }
 
 export interface Customer {
@@ -34,6 +35,8 @@ export interface OrderItem {
     rate: number;
     amount: number;
     description?: string;
+    deliveryDate?: string;
+    status?: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
 }
 
 export type OrderStatus = 'Pending' | 'In Progress' | 'Trial' | 'Completed' | 'Overdue' | 'Active' | 'Cancelled' | 'Paid' | 'Partial' | 'Due';
@@ -60,6 +63,8 @@ export interface Order {
     time?: any;
     createdAt: any;
     updatedAt?: any;
+    urgency?: string;
+    orderType?: string;
 }
 
 export interface Payment {
@@ -68,6 +73,7 @@ export interface Payment {
     customerId: string;
     amount: number;
     mode: string;
+    type?: string;
     date: any;
     time?: any;
 }
@@ -101,12 +107,14 @@ export interface OutfitItem {
     sketches?: string[]; // Multiple sketches support
     notes?: string;
     totalCost: number;
+    status?: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
 }
 
 export interface OutfitOption {
     id: string;
     name: string;
-    image?: string;
+    image?: string | null;
+    subOptions?: OutfitOption[]; // Recursive support for nested options
 }
 
 export interface OutfitSubCategory {
@@ -130,4 +138,6 @@ export interface Outfit {
     image?: string | null;
     isVisible: boolean;
     categories: OutfitCategory[];
+    order?: number;
+    createdAt?: string;
 }

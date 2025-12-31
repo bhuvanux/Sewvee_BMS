@@ -28,13 +28,18 @@ import {
     MapPin,
     Receipt,
     Calendar,
-    Image as LucideImage
+    Image as LucideImage,
+    Flame
 } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent } from '../config/firebase';
+
+import Constants from 'expo-constants';
+import { Linking } from 'react-native';
+import { firestore } from '../config/firebase';
 
 const { width } = Dimensions.get('window');
 
@@ -46,6 +51,45 @@ const DashboardScreen = ({ navigation }: any) => {
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isActivityVisible, setIsActivityVisible] = useState(false);
+
+    // Update State
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [updateUrl, setUpdateUrl] = useState('');
+    const [updateMessage, setUpdateMessage] = useState('New update available!');
+
+    // Check for Updates
+    React.useEffect(() => {
+        const checkUpdate = async () => {
+            try {
+                // Determine current version code (Android) or build number (iOS)
+                const currentVersionCode = Platform.OS === 'android'
+                    ? Constants.expoConfig?.android?.versionCode || 1
+                    : parseInt(Constants.expoConfig?.ios?.buildNumber || '1');
+
+                const configRef = firestore().collection('settings').doc('app_config');
+                const configSnap = await configRef.get();
+
+                if (configSnap.exists) {
+                    const data = configSnap.data();
+                    if (data) {
+                        const latestVersionCode = Platform.OS === 'android'
+                            ? data.androidVersionCode || 0
+                            : parseInt(data.iosBuildNumber || '0');
+
+                        if (latestVersionCode > currentVersionCode) {
+                            setUpdateAvailable(true);
+                            setUpdateUrl(data.updateUrl || 'https://play.google.com/store/apps/details?id=com.sewvee.app');
+                            if (data.message) setUpdateMessage(data.message);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Error checking for updates:', error);
+            }
+        };
+
+        checkUpdate();
+    }, []);
 
     const activeOrderIds = new Set(orders.map(o => o.id));
     const validPayments = payments.filter(p => activeOrderIds.has(p.orderId));
@@ -87,15 +131,15 @@ const DashboardScreen = ({ navigation }: any) => {
 
     const filteredCustomers = searchQuery.length > 1
         ? customers.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.mobile.includes(searchQuery)
+            (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (c.mobile || '').includes(searchQuery)
         ).slice(0, 5)
         : [];
 
     const filteredOrders = searchQuery.length > 1
         ? orders.filter(o =>
-            o.billNo.includes(searchQuery) ||
-            o.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+            (o.billNo || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (o.customerName || '').toLowerCase().includes(searchQuery.toLowerCase())
         ).slice(0, 5)
         : [];
 
@@ -138,6 +182,53 @@ const DashboardScreen = ({ navigation }: any) => {
 
     const recentOrders = orders.slice(0, 5);
 
+    const recentActivities = [
+        ...orders.map(o => ({
+            id: `ord-${o.id}`,
+            type: 'order',
+            title: `Order #${o.billNo} Created`,
+            subtitle: `${o.customerName} - ₹${o.total}`,
+            date: o.date || o.createdAt,
+            timestamp: parseDate(o.date || o.createdAt).getTime(),
+            icon: Clock, // Placeholder, will set in render
+            color: '#3B82F6',
+            data: o
+        })),
+        ...payments.map(p => ({
+            id: `pay-${p.id}`,
+            type: 'payment',
+            title: `Payment Received`,
+            subtitle: `₹${p.amount} from ${orders.find(o => o.id === p.orderId)?.customerName || 'Unknown'}`,
+            date: p.date,
+            timestamp: parseDate(p.date).getTime(),
+            icon: CreditCard,
+            color: '#10B981',
+            data: p
+        }))
+    ].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'In Progress': return '#3B82F6'; // Blue
+            case 'Trial': return '#8B5CF6'; // Purple
+            case 'Overdue': return Colors.danger;
+            case 'Cancelled': return '#6B7280'; // Gray
+            case 'Completed': return Colors.success;
+            case 'Pending': return '#F59E0B'; // Amber
+            default: return '#6B7280';
+        }
+    };
+
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        const targetDate = parseDate(dateString);
+        const today = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = targetDate.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -176,6 +267,26 @@ const DashboardScreen = ({ navigation }: any) => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
+                {/* Update Banner */}
+                {updateAvailable && (
+                    <View style={styles.updateBanner}>
+                        <View style={styles.updateContent}>
+                            <View style={styles.updateIconContainer}>
+                                <Flame size={24} color={Colors.white} fill={Colors.white} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.updateTitle}>{updateMessage}</Text>
+                                <Text style={styles.updateSubtitle}>Tap to update now</Text>
+                            </View>
+                            <TouchableOpacity
+                                style={styles.updateButton}
+                                onPress={() => Linking.openURL(updateUrl)}
+                            >
+                                <Text style={styles.updateButtonText}>Update</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
                 {/* Quick Actions at the top for better visibility */}
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -272,30 +383,127 @@ const DashboardScreen = ({ navigation }: any) => {
                         <Text style={styles.emptyText}>No recent orders found</Text>
                     </View>
                 ) : (
-                    recentOrders.map((order) => (
-                        <TouchableOpacity
-                            key={order.id}
-                            style={styles.recentItem}
-                            onPress={() => navigation.navigate('OrderDetail', { orderId: order.id })}
-                        >
-                            <View style={styles.recentLeft}>
-                                <View style={styles.recentIcon}>
-                                    <ReceiptIndianRupee size={20} color={Colors.primary} />
+                    recentOrders.map((item) => {
+                        // Logic to find earliest delivery date from items or fallback to order date
+                        let targetDateVal = item.deliveryDate;
+                        let daysLeft = 999;
+                        let isUrgent = false;
+
+                        if (item.items && item.items.length > 0) {
+                            const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
+
+                            // Check urgency
+                            const hasUrgentItem = activeItems.some((i: any) => i.urgency === 'Urgent' || i.urgency === 'High');
+                            // Determine if the order itself is urgent (top level or via any item)
+                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
+
+                            // Valid dates from active items
+                            const validDates = activeItems
+                                .map((i: any) => i.deliveryDate)
+                                .filter((d: any) => d)
+                                .map((d: string) => parseDate(d).getTime());
+
+                            if (validDates.length > 0) {
+                                const minDate = Math.min(...validDates);
+                                targetDateVal = new Date(minDate).toISOString();
+
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const tDate = new Date(minDate);
+                                tDate.setHours(0, 0, 0, 0);
+                                const diff = tDate.getTime() - today.getTime();
+                                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            } else {
+                                // Fallback to order delivery date if exists
+                                daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                            }
+                        } else {
+                            // Fallback if no items
+                            daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High') && item.status !== 'Cancelled';
+                        }
+
+                        // Re-verify isNearing based on calculated daysLeft
+                        const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
+
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[
+                                    styles.orderCard,
+                                    isNearingDeadline && { borderColor: '#FECACA', backgroundColor: '#FEF2F2', borderWidth: 1.5 }
+                                ]}
+                                onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+                            >
+                                <View style={styles.orderHeader}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
+                                        {isUrgent && (
+                                            <View style={{ backgroundColor: '#FEE2E2', padding: 4, borderRadius: 12 }}>
+                                                <Flame size={14} color={Colors.danger} fill={Colors.danger} />
+                                            </View>
+                                        )}
+                                    </View>
+                                    {item.items && item.items.length > 1 ? (
+                                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                                            {Object.entries(item.items.reduce((acc: any, i: any) => {
+                                                const s = i.status || 'Pending';
+                                                acc[s] = (acc[s] || 0) + 1;
+                                                return acc;
+                                            }, {})).map(([status, count]: any) => (
+                                                <View key={status} style={{
+                                                    backgroundColor: getStatusColor(status),
+                                                    width: 22, height: 22, borderRadius: 11,
+                                                    justifyContent: 'center', alignItems: 'center',
+                                                    borderWidth: 1, borderColor: 'white',
+                                                    ...Shadow.subtle
+                                                }}>
+                                                    <Text style={{ color: 'white', fontSize: 11, fontFamily: 'Inter-Bold' }}>{count}</Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    ) : (
+                                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+                                            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+                                        </View>
+                                    )}
                                 </View>
-                                <View>
-                                    <Text style={styles.recentName}>{order.customerName}</Text>
-                                    <Text style={styles.recentDate}>
-                                        {formatDate(order.date || order.createdAt || new Date().toISOString())} •
-                                        <Text style={{ fontFamily: 'Inter-Bold', color: Colors.primary }}> #{order.billNo}</Text>
-                                    </Text>
+
+                                <View style={styles.orderContent}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.customerName}>{item.customerName}</Text>
+                                        <View style={styles.dateRow}>
+                                            <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
+                                            <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
+                                                {isNearingDeadline && daysLeft < 500
+                                                    ? `Due: ${daysLeft === 0 ? 'Today' : (daysLeft === 1 ? 'Tomorrow' : formatDate(targetDateVal))}`
+                                                    : (targetDateVal ? `Delivery: ${formatDate(targetDateVal)}` : formatDate(item.date))
+                                                }
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.amountArea}>
+                                        <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                                            <Text style={[
+                                                styles.amount,
+                                                item.status === 'Cancelled' && { textDecorationLine: 'line-through', color: Colors.textSecondary }
+                                            ]}>
+                                                ₹{item.total}
+                                            </Text>
+                                            {item.status !== 'Cancelled' && (
+                                                item.balance > 0 ? (
+                                                    <Text style={[styles.balanceTag, { fontSize: 13 }]}>Due: ₹{item.balance}</Text>
+                                                ) : (
+                                                    <Text style={[styles.balanceTag, { color: Colors.success, fontSize: 13 }]}>Paid</Text>
+                                                )
+                                            )}
+                                        </View>
+                                        <ChevronRight size={18} color={Colors.textSecondary} />
+                                    </View>
                                 </View>
-                            </View>
-                            <View style={styles.recentRight}>
-                                <Text style={styles.recentAmount}>₹{order.total}</Text>
-                                <ChevronRight size={18} color={Colors.textSecondary} />
-                            </View>
-                        </TouchableOpacity>
-                    ))
+                            </TouchableOpacity>
+                        );
+                    })
                 )}
                 <View style={{ height: 100 }} />
             </ScrollView>
@@ -438,22 +646,29 @@ const DashboardScreen = ({ navigation }: any) => {
                         </View>
 
                         <ScrollView style={styles.activityList} contentContainerStyle={{ paddingBottom: 40 }}>
-                            {orders.length === 0 ? (
+                            {recentActivities.length === 0 ? (
                                 <View style={styles.noActivity}>
                                     <Bell size={40} color={Colors.border} />
                                     <Text style={styles.noActivityText}>No recent activity yet</Text>
                                 </View>
                             ) : (
-                                orders.slice(0, 10).map(order => (
-                                    <View key={order.id} style={styles.activityItem}>
-                                        <View style={[styles.activityIcon, { backgroundColor: order.status === 'Paid' ? '#D1FAE5' : '#FEF3C7' }]}>
-                                            <Clock size={16} color={order.status === 'Paid' ? '#10B981' : '#F59E0B'} />
+                                recentActivities.map(activity => (
+                                    <View key={activity.id} style={styles.activityItem}>
+                                        <View style={[styles.activityIcon, { backgroundColor: activity.type === 'payment' ? '#DCFCE7' : '#EFF6FF' }]}>
+                                            {activity.type === 'payment' ? (
+                                                <CreditCard size={16} color="#10B981" />
+                                            ) : (
+                                                <Receipt size={16} color="#3B82F6" />
+                                            )}
                                         </View>
                                         <View style={styles.activityContent}>
                                             <Text style={styles.activityText}>
-                                                <Text style={styles.boldText}>{order.customerName}</Text>'s order <Text style={styles.boldText}>#{order.billNo}</Text> was created.
+                                                <Text style={styles.boldText}>{activity.title}</Text>
                                             </Text>
-                                            <Text style={styles.activityTime}>{order.date}</Text>
+                                            <Text style={[styles.activityText, { fontSize: 13, color: Colors.textSecondary, marginTop: 2 }]}>
+                                                {activity.subtitle}
+                                            </Text>
+                                            <Text style={styles.activityTime}>{formatDate(activity.date)}</Text>
                                         </View>
                                     </View>
                                 ))
@@ -550,6 +765,51 @@ const styles = StyleSheet.create({
         fontSize: 18,
         marginBottom: 8,
     },
+    // Update Banner Styles
+    updateBanner: {
+        marginHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+        backgroundColor: '#EFF6FF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+        overflow: 'hidden'
+    },
+    updateContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        gap: 12
+    },
+    updateIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    updateTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 15,
+        color: '#1E3A8A'
+    },
+    updateSubtitle: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: '#3B82F6'
+    },
+    updateButton: {
+        backgroundColor: Colors.primary,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8
+    },
+    updateButtonText: {
+        color: Colors.white,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14
+    },
     mainCardValue: {
         color: Colors.white,
         fontFamily: 'Inter-Bold',
@@ -591,11 +851,13 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Bold',
         fontSize: 18,
         color: Colors.textPrimary,
+        marginTop: 18,
     },
     seeAll: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 13,
         color: Colors.primary,
+        marginTop: 18,
     },
     kpiGrid: {
         flexDirection: 'row',
@@ -660,51 +922,73 @@ const styles = StyleSheet.create({
     primaryAction: {
         transform: [{ scale: 1.05 }],
     },
-    recentItem: {
+    orderCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 12,
+        padding: Spacing.md,
+        marginBottom: Spacing.sm,
+        marginHorizontal: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        ...Shadow.subtle,
+    },
+    orderHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: Colors.white,
-        marginHorizontal: Spacing.lg,
-        padding: Spacing.md,
-        borderRadius: 16,
-        marginBottom: Spacing.sm,
-        borderWidth: 1,
-        borderColor: Colors.border,
+        marginBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        paddingBottom: 8,
     },
-    recentLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    recentIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        backgroundColor: Colors.background,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    recentName: {
+    billNo: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 15,
+        color: Colors.textSecondary,
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    statusText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 12,
+    },
+    orderContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    customerName: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
         color: Colors.textPrimary,
     },
-    recentDate: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginTop: 2,
-    },
-    recentRight: {
+    dateRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+        marginTop: 2,
     },
-    recentAmount: {
+    dateText: {
+        fontFamily: 'Inter-Regular',
+        fontSize: 15,
+        color: Colors.textSecondary,
+    },
+    amountArea: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    amount: {
         fontFamily: 'Inter-Bold',
-        fontSize: 16,
-        color: Colors.textPrimary,
+        fontSize: 17,
+        color: Colors.primary,
+    },
+    balanceTag: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.danger,
     },
     emptyRecent: {
         padding: 40,
@@ -758,39 +1042,36 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.background,
-        borderRadius: 8,
-        paddingHorizontal: Spacing.md,
-        height: 44,
-        borderWidth: 1,
-        borderColor: Colors.border,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 48,
+        gap: 8,
     },
     searchInput: {
         flex: 1,
-        marginLeft: Spacing.sm,
         fontFamily: 'Inter-Regular',
-        fontSize: 15,
+        fontSize: 16,
         color: Colors.textPrimary,
     },
     cancelText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 16,
         color: Colors.primary,
     },
     searchResults: {
         paddingHorizontal: Spacing.lg,
     },
     searchSection: {
-        marginBottom: 20,
+        marginBottom: 24,
     },
     searchSectionTitle: {
         fontFamily: 'Inter-Bold',
-        fontSize: 12,
+        fontSize: 14,
         color: Colors.textSecondary,
+        marginBottom: 12,
         textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginBottom: 10,
-        marginLeft: 4,
+        letterSpacing: 0.5,
     },
     searchResultItem: {
         flexDirection: 'row',
@@ -798,75 +1079,84 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#F3F4F6',
+        gap: 16,
     },
     searchResultIcon: {
         width: 40,
         height: 40,
         borderRadius: 10,
-        backgroundColor: Colors.primaryLight,
+        backgroundColor: '#EEF2FF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
     },
     searchResultTitle: {
         fontFamily: 'Inter-SemiBold',
-        fontSize: 15,
+        fontSize: 16,
         color: Colors.textPrimary,
     },
     searchResultSub: {
         fontFamily: 'Inter-Regular',
-        fontSize: 13,
+        fontSize: 14,
         color: Colors.textSecondary,
+        marginTop: 2,
     },
     noResults: {
-        padding: 40,
         alignItems: 'center',
+        paddingVertical: 40,
     },
     noResultsText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
+        fontFamily: 'Inter-Regular',
+        fontSize: 16,
         color: Colors.textSecondary,
     },
     searchPlaceholder: {
-        padding: 60,
         alignItems: 'center',
+        paddingVertical: 60,
+        gap: 16,
     },
     searchPlaceholderIcon: {
-        marginBottom: 16,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     searchPlaceholderText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
+        fontFamily: 'Inter-Medium',
+        fontSize: 16,
         color: Colors.textSecondary,
         textAlign: 'center',
+        maxWidth: 200,
     },
     bottomSheet: {
         backgroundColor: Colors.white,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        marginTop: 'auto',
-        maxHeight: '70%',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        maxHeight: '80%',
+        ...Shadow.large,
     },
     sheetHeader: {
-        alignItems: 'center',
-        paddingTop: 12,
-        paddingBottom: 20,
+        padding: 24,
         borderBottomWidth: 1,
         borderBottomColor: '#F3F4F6',
     },
     sheetHandle: {
         width: 40,
         height: 4,
-        backgroundColor: '#E5E7EB',
+        backgroundColor: '#E2E8F0',
         borderRadius: 2,
-        marginBottom: 16,
+        alignSelf: 'center',
+        marginBottom: 20,
     },
     sheetHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        width: '100%',
-        paddingHorizontal: Spacing.lg,
     },
     sheetTitle: {
         fontFamily: 'Inter-Bold',
@@ -874,49 +1164,50 @@ const styles = StyleSheet.create({
         color: Colors.textPrimary,
     },
     activityList: {
-        paddingHorizontal: Spacing.lg,
+        padding: 24,
     },
     activityItem: {
         flexDirection: 'row',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
+        gap: 16,
+        marginBottom: 24,
     },
     activityIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
     },
     activityContent: {
         flex: 1,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        paddingBottom: 24,
     },
     activityText: {
         fontFamily: 'Inter-Regular',
-        fontSize: 14,
+        fontSize: 15,
         color: Colors.textPrimary,
-        lineHeight: 20,
+        lineHeight: 22,
     },
     boldText: {
-        fontFamily: 'Inter-SemiBold',
+        fontFamily: 'Inter-Bold',
     },
     activityTime: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 12,
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
         color: Colors.textSecondary,
         marginTop: 4,
     },
     noActivity: {
-        padding: 60,
         alignItems: 'center',
+        paddingVertical: 40,
+        gap: 16,
     },
     noActivityText: {
         fontFamily: 'Inter-Medium',
-        fontSize: 14,
+        fontSize: 16,
         color: Colors.textSecondary,
-        marginTop: 16,
     }
 });
 
