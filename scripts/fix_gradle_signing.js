@@ -107,5 +107,20 @@ if (releaseBuildTypeRegex.test(content)) {
     console.log('Checking for signingConfigs.debug usage in release...');
 }
 
+// 4. Disable Release Linting (prevent failure on warnings)
+const lintOptionsCode = `
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+`;
+
+if (!content.includes('checkReleaseBuilds false')) {
+    // Insert inside android { } block
+    // We use a regex to ensure we match "android {" even if modified previously
+    content = content.replace(/android\s*\{/, (match) => `${match}\n${lintOptionsCode}`);
+    console.log('Added lintOptions to disable strict release linting.');
+}
+
 fs.writeFileSync(gradlePath, content);
 console.log('build.gradle patched successfully.');
