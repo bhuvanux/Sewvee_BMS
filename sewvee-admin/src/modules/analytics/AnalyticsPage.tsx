@@ -1,56 +1,189 @@
 import React from 'react';
-import { AreaChart, BarChart2, PieChart, TrendingUp, Calendar } from 'lucide-react';
+import {
+    Filter,
+    Download
+} from 'lucide-react';
+import {
+    ResponsiveContainer,
+    PieChart as RechartsPieChart,
+    Pie,
+    Cell,
+    Tooltip,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid
+} from 'recharts';
 import { StatCard } from '../../components/StatCard';
+import { analyticsKPIs, productInterestData, demographicData, trafficSourceData } from '../dashboard/mockData';
+import { cn } from '../../utils';
 
 export const AnalyticsPage: React.FC = () => {
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
+        <div className="space-y-8 animate-in fade-in duration-700 pt-4">
+            {/* Page Header */}
             <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
                 <div>
                     <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Analytics</h1>
-                    <p className="text-slate-500 text-sm mt-1">Deep dive into platform performance and user cohorts</p>
+                    <p className="text-slate-500 text-sm mt-1 font-medium">Deep dive into platform performance and user cohorts</p>
                 </div>
-                <div className="flex items-center space-x-3 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm text-xs font-bold uppercase tracking-widest">
-                    <button className="px-4 py-2 text-slate-400 hover:text-slate-900 transition-colors">7D</button>
-                    <button className="px-4 py-2 text-slate-400 hover:text-slate-900 transition-colors">30D</button>
-                    <button className="px-6 py-2 bg-slate-900 text-white rounded-xl shadow-lg shadow-slate-200">90D</button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard label="User Retention" value="42%" icon={AreaChart} trend={{ value: '1.2%', isUp: true }} />
-                <StatCard label="Churn Rate" value="3.4%" icon={PieChart} trend={{ value: '0.5%', isUp: false }} />
-                <StatCard label="Platform Growth" value="+24%" icon={TrendingUp} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 h-80 flex flex-col items-center justify-center text-slate-300">
-                    <BarChart2 size={48} className="mb-4 opacity-50 transition-transform group-hover:scale-110" />
-                    <h3 className="text-lg font-bold text-slate-800">Retention Cohorts</h3>
-                    <p className="text-xs font-medium text-slate-400 mt-2 uppercase tracking-widest">Advanced visualization in development</p>
-                </div>
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 h-80 flex flex-col items-center justify-center text-slate-300">
-                    <TrendingUp size={48} className="mb-4 opacity-50 transition-transform group-hover:scale-110" />
-                    <h3 className="text-lg font-bold text-slate-800">Growth Projection</h3>
-                    <p className="text-xs font-medium text-slate-400 mt-2 uppercase tracking-widest">ML Insights coming soon</p>
-                </div>
-            </div>
-
-            {/* Analytics Placeholder Section */}
-            <div className="bg-indigo-900 rounded-3xl p-12 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10">
-                    <TrendingUp size={240} />
-                </div>
-                <div className="relative z-10 max-w-xl">
-                    <h2 className="text-3xl font-black mb-4">Precision Intelligence</h2>
-                    <p className="text-indigo-200 font-medium mb-8">We are connecting the Sewvee Action Engine to provide real-time boutique health scores and automated optimization suggestions.</p>
-                    <div className="flex items-center space-x-4">
-                        <button className="py-3 px-8 bg-white text-indigo-900 rounded-2xl font-bold text-sm shadow-xl shadow-black/20 hover:bg-white/90 transition-all active:scale-95">Explore Roadmap</button>
-                        <button className="py-3 px-8 bg-white/10 text-white rounded-2xl font-bold text-sm border border-white/20 hover:bg-white/20 transition-all flex items-center space-x-2">
-                            <Calendar size={18} />
-                            <span>Schedule Presentation</span>
-                        </button>
+                <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2 bg-white rounded-xl border border-gray-200 p-1">
+                        {['7D', '30D', '90D'].map((range, idx) => (
+                            <button key={range} className={cn(
+                                "px-3 py-1.5 text-xs font-bold rounded-lg transition-colors",
+                                idx === 1 ? "bg-slate-900 text-white shadow-md shadow-slate-200" : "text-slate-500 hover:text-slate-900"
+                            )}>
+                                {range}
+                            </button>
+                        ))}
                     </div>
+                    <button className="flex items-center justify-center space-x-2 bg-white border border-gray-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-50 transition-all">
+                        <Filter size={16} />
+                        <span>Filter</span>
+                    </button>
+                    <button className="flex items-center justify-center space-x-2 bg-white border border-gray-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-gray-50 transition-all">
+                        <Download size={16} />
+                        <span>Export</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* KPI Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {analyticsKPIs.map((kpi, index) => (
+                    <StatCard
+                        key={index}
+                        label={kpi.title}
+                        value={kpi.value}
+                        icon={kpi.icon as any}
+                        trend={kpi.trend ? { value: kpi.trend, isUp: kpi.trendIsPositive || false } : undefined}
+                    />
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Product Interest (Pie Chart) */}
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col">
+                    <h3 className="font-bold text-slate-800 mb-2">Popular Products</h3>
+                    <p className="text-xs text-slate-400 mb-6">User interest by category</p>
+
+                    <div className="flex-1 min-h-[200px] relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                                <Pie
+                                    data={productInterestData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {productInterestData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                            </RechartsPieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                            <p className="text-2xl font-bold text-slate-800">Top</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">Categories</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                        {productInterestData.map((item, idx) => (
+                            <div key={idx} className="flex items-center text-xs">
+                                <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: item.color }}></div>
+                                <span className="font-bold text-slate-600 flex-1">{item.name}</span>
+                                <span className="font-bold text-slate-800">{item.value}%</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Cohort Analysis (Bar Chart) */}
+                <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="font-bold text-slate-800">Customer Age Demographics</h3>
+                            <p className="text-xs text-slate-400 mt-1">Distribution across age groups</p>
+                        </div>
+                    </div>
+
+                    <div className="h-64 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={demographicData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis
+                                    dataKey="age"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }}
+                                    dy={10}
+                                />
+                                <YAxis
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }}
+                                    tickFormatter={(value) => `${value}%`}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Bar dataKey="percentage" fill="#6366F1" radius={[4, 4, 0, 0]} barSize={40}>
+                                    {demographicData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E'][index % 4]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Traffic Sources Table */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-bold text-slate-800">Traffic Sources</h3>
+                        <p className="text-xs text-slate-400 mt-1">Where are your users coming from?</p>
+                    </div>
+                    <button className="text-xs font-bold text-primary-600 hover:text-primary-700">View Full Report</button>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-[#F8FAFC]">
+                            <tr>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50">Source</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50">Visitors</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50">Bounce Rate</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50">Conversion</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-gray-50">Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {trafficSourceData.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="px-6 py-4 text-xs font-bold text-slate-800">{item.source}</td>
+                                    <td className="px-6 py-4 text-xs font-bold text-slate-600">{item.visitors}</td>
+                                    <td className="px-6 py-4 text-xs font-bold text-slate-600">{item.bounceRate}</td>
+                                    <td className="px-6 py-4 text-xs font-bold text-slate-600">{item.conversion}</td>
+                                    <td className="px-6 py-4 text-xs font-bold">
+                                        <div className="h-1.5 w-16 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.random() * 40 + 60}%` }}></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

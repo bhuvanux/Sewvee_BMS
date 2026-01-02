@@ -22,6 +22,7 @@ import { useData } from '../context/DataContext';
 import AlertModal from '../components/AlertModal';
 import BottomConfirmationSheet from '../components/BottomConfirmationSheet';
 import { useToast } from '../context/ToastContext';
+import { getDeliveryLoad } from '../utils/loadUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -121,6 +122,11 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
     const [playingUri, setPlayingUri] = useState<string | null>(null);
     const soundRef = React.useRef<Audio.Sound | null>(null);
 
+    // Delivery Load Calculation
+    const deliveryLoad = React.useMemo(() => {
+        return getDeliveryLoad(orders, -1, -1);
+    }, [orders]);
+
     // Date Picker State
     const [calendarVisible, setCalendarVisible] = useState(false);
     const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
@@ -197,10 +203,10 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
 
     const billPayments = payments.filter(p => p.orderId === order.id);
-    const totalPaymentsRecord = billPayments.reduce((sum, p) => sum + p.amount, 0);
-    // Robust Logic: Math.max ensures we don't double count if order.advance is in sync with payments, 
-    // but also covers legacy cases where payments might be missing but advance is set.
-    const totalPaid = Math.max(totalPaymentsRecord, order.advance || 0);
+    const totalPaymentsRecord = billPayments.reduce((sum: number, p: any) => sum + p.amount, 0);
+    // Priority Source of Truth: Sum of individual payment records.
+    // Fallback: order.advance (primarily for legacy orders from before the payments system).
+    const totalPaid = billPayments.length > 0 ? totalPaymentsRecord : (order.advance || 0);
 
     // Cancelled Item Logic
     const rawItemsForCalc = normalizeItems(order);
@@ -325,8 +331,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             .filter(p => p.orderId === order.id)
             .reduce((sum, p) => sum + p.amount, 0);
 
-        // Robust Logic: Math.max ensures we don't double count if order.advance is in sync with payments
-        const totalCollected = Math.max(currentTotalPayments, order.advance || 0);
+        // Priority Source of Truth: Sum of individual payment records.
+        const totalCollected = currentTotalPayments > 0 ? currentTotalPayments : (order.advance || 0);
         const newBalance = newTotal - totalCollected;
 
         await updateOrder(order.id, {
@@ -1628,6 +1634,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
                 onSelect={handleDateUpdate}
                 initialDate={activeItemIndex !== null ? displayItems[activeItemIndex]?.deliveryDate : null}
                 disablePastDates={true}
+                deliveryLoad={deliveryLoad}
             />
         </View >
     );

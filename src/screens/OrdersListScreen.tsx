@@ -11,10 +11,12 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
-import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus, Flame } from 'lucide-react-native';
+import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus, Flame, LayoutList } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import CalendarView from '../components/CalendarView';
+import { getDeliveryLoad } from '../utils/loadUtils';
 
 const OrdersListScreen = ({ navigation }: any) => {
     const { orders } = useData();
@@ -24,6 +26,10 @@ const OrdersListScreen = ({ navigation }: any) => {
     const [filterPaymentStatus, setFilterPaymentStatus] = useState<'All' | 'Paid' | 'Unpaid'>('All');
     const [sortBy, setSortBy] = useState<'DateDesc' | 'DateAsc' | 'AmountDesc' | 'AmountAsc'>('DateDesc');
     const [isFilterVisible, setIsFilterVisible] = useState(false);
+
+    // Calendar View State
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const monthName = currentDate.toLocaleString('default', { month: 'short', year: '2-digit' });
@@ -74,6 +80,16 @@ const OrdersListScreen = ({ navigation }: any) => {
         acc.balance += current.balance;
         return acc;
     }, { total: 0, advance: 0, balance: 0 });
+
+    // Calculate Delivery Load for Calendar using ALL active orders (not just current month filtered)
+    // We want the calendar dots to show up for any visible month
+    const deliveryLoad = React.useMemo(() => getDeliveryLoad(orders, -1, -1), [orders]);
+
+    // Filter orders for the Selected Date in Calendar View
+    const agendaOrders = React.useMemo(() => {
+        if (!selectedDate || viewMode !== 'calendar') return [];
+        return orders.filter(o => o.deliveryDate === selectedDate && o.status !== 'Cancelled' && o.status !== 'Delivered');
+    }, [orders, selectedDate, viewMode]);
 
     const getDaysRemaining = (dateString: string | undefined) => {
         if (!dateString) return 999;
@@ -274,6 +290,18 @@ const OrdersListScreen = ({ navigation }: any) => {
                     >
                         <Plus size={20} color={Colors.white} />
                     </TouchableOpacity>
+
+                    {/* View Toggle */}
+                    <TouchableOpacity
+                        style={[styles.filterBtn, { marginLeft: 8 }]}
+                        onPress={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
+                    >
+                        {viewMode === 'list' ? (
+                            <Calendar size={20} color={Colors.textPrimary} />
+                        ) : (
+                            <LayoutList size={20} color={Colors.textPrimary} />
+                        )}
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.searchContainer}>
@@ -416,19 +444,56 @@ const OrdersListScreen = ({ navigation }: any) => {
 
 
 
-            <FlatList
-                data={filteredOrders}
-                renderItem={renderItem}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.listContent}
-                ListFooterComponent={<View style={{ height: 160 }} />}
-                ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        <ReceiptIndianRupee size={48} color={Colors.border} />
-                        <Text style={styles.emptyText}>No orders found</Text>
+            {/* Content Area */}
+            {viewMode === 'list' ? (
+                <FlatList
+                    data={filteredOrders}
+                    renderItem={renderItem}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.listContent}
+                    ListFooterComponent={<View style={{ height: 160 }} />}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <ReceiptIndianRupee size={48} color={Colors.border} />
+                            <Text style={styles.emptyText}>No orders found</Text>
+                        </View>
+                    }
+                />
+            ) : (
+                <ScrollView contentContainerStyle={styles.scrollContent}>
+                    <View style={styles.calendarWrapper}>
+                        <CalendarView
+                            onSelect={setSelectedDate}
+                            initialDate={selectedDate || undefined}
+                            deliveryLoad={deliveryLoad}
+                            disablePastDates={false} // Allow seeing past orders in history
+                            showLegend={true}
+                        />
                     </View>
-                }
-            />
+
+                    {/* Agenda List */}
+                    <View style={styles.agendaContainer}>
+                        <Text style={styles.agendaTitle}>
+                            {selectedDate
+                                ? `Due on ${formatDate(new Date(selectedDate.split('/').reverse().join('-')).toISOString())}`
+                                : 'Select a date to view orders'}
+                        </Text>
+
+                        {selectedDate && agendaOrders.length === 0 ? (
+                            <View style={styles.emptyAgenda}>
+                                <Text style={styles.emptyAgendaText}>No active orders due on this date</Text>
+                            </View>
+                        ) : (
+                            agendaOrders.map(item => (
+                                <View key={item.id} style={{ marginBottom: 12 }}>
+                                    {renderItem({ item })}
+                                </View>
+                            ))
+                        )}
+                    </View>
+                    <View style={{ height: 100 }} />
+                </ScrollView>
+            )}
 
 
         </View>
@@ -735,6 +800,41 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Medium',
         fontSize: 16,
         color: Colors.textSecondary,
+    },
+    // Calendar Mode Styles
+    scrollContent: {
+        paddingBottom: 40
+    },
+    calendarWrapper: {
+        backgroundColor: Colors.white,
+        margin: 16,
+        borderRadius: 24,
+        padding: 24,
+        ...Shadow.medium
+    },
+    agendaContainer: {
+        paddingHorizontal: 16,
+        marginTop: 8
+    },
+    agendaTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        marginBottom: 16
+    },
+    emptyAgenda: {
+        padding: 24,
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderStyle: 'dashed'
+    },
+    emptyAgendaText: {
+        fontFamily: 'Inter-Medium',
+        color: Colors.textSecondary,
+        fontSize: 14
     }
 });
 
