@@ -58,6 +58,7 @@ import { Order, OutfitItem, MeasurementProfile, MeasurementHistoryItem } from '.
 import { formatDate, getCurrentDate, getCurrentTime, parseDate } from '../utils/dateUtils';
 import AlertModal from '../components/AlertModal';
 import CalendarModal from '../components/CalendarModal';
+import { getDeliveryLoad } from '../utils/loadUtils';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -164,6 +165,66 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
     const [calendarVisible, setCalendarVisible] = useState(false);
     const [dateField, setDateField] = useState<'trialDate' | 'deliveryDate' | null>(null);
     const [outfitDrawerVisible, setOutfitDrawerVisible] = useState(false);
+
+    // Get orders for delivery load calculation
+    const { orders } = useData();
+
+    // Calculate delivery load for the Calendar
+    // We can default to current month/year if calendar isn't open, 
+    // but CalendarModal handles month switching internally. 
+    // The loadUtils expects a specific month/year.
+    // However, since CalendarModal handles its own month state, we should probably pass the WHOLE map 
+    // or update CalendarModal to ask for data. 
+    // CURRENT DESIGN: loadUtils.ts filters by month/year. 
+    // Optimization: Let's calculate for ALL active orders since the dataset isn't huge yet (clients < 1000 orders).
+    // Or, pass a helper that CalendarModal can call? 
+    // Actually, getting ALL active orders into a map is fine for < 5000 records.
+    // Let's modify getDeliveryLoad to NOT filter by month/year if we want a global map, 
+    // OR we pass the current month to the modal props?
+    // CalendarModal controls its own state (currentMonth, currentYear). 
+    // To keep it simple without lifting state up too much:
+    // Let's generate a map for " +/- 1 year " or just all active future orders.
+    // Let's UPDATE loadUtils to be lighter or handle this.
+    // actually, let's just make getDeliveryLoad return ALL if month/year are -1.
+    // Wait, loadUtils implementation I wrote specifically filters.
+    // Let's stick to the current month for now, BUT CalendarModal allows navigation.
+    // If I pass `deliveryLoad` prop, it needs to cover the viewable dates.
+    // The previous implementation of `getDeliveryLoad` filters by month.
+    // This means if user clicks "Next Month", the dots won't show unless I update the prop.
+    // CalendarModal DOES NOT expose `onMonthChange`.
+    // QUICK FIX: Modify `getDeliveryLoad` to accept `month = -1` to return ALL relevant orders.
+    // Then I can calculate once.
+    // Let's use useMemo to calculate for the *current* calendar view? No, I don't know the calendar view state.
+    // Best approach: Calculate for *everything*.
+
+    const deliveryLoad = React.useMemo(() => {
+        // -1 to fetch all (need to update utils first? No, let's just loop locally here or update utils)
+        // Let's update the utils call to support "all".
+        // Actually, I can just not pass month/year to a new util function or modify the existing one.
+        // Let's modify the usage here to be smart.
+        // For local simplicity: The util I wrote takes month/year.
+        // I should probably have made it return all. 
+        // Let me RE-WRITE the util in the next step or just inline the logic here if it's simple.
+        // Constructing the map for ALL orders is better for UX so scrolling works immediately.
+
+        const loadMap: any = {};
+        orders.forEach(o => {
+            if (o.status !== 'Cancelled' && o.status !== 'Delivered' && o.status !== 'Completed' && o.deliveryDate) {
+                loadMap[o.deliveryDate] = loadMap[o.deliveryDate] || { count: 0, status: 'low' };
+                loadMap[o.deliveryDate].count++;
+            }
+        });
+
+        // Status logic
+        Object.keys(loadMap).forEach(key => {
+            const count = loadMap[key].count;
+            if (count <= 2) loadMap[key].status = 'low';
+            else if (count <= 5) loadMap[key].status = 'medium';
+            else loadMap[key].status = 'high';
+        });
+
+        return loadMap;
+    }, [orders]);
 
     const handleDateSelect = (date: string) => {
         if (dateField) {
@@ -348,6 +409,7 @@ const Step1BasicInfo = ({ state, onChange, customers, outfits, openCustomerModal
                 onClose={() => setCalendarVisible(false)}
                 onSelect={handleDateSelect}
                 initialDate={dateField === 'trialDate' ? state.trialDate : state.deliveryDate}
+                deliveryLoad={dateField === 'deliveryDate' ? deliveryLoad : undefined}
             />
 
             <OutfitDrawer
@@ -3209,6 +3271,7 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
 
                 // PAYMENT RECONCILIATION:
                 // If user added a payment (paymentInput > 0), record it.
+                // NOTE: addPayment automatically increments order.advance and reduces order.balance
                 if (currentInputAdvance > 0) {
                     await addPayment({
                         orderId: editOrderId,
@@ -3219,8 +3282,10 @@ const CreateOrderFlowScreen = ({ navigation, route }: any) => {
                     });
                 }
 
-                await updateOrder(editOrderId, newOrderData);
-                setCreatedOrder({ ...existingOrder, ...newOrderData, id: editOrderId } as Order);
+                // Remove fields that are managed by separate payment logic to avoid race conditions
+                const { advance, balance, ...orderUpdates } = newOrderData;
+                await updateOrder(editOrderId, orderUpdates);
+                setCreatedOrder({ ...existingOrder, ...orderUpdates, id: editOrderId } as Order);
                 setSuccessModalVisible(true);
             } else {
                 const result = await addOrder(newOrderData);
