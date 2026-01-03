@@ -152,13 +152,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const cleanPhone = phone.replace(/\D/g, '');
         const normalizedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
 
-        const userSnapshot = await getDocs(query(
-            collection(db, COLLECTIONS.USERS),
-            where('phone', 'in', [normalizedPhone, `+91${normalizedPhone}`, `91${normalizedPhone}`])
-        ));
+        const searchVariants = [
+            normalizedPhone,
+            `+91${normalizedPhone}`,
+            `91${normalizedPhone}`,
+            `0${normalizedPhone}`,
+            `00${normalizedPhone}`,
+            cleanPhone,
+            phone
+        ];
 
-        if (userSnapshot.empty) {
-            throw new Error('User not found with this phone number');
+        // 0. Ensure we have at least Anonymous Auth to read Firestore (Required for Staging)
+        if (!auth.currentUser) {
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                // Ignore failure, we'll try to read Production anyway
+            }
+        }
+
+        const findUser = async (collectionName: string) => {
+            try {
+                let snap = await getDocs(query(collection(db, collectionName), where('phone', 'in', searchVariants)));
+                if (snap.empty) {
+                    snap = await getDocs(query(collection(db, collectionName), where('mobile', 'in', searchVariants)));
+                }
+                return snap;
+            } catch (e) {
+                return null; // Likely permission denied
+            }
+        };
+
+        const prodSnap = await findUser('users');
+        const stagingSnap = await findUser('staging_users');
+
+        let userSnapshot: any = null;
+        const currentCollection = COLLECTIONS.USERS;
+
+        if (!prodSnap?.empty) {
+            userSnapshot = prodSnap;
+        }
+
+        if (userSnapshot === null && !stagingSnap?.empty) {
+            userSnapshot = stagingSnap;
+        }
+
+        if (userSnapshot === null || userSnapshot.empty) {
+            throw new Error('User not found. Please check your phone number or contact support.');
         }
 
         const userData = userSnapshot.docs[0].data();

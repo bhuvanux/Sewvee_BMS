@@ -880,7 +880,7 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
 
                                                 const content = (
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                                        <Calendar size={14} color={(!deliveryDate || isNearing) ? Colors.danger : Colors.textSecondary} />
+                                                        <Calendar size={16} color={(!deliveryDate || isNearing) ? Colors.danger : Colors.textPrimary} />
                                                         {deliveryDate ? (
                                                             <>
                                                                 <Text style={{
@@ -1356,7 +1356,8 @@ const OrderDetailScreen = ({ route, navigation }: any) => {
             >
                 <View>
                     {['Pending', 'In Progress', 'Trial', 'Completed', 'Cancelled'].map((statusOption) => {
-                        const isSelected = order.status === statusOption;
+                        const currentItem = statusItemIndex !== null ? (order.items || order.outfits || [])[statusItemIndex] : null;
+                        const isSelected = currentItem ? currentItem.status === statusOption : order.status === statusOption;
                         const activeColor = getStatusColor(statusOption);
                         return (
                             <TouchableOpacity

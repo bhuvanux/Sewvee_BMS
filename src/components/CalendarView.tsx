@@ -5,7 +5,13 @@ import { Colors } from '../constants/theme';
 import { DeliveryLoadMap } from '../utils/loadUtils';
 
 interface CalendarViewProps {
-    // ... existing interface
+    onSelect?: (date: string) => void;
+    initialDate?: string;
+    deliveryLoad?: DeliveryLoadMap;
+    disablePastDates?: boolean;
+    minDate?: Date;
+    showLegend?: boolean;
+    style?: any;
 }
 
 const CalendarView = ({
@@ -191,9 +197,8 @@ const CalendarView = ({
                         <Text style={styles.legendText}>High</Text>
                     </View>
                     <View style={styles.legendItem}>
-                        <View style={[styles.loadBadge, { backgroundColor: '#F59E0B', minWidth: 30 }]}>
-                            <Text style={styles.loadCount}>2</Text>
-                            <Flame size={8} color="white" fill="white" style={{ marginLeft: 2 }} />
+                        <View style={[styles.loadBadge, { backgroundColor: '#F59E0B', minWidth: 20 }]}>
+                            <Flame size={10} color="white" fill="white" />
                         </View>
                         <Text style={styles.legendText}>Urgent</Text>
                     </View>

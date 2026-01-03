@@ -8,7 +8,8 @@ import {
     TextInput,
     Platform,
     Modal,
-    ScrollView
+    ScrollView,
+    LayoutAnimation
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import { Search, ListFilter, ChevronRight, Calendar, Clock, Receipt, User, ArrowLeft, X, SlidersHorizontal, ArrowUpDown, Check, ChevronLeft, ReceiptIndianRupee, Plus, Flame, LayoutList } from 'lucide-react-native';
@@ -30,6 +31,7 @@ const OrdersListScreen = ({ navigation }: any) => {
     // Calendar View State
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [isSearchVisible, setIsSearchVisible] = useState(false);
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const monthName = currentDate.toLocaleString('default', { month: 'short', year: '2-digit' });
@@ -88,7 +90,16 @@ const OrdersListScreen = ({ navigation }: any) => {
     // Filter orders for the Selected Date in Calendar View
     const agendaOrders = React.useMemo(() => {
         if (!selectedDate || viewMode !== 'calendar') return [];
-        return orders.filter(o => o.deliveryDate === selectedDate && o.status !== 'Cancelled' && o.status !== 'Delivered');
+        return orders.filter(o => {
+            // Check if Main Order Date matches (if valid and not cancelled/delivered)
+            const mainMatch = o.deliveryDate === selectedDate && o.status !== 'Cancelled' && o.status !== 'Delivered';
+
+            // Check if ANY item has this delivery date
+            const itemMatch = o.items && o.items.some((i: any) => i.deliveryDate === selectedDate && i.status !== 'Cancelled');
+
+            // Return true if either matches
+            return mainMatch || itemMatch;
+        });
     }, [orders, selectedDate, viewMode]);
 
     const getDaysRemaining = (dateString: string | undefined) => {
@@ -197,7 +208,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                     <View style={{ flex: 1 }}>
                         <Text style={styles.customerName}>{item.customerName}</Text>
                         <View style={styles.dateRow}>
-                            <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
+                            <Calendar size={16} color={isNearingDeadline ? Colors.danger : Colors.textPrimary} />
                             <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
                                 {/* Display the calculated earliest date if nearing, else standard date */}
                                 {isNearingDeadline && daysLeft < 500
@@ -249,8 +260,8 @@ const OrdersListScreen = ({ navigation }: any) => {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: insets.top }]}>
-                {/* Row 1: Title + Month + Filter */}
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 0 : 12) }]}>
                 <View style={styles.headerTop}>
                     <Text style={styles.screenTitle}>Orders</Text>
 
@@ -264,79 +275,90 @@ const OrdersListScreen = ({ navigation }: any) => {
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity
-                        style={[styles.filterBtn, isFilterVisible && styles.filterBtnActive]}
-                        onPress={() => setIsFilterVisible(true)}
-                    >
-                        <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
-                        {isFilterActive && (
-                            <View style={{
-                                position: 'absolute',
-                                top: -4,
-                                right: -4,
-                                width: 10,
-                                height: 10,
-                                borderRadius: 5,
-                                backgroundColor: Colors.primary,
-                                borderWidth: 2,
-                                borderColor: Colors.white
-                            }} />
-                        )}
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TouchableOpacity
+                            style={[styles.filterBtn, isFilterVisible && styles.filterBtnActive]}
+                            onPress={() => setIsFilterVisible(true)}
+                        >
+                            <ListFilter size={20} color={isFilterVisible ? Colors.white : Colors.textPrimary} />
+                            {isFilterActive && <View style={styles.filterDot} />}
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
-                        onPress={() => navigation.navigate('CreateOrderFlow')}
-                    >
-                        <Plus size={20} color={Colors.white} />
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.filterBtn, isSearchVisible && styles.filterBtnActive, { marginLeft: 8 }]}
+                            onPress={() => {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                setIsSearchVisible(!isSearchVisible);
+                            }}
+                        >
+                            <Search size={20} color={isSearchVisible ? Colors.white : Colors.textPrimary} />
+                        </TouchableOpacity>
 
-                    {/* View Toggle */}
-                    <TouchableOpacity
-                        style={[styles.filterBtn, { marginLeft: 8 }]}
-                        onPress={() => setViewMode(viewMode === 'list' ? 'calendar' : 'list')}
-                    >
-                        {viewMode === 'list' ? (
-                            <Calendar size={20} color={Colors.textPrimary} />
-                        ) : (
-                            <LayoutList size={20} color={Colors.textPrimary} />
-                        )}
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.filterBtn, { backgroundColor: Colors.primary, marginLeft: 8 }]}
+                            onPress={() => navigation.navigate('CreateOrderFlow')}
+                        >
+                            <Plus size={20} color={Colors.white} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
-                <View style={styles.searchContainer}>
-                    <Search size={18} color={Colors.textSecondary} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholderTextColor={Colors.textSecondary}
-                        placeholder="Search Orders..."
-                        value={search}
-                        onChangeText={setSearch}
-                    />
-                </View>
+                {viewMode === 'list' && isSearchVisible && (
+                    <View style={styles.searchContainer}>
+                        <Search size={18} color={Colors.textSecondary} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholderTextColor={Colors.textSecondary}
+                            placeholder="Search Orders..."
+                            value={search}
+                            onChangeText={setSearch}
+                            autoFocus={true}
+                        />
+                    </View>
+                )}
+            </View>
 
-                {/* Row 3: Compact Stats */}
-                <View style={styles.statsRow}>
-                    <Text style={styles.statText}>
-                        <Text style={{ color: Colors.textSecondary }}>Orders: </Text>
-                        {filteredOrders.length}
-                    </Text>
-                    <View style={styles.statDivider} />
-                    <Text style={styles.statText}>
-                        <Text style={{ color: Colors.textSecondary }}>Total: </Text>
-                        ₹{totals.total.toLocaleString()}
-                    </Text>
-                    <View style={styles.statDivider} />
-                    <Text style={styles.statText}>
-                        <Text style={{ color: Colors.textSecondary }}>Paid: </Text>
-                        <Text style={{ color: Colors.success }}>₹{totals.advance.toLocaleString()}</Text>
-                    </Text>
-                    <View style={styles.statDivider} />
-                    <Text style={styles.statText}>
-                        <Text style={{ color: Colors.textSecondary }}>Due: </Text>
-                        <Text style={{ color: totals.balance > 0 ? Colors.danger : Colors.success }}>₹{totals.balance.toLocaleString()}</Text>
-                    </Text>
+            {/* Top Stats Bar */}
+            <View style={styles.statsBar}>
+                <View style={styles.statsInner}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>{filteredOrders.length}</Text>
+                        <Text style={styles.statLabel}>Orders</Text>
+                    </View>
+                    <View style={styles.statDividerVertical} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statValue}>₹{totals.total.toLocaleString()}</Text>
+                        <Text style={styles.statLabel}>Total</Text>
+                    </View>
+                    <View style={styles.statDividerVertical} />
+                    <View style={styles.statItem}>
+                        <Text style={[styles.statValue, { color: Colors.success }]}>₹{totals.advance.toLocaleString()}</Text>
+                        <Text style={styles.statLabel}>Paid</Text>
+                    </View>
+                    <View style={styles.statDividerVertical} />
+                    <View style={styles.statItem}>
+                        <Text style={[styles.statValue, { color: totals.balance > 0 ? Colors.danger : Colors.success }]}>₹{totals.balance.toLocaleString()}</Text>
+                        <Text style={styles.statLabel}>Due</Text>
+                    </View>
                 </View>
+            </View>
+
+            {/* View Tabs */}
+            <View style={styles.tabsContainer}>
+                <TouchableOpacity
+                    style={[styles.tabButton, viewMode === 'list' && styles.tabButtonActive]}
+                    onPress={() => setViewMode('list')}
+                >
+                    <LayoutList size={18} color={viewMode === 'list' ? Colors.white : Colors.textSecondary} />
+                    <Text style={[styles.tabButtonText, viewMode === 'list' && styles.tabButtonTextActive]}>List View</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, viewMode === 'calendar' && styles.tabButtonActive]}
+                    onPress={() => setViewMode('calendar')}
+                >
+                    <Calendar size={18} color={viewMode === 'calendar' ? Colors.white : Colors.textSecondary} />
+                    <Text style={[styles.tabButtonText, viewMode === 'calendar' && styles.tabButtonTextActive]}>Calendar</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Filter Modal */}
@@ -575,12 +597,89 @@ const styles = StyleSheet.create({
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.background,
+        backgroundColor: '#F3F4F6',
         borderRadius: 12,
         paddingHorizontal: Spacing.md,
         height: 50,
+        marginTop: 8,
+    },
+    // New Styles for Overhaul
+    statsBar: {
+        backgroundColor: Colors.white,
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    statsInner: {
+        flexDirection: 'row',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+        justifyContent: 'space-between',
         borderWidth: 1,
-        borderColor: Colors.border,
+        borderColor: '#E2E8F0',
+    },
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    statValue: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 15,
+        color: Colors.textPrimary,
+    },
+    statLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 11,
+        color: Colors.textSecondary,
+        marginTop: 2,
+    },
+    statDividerVertical: {
+        width: 1,
+        height: 24,
+        backgroundColor: '#E2E8F0',
+    },
+    tabsContainer: {
+        flexDirection: 'row',
+        backgroundColor: Colors.white,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 12,
+    },
+    tabButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 10,
+        borderRadius: 12,
+        backgroundColor: '#F1F5F9',
+    },
+    tabButtonActive: {
+        backgroundColor: Colors.primary,
+        ...Shadow.subtle,
+    },
+    tabButtonText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 14,
+        color: Colors.textSecondary,
+    },
+    tabButtonTextActive: {
+        color: Colors.white,
+    },
+    filterDot: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Colors.primary,
+        borderWidth: 2,
+        borderColor: Colors.white
     },
     searchInput: {
         flex: 1,

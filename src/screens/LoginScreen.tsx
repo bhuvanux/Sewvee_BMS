@@ -18,6 +18,7 @@ import PinInput from '../components/PinInput';
 import { logEvent } from '../config/firebase';
 import AlertModal from '../components/AlertModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 
 const LoginScreen = ({ navigation }: any) => {
     const insets = useSafeAreaInsets();
@@ -132,6 +133,13 @@ const LoginScreen = ({ navigation }: any) => {
                         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
                             <Text style={styles.signupText}>Sign Up</Text>
                         </TouchableOpacity>
+                    </View>
+
+                    {/* Environment Indicator */}
+                    <View style={{ marginTop: 20, alignItems: 'center', opacity: 0.5 }}>
+                        <Text style={{ fontSize: 10, fontFamily: 'Inter-Medium', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 }}>
+                            {Constants.expoConfig?.name || 'Sewvee'} • {Constants.expoConfig?.extra?.isStaging ? 'STAGING/DEV' : 'PRODUCTION'}
+                        </Text>
                     </View>
                 </View>
             </ScrollView>

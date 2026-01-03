@@ -1,7 +1,8 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-    const isStaging = process.env.EAS_BUILD_PROFILE === 'staging';
+    // Default to Production unless APP_ENV is explicitly 'staging'
+    const isStaging = process.env.APP_ENV === 'staging' || process.env.EAS_BUILD_PROFILE === 'staging';
 
     return {
         ...config,
@@ -33,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 backgroundColor: '#ffffff',
             },
             package: isStaging ? 'com.sewvee.app.staging' : 'com.sewvee.app',
-            versionCode: 37,
+            versionCode: 38,
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
             softwareKeyboardLayoutMode: 'resize',
