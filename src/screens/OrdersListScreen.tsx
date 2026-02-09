@@ -262,18 +262,9 @@ const OrdersListScreen = ({ navigation }: any) => {
         <View style={styles.container}>
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 0 : 12) }]}>
+                {/* Header Top Row: Title + Actions */}
                 <View style={styles.headerTop}>
                     <Text style={styles.screenTitle}>Orders</Text>
-
-                    <View style={styles.monthSelector}>
-                        <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
-                            <ChevronLeft size={20} color={Colors.textSecondary} />
-                        </TouchableOpacity>
-                        <Text style={styles.monthText}>{monthName}</Text>
-                        <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
-                            <ChevronRight size={20} color={Colors.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
 
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <TouchableOpacity
@@ -303,6 +294,36 @@ const OrdersListScreen = ({ navigation }: any) => {
                     </View>
                 </View>
 
+                {/* NEW Controls Row: Month Selector + View Tabs */}
+                <View style={styles.controlsRow}>
+                    {/* Month Selector */}
+                    <View style={styles.monthSelector}>
+                        <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+                            <ChevronLeft size={20} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                        <Text style={styles.monthText}>{monthName}</Text>
+                        <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthArrow}>
+                            <ChevronRight size={20} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* View Tabs */}
+                    <View style={styles.tabsContainerCompact}>
+                        <TouchableOpacity
+                            style={[styles.tabButtonCompact, viewMode === 'list' && styles.tabButtonActive]}
+                            onPress={() => setViewMode('list')}
+                        >
+                            <LayoutList size={18} color={viewMode === 'list' ? Colors.white : Colors.textSecondary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tabButtonCompact, viewMode === 'calendar' && styles.tabButtonActive]}
+                            onPress={() => setViewMode('calendar')}
+                        >
+                            <Calendar size={18} color={viewMode === 'calendar' ? Colors.white : Colors.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
                 {viewMode === 'list' && isSearchVisible && (
                     <View style={styles.searchContainer}>
                         <Search size={18} color={Colors.textSecondary} />
@@ -318,7 +339,7 @@ const OrdersListScreen = ({ navigation }: any) => {
                 )}
             </View>
 
-            {/* Top Stats Bar */}
+            {/* Top Stats Bar - Positioned Below Controls */}
             <View style={styles.statsBar}>
                 <View style={styles.statsInner}>
                     <View style={styles.statItem}>
@@ -341,24 +362,6 @@ const OrdersListScreen = ({ navigation }: any) => {
                         <Text style={styles.statLabel}>Due</Text>
                     </View>
                 </View>
-            </View>
-
-            {/* View Tabs */}
-            <View style={styles.tabsContainer}>
-                <TouchableOpacity
-                    style={[styles.tabButton, viewMode === 'list' && styles.tabButtonActive]}
-                    onPress={() => setViewMode('list')}
-                >
-                    <LayoutList size={18} color={viewMode === 'list' ? Colors.white : Colors.textSecondary} />
-                    <Text style={[styles.tabButtonText, viewMode === 'list' && styles.tabButtonTextActive]}>List View</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tabButton, viewMode === 'calendar' && styles.tabButtonActive]}
-                    onPress={() => setViewMode('calendar')}
-                >
-                    <Calendar size={18} color={viewMode === 'calendar' ? Colors.white : Colors.textSecondary} />
-                    <Text style={[styles.tabButtonText, viewMode === 'calendar' && styles.tabButtonTextActive]}>Calendar</Text>
-                </TouchableOpacity>
             </View>
 
             {/* Filter Modal */}
@@ -461,11 +464,6 @@ const OrdersListScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Month Selector */}
-
-
-
-
             {/* Content Area */}
             {viewMode === 'list' ? (
                 <FlatList
@@ -544,6 +542,14 @@ const styles = StyleSheet.create({
         fontSize: 24,
         color: Colors.textPrimary,
     },
+    controlsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 0,
+        marginBottom: 12,
+        gap: 12,
+    },
     monthSelector: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -563,6 +569,21 @@ const styles = StyleSheet.create({
         minWidth: 70,
         textAlign: 'center',
     },
+    tabsContainerCompact: {
+        flexDirection: 'row',
+        backgroundColor: '#F3F4F6',
+        borderRadius: 12,
+        padding: 4,
+        gap: 4,
+    },
+    tabButtonCompact: {
+        padding: 8,
+        borderRadius: 10,
+    },
+    tabButtonActive: {
+        backgroundColor: Colors.primary,
+        ...Shadow.subtle,
+    },
     filterBtn: {
         padding: 10,
         backgroundColor: '#F3F4F6',
@@ -572,27 +593,16 @@ const styles = StyleSheet.create({
     filterBtnActive: {
         backgroundColor: Colors.primary,
     },
-    statsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#F8FAFC',
-        borderRadius: 10,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        marginTop: 16,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-    },
-    statText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 13,
-        color: Colors.textPrimary,
-    },
-    statDivider: {
-        width: 1,
-        height: 16,
-        backgroundColor: '#CBD5E1',
+    filterDot: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Colors.primary,
+        borderWidth: 2,
+        borderColor: Colors.white
     },
     searchContainer: {
         flexDirection: 'row',
@@ -603,7 +613,13 @@ const styles = StyleSheet.create({
         height: 50,
         marginTop: 8,
     },
-    // New Styles for Overhaul
+    searchInput: {
+        flex: 1,
+        marginLeft: Spacing.sm,
+        fontFamily: 'Inter-Regular',
+        fontSize: 15,
+        color: Colors.textPrimary,
+    },
     statsBar: {
         backgroundColor: Colors.white,
         paddingHorizontal: 16,
@@ -640,53 +656,6 @@ const styles = StyleSheet.create({
         width: 1,
         height: 24,
         backgroundColor: '#E2E8F0',
-    },
-    tabsContainer: {
-        flexDirection: 'row',
-        backgroundColor: Colors.white,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        gap: 12,
-    },
-    tabButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 10,
-        borderRadius: 12,
-        backgroundColor: '#F1F5F9',
-    },
-    tabButtonActive: {
-        backgroundColor: Colors.primary,
-        ...Shadow.subtle,
-    },
-    tabButtonText: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
-    tabButtonTextActive: {
-        color: Colors.white,
-    },
-    filterDot: {
-        position: 'absolute',
-        top: -4,
-        right: -4,
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: Colors.primary,
-        borderWidth: 2,
-        borderColor: Colors.white
-    },
-    searchInput: {
-        flex: 1,
-        marginLeft: Spacing.sm,
-        fontFamily: 'Inter-Regular',
-        fontSize: 15,
-        color: Colors.textPrimary,
     },
     modalOverlay: {
         flex: 1,
@@ -768,71 +737,81 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: Colors.white,
     },
-    summarySection: {
-        padding: Spacing.md,
-        backgroundColor: Colors.white,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-    },
-    amountGrid: {
-        flexDirection: 'row',
-        backgroundColor: Colors.white,
-        borderRadius: 12,
-        padding: Spacing.md,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        justifyContent: 'space-between',
-        ...Shadow.subtle,
-    },
-    amountBox: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    amountLabel: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 14,
-        color: Colors.textSecondary,
-        marginBottom: 6,
-    },
-    amountValueMain: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
     listContent: {
-        padding: Spacing.md,
+        paddingTop: 16,
+        paddingHorizontal: 16,
+        paddingBottom: 80,
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: 80,
+    },
+    emptyText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 16,
+        color: Colors.textSecondary,
+        marginTop: 12,
+    },
+    scrollContent: {
+        paddingBottom: 80,
+    },
+    calendarWrapper: {
+        marginBottom: 24,
+    },
+    agendaContainer: {
+        paddingHorizontal: 16,
+    },
+    agendaTitle: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.textPrimary,
+        marginBottom: 16,
+    },
+    emptyAgenda: {
+        padding: 24,
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    emptyAgendaText: {
+        fontFamily: 'Inter-Medium',
+        color: Colors.textSecondary,
+        fontSize: 14,
     },
     orderCard: {
         backgroundColor: Colors.white,
-        borderRadius: 12,
-        padding: Spacing.md,
-        marginBottom: Spacing.sm,
+        borderRadius: 16,
+        marginBottom: 16,
+        padding: 16,
+        ...Shadow.subtle,
         borderWidth: 1,
         borderColor: Colors.border,
-        ...Shadow.subtle,
     },
     orderHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
+        paddingBottom: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#F3F4F6',
-        paddingBottom: 8,
     },
     billNo: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 15,
-        color: Colors.textSecondary,
+        fontFamily: 'Inter-Bold',
+        fontSize: 16,
+        color: Colors.textPrimary,
     },
     statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
     },
     statusText: {
+        fontSize: 10,
         fontFamily: 'Inter-Bold',
-        fontSize: 12,
     },
     orderContent: {
         flexDirection: 'row',
@@ -843,35 +822,36 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
         color: Colors.textPrimary,
+        marginBottom: 4,
     },
     dateRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
+        gap: 6,
     },
     dateText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 15,
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
         color: Colors.textSecondary,
     },
     amountArea: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginTop: 4,
     },
     amount: {
         fontFamily: 'Inter-Bold',
-        fontSize: 17,
-        color: Colors.primary,
+        fontSize: 16,
+        color: Colors.textPrimary,
     },
     balanceTag: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
         color: Colors.danger,
     },
     fab: {
         position: 'absolute',
-        bottom: 110, // Position above the floating tab bar
+        bottom: 110,
         right: Spacing.lg,
         flexDirection: 'row',
         backgroundColor: Colors.primary,
@@ -888,53 +868,6 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 16,
     },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 100,
-        gap: 16,
-    },
-    emptyText: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 16,
-        color: Colors.textSecondary,
-    },
-    // Calendar Mode Styles
-    scrollContent: {
-        paddingBottom: 40
-    },
-    calendarWrapper: {
-        backgroundColor: Colors.white,
-        margin: 16,
-        borderRadius: 24,
-        padding: 24,
-        ...Shadow.medium
-    },
-    agendaContainer: {
-        paddingHorizontal: 16,
-        marginTop: 8
-    },
-    agendaTitle: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 16,
-        color: Colors.textPrimary,
-        marginBottom: 16
-    },
-    emptyAgenda: {
-        padding: 24,
-        alignItems: 'center',
-        backgroundColor: '#F8FAFC',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        borderStyle: 'dashed'
-    },
-    emptyAgendaText: {
-        fontFamily: 'Inter-Medium',
-        color: Colors.textSecondary,
-        fontSize: 14
-    }
 });
 
 export default OrdersListScreen;

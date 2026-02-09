@@ -1,8 +1,14 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { COLLECTIONS, getAuthPassword } from '../config/firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updatePassword, signInAnonymously } from '@react-native-firebase/auth';
-import { getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc } from '@react-native-firebase/firestore';
+
+// Import unified Firebase API (resolves to .native.ts or .web.ts)
+import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+    sendPasswordResetEmail, updatePassword, signInAnonymously,
+    getFirestore, collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, addDoc
+} from '../config/firebase';
 
 interface AuthContextType {
     user: any;
@@ -41,8 +47,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const getAuthPassword = (email: string) => MASTER_AUTH_PASS;
     const OLD_PIN_SUFFIX = "_SV2025";
 
+    console.log("🛡️ AuthProvider: Initializing...");
+
+    // Failsafe: If Auth doesn't initialize in 5s, stop loading
     useEffect(() => {
+        const timer = setTimeout(() => {
+            if (loading) {
+                console.warn("⚠️ Auth Initialization Timed Out - Forcing App Load");
+                setLoading(false);
+            }
+        }, 5000);
+        return () => clearTimeout(timer);
+    }, [loading]);
+
+    useEffect(() => {
+        console.log(`🛡️ AuthProvider: Effect Running. OS=${Platform.OS}`);
+        if (Platform.OS === 'web') {
+            // For web, set a mock user and company to bypass auth
+            setUser({
+                uid: 'web-user',
+                email: 'web@example.com',
+                name: 'Web User',
+                phone: '+1234567890',
+                isPhoneVerified: true
+            });
+            setCompany({
+                id: 'web-company',
+                name: 'Web Company',
+                ownerId: 'web-user'
+            });
+            setLoading(false);
+            return;
+        }
+
         const auth = getAuth();
+
+        if (!auth) {
+            console.error("🔥 Firebase Auth Module not found. App running in unauthenticated mode.");
+            setLoading(false);
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 try {
@@ -394,29 +439,70 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const resetPinWithPhone = async (phone: string, newPin: string) => {
-
         const db = getFirestore();
-        const userSnapshot = await getDocs(query(
-            collection(db, COLLECTIONS.USERS),
-            where('phone', '==', phone)
-        ));
+        const auth = getAuth();
 
-        if (userSnapshot.empty) {
+        // Ensure we have at least Anonymous Auth to read Firestore
+        if (!auth.currentUser) {
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Anonymous auth failed", e);
+            }
+        }
 
-            // console.log('ResetPIN: User not found in Firestore');
+        // Normalize phone to 10 digits for consistent lookup
+        const cleanPhone = phone.replace(/\D/g, '');
+        const normalizedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+
+        const searchVariants = [
+            normalizedPhone,
+            `+91${normalizedPhone}`,
+            `91${normalizedPhone}`,
+            `0${normalizedPhone}`,
+            `00${normalizedPhone}`,
+            cleanPhone,
+            phone
+        ];
+
+        // Try finding user with phone variants
+        const findUser = async (collectionName: string) => {
+            try {
+                let snap = await getDocs(query(collection(db, collectionName), where('phone', 'in', searchVariants)));
+                if (snap.empty) {
+                    snap = await getDocs(query(collection(db, collectionName), where('mobile', 'in', searchVariants)));
+                }
+                return snap;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const prodSnap = await findUser('users');
+        const stagingSnap = await findUser('staging_users');
+
+        let userSnapshot: any = null;
+
+        if (!prodSnap?.empty) {
+            userSnapshot = prodSnap;
+        }
+
+        if (userSnapshot === null && !stagingSnap?.empty) {
+            userSnapshot = stagingSnap;
+        }
+
+        if (userSnapshot === null || userSnapshot.empty) {
             throw new Error('User not found');
         }
 
         const userId = userSnapshot.docs[0].id;
         const email = userSnapshot.docs[0].data().email;
 
-        // 1. Update the PIN in Firestore (Primary source of truth for the 4-digit code)
+        // Update the PIN in Firestore (Primary source of truth for the 4-digit code)
         try {
-            // console.log('ResetPIN: Updating Firestore PIN...');
-            await updateDoc(doc(getFirestore(), COLLECTIONS.USERS, userId), {
+            await updateDoc(doc(db, COLLECTIONS.USERS, userId), {
                 pin: newPin
             });
-            // console.log('ResetPIN: Firestore update SUCCESS');
         } catch (err: any) {
             console.error('ResetPIN: Firestore update FAILED', err);
             throw new Error('Could not update PIN. Please try again.');

@@ -40,3 +40,16 @@ yarn-error.*
 /ios
 /android
 secrets/
+.temp_build_cache/
+temp_adb/
+temp_build/
+tmp_gradle_home/
+emulator_startup.log
+fix_and_start_emulator.sh
+clean_native_run.sh
+manual_build.sh
+start_adb_custom.sh
+start_emulator_manual.sh
+scripts/attempt_build_apk.sh
+scripts/fresh_install_debug.sh
+scripts/restart_metro_connection.sh

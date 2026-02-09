@@ -8,7 +8,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...config,
         name: isStaging ? 'Sewvee (Dev)' : 'Sewvee',
         slug: 'sewvee-mini',
-        scheme: 'sewvee',
         version: '1.0.5',
         orientation: 'portrait',
         icon: './assets/app-icon.png',
@@ -34,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 backgroundColor: '#ffffff',
             },
             package: isStaging ? 'com.sewvee.app.staging' : 'com.sewvee.app',
-            versionCode: 38,
+            versionCode: 40,
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
             softwareKeyboardLayoutMode: 'resize',
@@ -79,5 +78,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             },
         },
         owner: 'neemtreeapps',
+        developmentClient: {
+            silentLaunch: true,
+        },
+        // For development builds, automatically connect to local server
+        scheme: 'exp+sewvee-mini',
     };
 };

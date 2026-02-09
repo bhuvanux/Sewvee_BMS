@@ -54,26 +54,43 @@ export const formatDate = (date?: string | Date | null): string => {
 };
 
 /**
- * Safely parses a date string (DD/MM/YYYY or ISO) into a Date object
+ * Safely parses a date string (DD/MM/YYYY or ISO) or Firestore Timestamp into a Date object
  */
-export const parseDate = (dateStr: string): Date => {
-    if (!dateStr) return new Date();
-    if (dateStr.includes('T')) return new Date(dateStr);
+export const parseDate = (dateVal: any): Date => {
+    if (!dateVal) return new Date();
 
-    if (dateStr.includes('/')) {
-        const parts = dateStr.split('/').map(Number);
-        if (parts.length === 3) {
-            let [p1, p2, y] = parts;
-            // Detect MM/DD/YYYY vs DD/MM/YYYY
-            if (p1 <= 12 && p2 > 12) {
-                return new Date(y, p1 - 1, p2); // MM/DD/YYYY
-            }
-            return new Date(y, p2 - 1, p1); // DD/MM/YYYY
-        }
+    // Handle Firestore Timestamp or similar with toDate()
+    if (dateVal && typeof dateVal.toDate === 'function') {
+        return dateVal.toDate();
     }
 
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? new Date() : d;
+    // Handle Date object
+    if (dateVal instanceof Date) {
+        return dateVal;
+    }
+
+    // Handle string
+    if (typeof dateVal === 'string') {
+        if (!dateVal) return new Date();
+        if (dateVal.includes('T')) return new Date(dateVal);
+
+        if (dateVal.includes('/')) {
+            const parts = dateVal.split('/').map(Number);
+            if (parts.length === 3) {
+                let [p1, p2, y] = parts;
+                // Detect MM/DD/YYYY vs DD/MM/YYYY
+                if (p1 <= 12 && p2 > 12) {
+                    return new Date(y, p1 - 1, p2); // MM/DD/YYYY
+                }
+                return new Date(y, p2 - 1, p1); // DD/MM/YYYY
+            }
+        }
+
+        const d = new Date(dateVal);
+        return isNaN(d.getTime()) ? new Date() : d;
+    }
+
+    return new Date();
 };
 
 /**

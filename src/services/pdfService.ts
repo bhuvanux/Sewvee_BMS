@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system';
 import { Colors } from '../constants/theme';
 import { Alert, Platform } from 'react-native';
 import { formatDate } from '../utils/dateUtils';
+import { getMeasurementSortIndex } from '../constants/measurementOrdering';
 
 export const normalizeItems = (orderData: any, includeCancelled: boolean = true) => {
   let items = [];
@@ -281,7 +282,14 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
             ${item.measurements && Object.keys(item.measurements).length > 0 ? `
               <div class="notes-label" style="margin-bottom: 10px; color: #0E9F8A;">Measurements</div>
               <div class="measurement-grid">
-                ${Object.entries(item.measurements).map(([key, val]) => `
+                ${Object.entries(item.measurements)
+        .sort(([keyA], [keyB]) => {
+          const idxA = getMeasurementSortIndex(item.type || item.name, keyA);
+          const idxB = getMeasurementSortIndex(item.type || item.name, keyB);
+          if (idxA === idxB) return keyA.localeCompare(keyB); // Fallback to alpha if both unknown
+          return idxA - idxB;
+        })
+        .map(([key, val]) => `
                   <div class="measurement-item">
                     <div class="measurement-label">${key.replace(/_/g, ' ')}</div>
                     <div class="measurement-value">${val}</div>
@@ -305,8 +313,8 @@ export const getTailorCopyHTML = (orderData: any, companyData: any, processedIte
                         <img src="${img}" class="item-image" style="width: 100%; border: 2px dashed #0E9F8A; background-color: white;" />
                         <div style="font-size: 8px; color: red; font-family: monospace; overflow: hidden; white-space: nowrap; margin-top: -5px; background: rgba(255,255,255,0.8);">
                             ${img.startsWith('data:')
-          ? `B64: ${img.substring(0, 20)}...`
-          : `FAIL: ${img.substring(0, 40)}...`}
+            ? `B64: ${img.substring(0, 20)}...`
+            : `FAIL: ${img.substring(0, 40)}...`}
                         </div>
                     </div>
                 `).join('')}

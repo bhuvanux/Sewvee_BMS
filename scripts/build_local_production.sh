@@ -33,9 +33,13 @@ node scripts/fix_gradle_signing.js
 
 # 2.5 Ensure SDK Location
 if [ -z "$ANDROID_HOME" ]; then
-  export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+  export ANDROID_HOME=/Users/bhuvan/Library/Android/sdk
 fi
 echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+
+# 2.6 Fix Gradle Memory (Metaspace/OOM)
+echo "🔧 Configuring Gradle Memory..."
+echo 'org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dkotlin.daemon.jvm.options="-Xmx4g"' >> android/gradle.properties
 
 # 3. Build AAB
 echo "🛠 Building Release Bundle (AAB)..."

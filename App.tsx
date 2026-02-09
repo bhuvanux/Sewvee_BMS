@@ -1,4 +1,5 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import React, { useEffect, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, LogBox } from 'react-native';
@@ -17,13 +18,23 @@ import Toast from './src/components/Toast';
 import OfflineNotice from './src/components/OfflineNotice';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Ignore all logs for a cleaner demo experience
+// Firebase is auto-initialized from google-services.json
+// No manual initialization needed with React Native Firebase
 
 
-SplashScreen.preventAutoHideAsync();
+// SplashScreen.preventAutoHideAsync(); // Moved inside to manage better
 
 export default function App() {
-  console.log("🚀 App initializing...");
+  console.log("🚀 App initializing - JS IS RUNNING");
+
+  // IMMEDIATE FORCE HIDE TO DEBUG CRASH
+  React.useEffect(() => {
+    async function forceHide() {
+      console.log("🧨 FORCE HIDING SPLASH SCREEN");
+      await SplashScreen.hideAsync();
+    }
+    forceHide();
+  }, []);
   const [fontsLoaded, error] = useFonts({
     'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
     'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
@@ -73,38 +84,43 @@ export default function App() {
   }, []);
 
   if (!fontsLoaded && !error) {
-    return null;
+    console.log("⏳ App: Waiting for fonts to load...");
+    return null; // This is the "Blank Screen" if it stays here
   }
+
+  console.log("✅ App: Fonts loaded. Rendering RootNavigator...");
 
   return (
     <GestureHandlerRootView style={styles.container} onLayout={onLayoutRootView}>
-      <AuthProvider>
-        <DataProvider>
-          <ToastProvider>
-            <SafeAreaProvider>
-              <NavigationContainer
-                ref={navigationRef}
-                onReady={() => {
-                  routeNameRef.current = navigationRef.current?.getCurrentRoute()?.name;
-                }}
-                onStateChange={async () => {
-                  const previousRouteName = routeNameRef.current;
-                  const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
+      <ErrorBoundary>
+        <AuthProvider>
+          <DataProvider>
+            <ToastProvider>
+              <SafeAreaProvider>
+                <NavigationContainer
+                  ref={navigationRef}
+                  onReady={() => {
+                    routeNameRef.current = navigationRef.current?.getCurrentRoute()?.name;
+                  }}
+                  onStateChange={async () => {
+                    const previousRouteName = routeNameRef.current;
+                    const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
 
-                  if (previousRouteName !== currentRouteName && currentRouteName) {
-                    logScreenView(currentRouteName);
-                  }
-                  routeNameRef.current = currentRouteName;
-                }}
-              >
-                <OfflineNotice />
-                <RootNavigator />
-              </NavigationContainer>
-              <Toast />
-            </SafeAreaProvider>
-          </ToastProvider>
-        </DataProvider>
-      </AuthProvider>
+                    if (previousRouteName !== currentRouteName && currentRouteName) {
+                      logScreenView(currentRouteName);
+                    }
+                    routeNameRef.current = currentRouteName;
+                  }}
+                >
+                  <OfflineNotice />
+                  <RootNavigator />
+                </NavigationContainer>
+                <Toast />
+              </SafeAreaProvider>
+            </ToastProvider>
+          </DataProvider>
+        </AuthProvider>
+      </ErrorBoundary>
       <StatusBar style="dark" backgroundColor="#E5E7EB" />
     </GestureHandlerRootView>
   );

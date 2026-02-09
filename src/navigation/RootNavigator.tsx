@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { LayoutGrid, Users, ReceiptIndianRupee, CreditCard, Settings, User, ShoppingBag } from 'lucide-react-native';
+import { LayoutGrid, Users, ReceiptIndianRupee, CreditCard, Settings, User, ShoppingBag, TrendingUp } from 'lucide-react-native';
 import { View, Text, ActivityIndicator, Platform, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors } from '../constants/theme';
 
@@ -30,6 +30,7 @@ import OutfitCategoriesScreen from '../screens/OutfitCategoriesScreen';
 import EditCategoryScreen from '../screens/EditCategoryScreen';
 import ManageSubOptionsScreen from '../screens/ManageSubOptionsScreen';
 import ItemDetailScreen from '../screens/ItemDetailScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
 import VerifyOtpScreen from '../screens/VerifyOtpScreen';
@@ -158,17 +159,15 @@ function MainTabs() {
                 }}
             />
             <Tab.Screen
-                name="Payments"
-                component={PaymentsScreen}
+                name="Analytics"
+                component={AnalyticsScreen}
                 options={{
-                    tabBarLabel: 'Payment',
+                    tabBarLabel: 'Insights',
                     tabBarIcon: ({ color, focused }) => (
                         <View style={[styles.tabIconContainer, focused && styles.activeTabBg]}>
-                            <CreditCard size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
+                            <TrendingUp size={24} color={focused ? '#FFF' : color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
-                    headerShown: false,
-                    headerTitle: 'Payments'
                 }}
             />
             <Tab.Screen
@@ -237,6 +236,7 @@ export default function RootNavigator() {
                     <Stack.Screen name="OutfitCategories" component={OutfitCategoriesScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="EditCategory" component={EditCategoryScreen} options={{ headerShown: false }} />
                     <Stack.Screen name="ManageSubOptions" component={ManageSubOptionsScreen} options={{ headerShown: false }} />
+                    <Stack.Screen name="Payments" component={PaymentsScreen} options={{ headerShown: true, title: 'Payments' }} />
 
                     {/* Settings Screens */}
                     <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />

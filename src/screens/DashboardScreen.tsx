@@ -12,34 +12,35 @@ import {
 } from 'react-native';
 import { Colors, Spacing, Typography, Shadow } from '../constants/theme';
 import {
-    Plus,
-    ReceiptIndianRupee,
     IndianRupee,
     Clock,
     Users,
-    TrendingUp,
     ChevronRight,
     Search,
     Bell,
     CreditCard,
     X,
     LayoutGrid,
-    Phone,
-    MapPin,
     Receipt,
     Calendar,
-    Image as LucideImage,
-    Flame
+    Flame,
+    CheckCircle2,
+    ReceiptIndianRupee,
+    MessageCircle,
+    Phone,
+    Plus,
+    AlertCircle
 } from 'lucide-react-native';
 import { formatDate, parseDate } from '../utils/dateUtils';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { logEvent } from '../config/firebase';
+import firestore from '@react-native-firebase/firestore';
+import PaymentAttentionItem from '../components/PaymentAttentionItem';
 
 import Constants from 'expo-constants';
 import { Linking } from 'react-native';
-import { firestore } from '../config/firebase';
 
 const { width } = Dimensions.get('window');
 
@@ -57,6 +58,18 @@ const DashboardScreen = ({ navigation }: any) => {
     const [updateUrl, setUpdateUrl] = useState('');
     const [updateMessage, setUpdateMessage] = useState('New update available!');
 
+    const [activeRecentTab, setActiveRecentTab] = useState<'orders' | 'payments'>('orders');
+
+    const getDaysRemaining = (dateString: string | undefined) => {
+        if (!dateString) return 999;
+        const targetDate = parseDate(dateString);
+        const today = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = targetDate.getTime() - today.getTime();
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    };
+
     // Check for Updates
     React.useEffect(() => {
         const checkUpdate = async () => {
@@ -69,7 +82,7 @@ const DashboardScreen = ({ navigation }: any) => {
                 const configRef = firestore().collection('settings').doc('app_config');
                 const configSnap = await configRef.get();
 
-                if (configSnap.exists) {
+                if (configSnap.exists()) {
                     const data = configSnap.data();
                     if (data) {
                         const latestVersionCode = Platform.OS === 'android'
@@ -98,36 +111,71 @@ const DashboardScreen = ({ navigation }: any) => {
     const totalCollected = validPayments.reduce((sum, p) => sum + p.amount, 0);
     const pendingAmount = totalRevenue - totalCollected;
 
-    // Calculate Monthly Growth
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    // TODAY-FOCUSED CALCULATIONS
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
 
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    // Today's Work Snapshot
+    const dueToday = orders.filter(o => {
+        const deliveryDate = o.deliveryDate;
+        if (!deliveryDate) return false;
+        try {
+            return parseDate(deliveryDate).toISOString().split('T')[0] === todayStr && o.status !== 'Completed' && o.status !== 'Cancelled';
+        } catch (e) {
+            return false;
+        }
+    }).length;
 
-    // Use centralized parseDate from dateUtils
+    const inProgress = orders.filter(o => o.status === 'In Progress').length;
 
-    const currentMonthTotal = payments.filter(p => {
-        const pDate = parseDate(p.date);
-        return pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear;
+    const completedToday = orders.filter(o => {
+        const completedDate = o.updatedAt;
+        if (!completedDate) return false;
+        try {
+            return parseDate(completedDate).toISOString().split('T')[0] === todayStr && o.status === 'Completed';
+        } catch (e) {
+            return false;
+        }
+    }).length;
+
+    // Today's Money Snapshot
+    const todaysCollection = validPayments.filter(p => {
+        const paymentDate = parseDate(p.date);
+        paymentDate.setHours(0, 0, 0, 0);
+        return paymentDate.getTime() === today.getTime();
     }).reduce((sum, p) => sum + p.amount, 0);
 
-    const lastMonthTotal = payments.filter(p => {
-        const pDate = parseDate(p.date);
-        return pDate.getMonth() === lastMonth && pDate.getFullYear() === lastMonthYear;
-    }).reduce((sum, p) => sum + p.amount, 0);
+    // Payment Attention List (customers with overdue payments)
+    const overdueCustomers = orders
+        .filter(o => o.balance > 0 && o.status !== 'Cancelled')
+        .map(o => {
+            const customer = customers.find(c => c.id === o.customerId);
+            const daysOverdue = getDaysRemaining(o.deliveryDate) < 0 ? Math.abs(getDaysRemaining(o.deliveryDate)) : 0;
+            return {
+                orderId: o.id,
+                customerName: o.customerName,
+                mobile: customer?.mobile || o.customerMobile,
+                amountDue: o.balance,
+                daysOverdue
+            };
+        })
+        .filter(c => c.daysOverdue > 0)
+        .sort((a, b) => b.daysOverdue - a.daysOverdue)
+        .slice(0, 5);
 
-    let growth: number = 0;
-    if (lastMonthTotal > 0) {
-        growth = ((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100;
-    } else if (currentMonthTotal > 0) {
-        growth = 0; // First month of data as requested
-    }
+    // Order Health Overview
+    const orderHealthData = orders.reduce((acc, o) => {
+        if (o.status === 'Cancelled') return acc;
+        const daysLeft = getDaysRemaining(o.deliveryDate);
+        if (daysLeft > 2) acc.onTime++;
+        else if (daysLeft >= 0 && daysLeft <= 2) acc.nearDue++;
+        else if (daysLeft < 0) acc.overdue++;
+        return acc;
+    }, { onTime: 0, nearDue: 0, overdue: 0 });
 
-    const growthText = growth > 0 ? `+${growth.toFixed(1)}%` : `${growth.toFixed(1)}%`;
-    const TrendIcon = growth >= 0 ? TrendingUp : TrendingUp;
-    const trendColor = growth >= 0 ? Colors.white : 'rgba(255,255,255,0.8)';
+    const totalActiveOrders = orderHealthData.onTime + orderHealthData.nearDue + orderHealthData.overdue;
+    const onTimePercent = totalActiveOrders > 0 ? Math.round((orderHealthData.onTime / totalActiveOrders) * 100) : 0;
 
     const filteredCustomers = searchQuery.length > 1
         ? customers.filter(c =>
@@ -143,44 +191,9 @@ const DashboardScreen = ({ navigation }: any) => {
         ).slice(0, 5)
         : [];
 
-    const stats = [
-        {
-            title: "Total Orders",
-            value: orders.length.toString(),
-            icon: ReceiptIndianRupee,
-            color: '#6366F1',
-            onPress: () => navigation.navigate('Orders', { screen: 'OrderList' })
-        },
-        {
-            title: "Total Revenue",
-            value: `₹${totalRevenue.toLocaleString()}`,
-            icon: IndianRupee,
-            color: '#10B981',
-            onPress: () => {
-                logEvent('revenue_card_click');
-                navigation.navigate('Payments');
-            }
-        },
-        {
-            title: "Balance Due",
-            value: `₹${pendingAmount.toLocaleString()}`,
-            icon: Clock,
-            color: '#F59E0B',
-            onPress: () => {
-                logEvent('balance_card_click');
-                navigation.navigate('Payments');
-            }
-        },
-        {
-            title: "Customers",
-            value: customers.length.toString(),
-            icon: Users,
-            color: '#3B82F6',
-            onPress: () => navigation.navigate('Customers', { screen: 'CustomerList' })
-        }
-    ];
-
+    // Recent Orders
     const recentOrders = orders.slice(0, 5);
+    const recentPayments = payments.slice(0, 5);
 
     const recentActivities = [
         ...orders.map(o => ({
@@ -219,47 +232,60 @@ const DashboardScreen = ({ navigation }: any) => {
         }
     };
 
-    const getDaysRemaining = (dateString: string | undefined) => {
-        if (!dateString) return 999;
-        const targetDate = parseDate(dateString);
-        const today = new Date();
-        targetDate.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        const diffTime = targetDate.getTime() - today.getTime();
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Calculate Monthly Growth
+    const now = new Date(); // Restore this for dateStr usage
+
+    // Date for Header
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    console.log('Rendering Dashboard - Premium Revamp');
+
+    // Business Snapshot Calculation (Monthly)
+    const currentMonthOrders = orders.filter(o => {
+        const d = parseDate(o.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    const currentMonthTotal = payments.filter(p => {
+        const pDate = parseDate(p.date);
+        return pDate.getMonth() === now.getMonth() && pDate.getFullYear() === now.getFullYear();
+    }).reduce((sum, p) => sum + p.amount, 0);
+
+    // Completion Rate
+    const completedMonthOrders = currentMonthOrders.filter(o => o.status === 'Completed').length;
+    const completionRate = currentMonthOrders.length > 0
+        ? Math.round((completedMonthOrders / currentMonthOrders.length) * 100)
+        : 0;
+
+    const handleCall = (mobile: string) => {
+        Linking.openURL(`tel:${mobile}`);
+    };
+
+    const handleWhatsApp = (mobile: string, name: string, amount: number) => {
+        const text = `Hello ${name}, your payment of ₹${amount} is pending. Please pay at your earliest convenience.`;
+        Linking.openURL(`whatsapp://send?phone=${mobile}&text=${text}`);
     };
 
     return (
         <View style={styles.container}>
-            {/* Header */}
+            {/* Header - Daily First */}
             <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
                 <View style={styles.headerTop}>
-                    <View style={styles.userInfo}>
+                    <View>
+                        <Text style={styles.dateText}>{dateStr}</Text>
+                        <View style={styles.userInfo}>
+                            <Text style={styles.greeting}>Hello, </Text>
+                            <Text style={styles.companyName}>{company?.name || 'My Boutique'}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.profileBtn}
+                        onPress={() => navigation.navigate('More')}
+                    >
                         <View style={styles.avatar}>
                             <Text style={styles.avatarText}>{company?.name?.[0]?.toUpperCase() || 'S'}</Text>
                         </View>
-                        <View>
-                            <Text style={styles.greeting}>Hello,</Text>
-                            <Text style={[styles.companyName, { color: Colors.primary }]}>{company?.name || 'My Boutique'}</Text>
-                        </View>
-                    </View>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity
-                            style={styles.headerIconBtn}
-                            onPress={() => {
-                                logEvent('dashboard_search_open');
-                                setIsSearchVisible(true);
-                            }}
-                        >
-                            <Search size={22} color={Colors.textPrimary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.headerIconBtn}
-                            onPress={() => setIsActivityVisible(true)}
-                        >
-                            <Bell size={22} color={Colors.textPrimary} />
-                        </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -267,254 +293,311 @@ const DashboardScreen = ({ navigation }: any) => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* Update Banner */}
-                {updateAvailable && (
-                    <View style={styles.updateBanner}>
-                        <View style={styles.updateContent}>
-                            <View style={styles.updateIconContainer}>
-                                <Flame size={24} color={Colors.white} fill={Colors.white} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.updateTitle}>{updateMessage}</Text>
-                                <Text style={styles.updateSubtitle}>Tap to update now</Text>
-                            </View>
-                            <TouchableOpacity
-                                style={styles.updateButton}
-                                onPress={() => Linking.openURL(updateUrl)}
-                            >
-                                <Text style={styles.updateButtonText}>Update</Text>
-                            </TouchableOpacity>
+                {/* 1. Today's Work Snapshot (Priority) */}
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Today's Work</Text>
+                </View>
+                <View style={styles.statsGrid}>
+                    {/* Due Today */}
+                    <TouchableOpacity
+                        style={[styles.statCard, styles.cardDue]}
+                        onPress={() => navigation.navigate('Orders', { screen: 'OrderList', params: { filterDueToday: true } })}
+                    >
+                        <View style={styles.statIconWrapper}>
+                            <Clock size={20} color={Colors.danger} />
                         </View>
+                        <Text style={styles.statValue}>{dueToday}</Text>
+                        <Text style={styles.statLabel}>Due Today</Text>
+                    </TouchableOpacity>
+
+                    {/* Overdue Orders (New) */}
+                    <TouchableOpacity
+                        style={[styles.statCard, styles.cardOverdue]}
+                        onPress={() => navigation.navigate('Orders', { screen: 'OrderList', params: { filterHealth: 'overdue' } })}
+                    >
+                        <View style={styles.statIconWrapper}>
+                            <AlertCircle size={20} color="#E11D48" />
+                        </View>
+                        <Text style={styles.statValue}>{orderHealthData.overdue}</Text>
+                        <Text style={styles.statLabel}>Overdue Orders</Text>
+                    </TouchableOpacity>
+
+                    {/* In Progress */}
+                    <TouchableOpacity
+                        style={[styles.statCard, styles.cardProgress]}
+                        onPress={() => navigation.navigate('Orders', { screen: 'OrderList', params: { filterStatus: 'In Progress' } })}
+                    >
+                        <View style={styles.statIconWrapper}>
+                            <LayoutGrid size={20} color="#F59E0B" />
+                        </View>
+                        <Text style={styles.statValue}>{inProgress}</Text>
+                        <Text style={styles.statLabel}>In Progress</Text>
+                    </TouchableOpacity>
+
+                    {/* Completed */}
+                    <TouchableOpacity
+                        style={[styles.statCard, styles.cardCompleted]}
+                        onPress={() => navigation.navigate('Orders', { screen: 'OrderList', params: { filterStatus: 'Completed' } })}
+                    >
+                        <View style={styles.statIconWrapper}>
+                            <CheckCircle2 size={20} color={Colors.success} />
+                        </View>
+                        <Text style={styles.statValue}>{completedToday}</Text>
+                        <Text style={styles.statLabel}>Completed Today</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 2. Today's Money Snapshot */}
+                <View style={styles.moneySnapshot}>
+                    <View style={styles.moneyRow}>
+                        <View style={styles.moneyItem}>
+                            <Text style={styles.moneyLabel}>Today's Collection</Text>
+                            <Text style={styles.moneyValue}>₹{todaysCollection.toLocaleString()}</Text>
+                        </View>
+                        <View style={styles.moneyDivider} />
+                        <View style={styles.moneyItem}>
+                            <Text style={styles.moneyLabel}>Pending Amount</Text>
+                            <Text style={[styles.moneyValue, { color: pendingAmount > 0 ? Colors.danger : Colors.success }]}>
+                                ₹{pendingAmount.toLocaleString()}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* 3. Payment Attention List (Actionable) */}
+                {overdueCustomers.length > 0 && (
+                    <View style={styles.sectionContainer}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Needs Attention</Text>
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{overdueCustomers.length}</Text>
+                            </View>
+                        </View>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                            {overdueCustomers.map((customer) => (
+                                <View key={customer.orderId} style={styles.overdueCardActionable}>
+                                    <View style={styles.overdueHeaderRow}>
+                                        <Text style={styles.overdueName} numberOfLines={1}>{customer.customerName}</Text>
+                                        <Text style={styles.overdueDays}>{customer.daysOverdue} days late</Text>
+                                    </View>
+                                    <Text style={styles.overdueAmountLarge}>₹{customer.amountDue}</Text>
+
+                                    <View style={styles.actionRow}>
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, { backgroundColor: '#EFF6FF' }]}
+                                            onPress={() => handleCall(customer.mobile)}
+                                        >
+                                            <Phone size={16} color="#3B82F6" />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={[styles.actionBtn, { backgroundColor: '#DCFCE7' }]}
+                                            onPress={() => handleWhatsApp(customer.mobile, customer.customerName, customer.amountDue)}
+                                        >
+                                            <MessageCircle size={16} color="#10B981" />
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.markPaidBtn}
+                                            onPress={() => navigation.navigate('Payments', { orderId: customer.orderId })}
+                                        >
+                                            <Text style={styles.markPaidText}>Mark Paid</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
                     </View>
                 )}
-                {/* Quick Actions at the top for better visibility */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Quick Actions</Text>
-                </View>
-                <View style={styles.actionsGrid}>
-                    <TouchableOpacity
-                        style={[styles.actionItem, styles.primaryAction]}
-                        onPress={() => navigation.navigate('CreateOrderFlow')}
-                    >
-                        <View style={[styles.actionIcon, { backgroundColor: Colors.primary }]}>
-                            <Plus size={28} color={Colors.white} />
-                        </View>
-                        <Text style={[styles.actionLabel, { color: Colors.primary, fontFamily: 'Inter-Bold' }]}>New Order</Text>
-                    </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={styles.actionItem}
-                        onPress={() => navigation.navigate('Customers', { screen: 'AddCustomer' })}
-                    >
-                        <View style={[styles.actionIcon, { backgroundColor: '#E0E7FF' }]}>
-                            <Users size={24} color="#4F46E5" />
-                        </View>
-                        <Text style={styles.actionLabel}>Add Client</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.actionItem}
-                        onPress={() => navigation.navigate('Payments')}
-                    >
-                        <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-                            <CreditCard size={24} color="#D97706" />
-                        </View>
-                        <Text style={styles.actionLabel}>Payment</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.actionItem}
-                        onPress={() => navigation.navigate('Orders', { screen: 'OrderList' })}
-                    >
-                        <View style={[styles.actionIcon, { backgroundColor: '#FCE7F3' }]}>
-                            <ReceiptIndianRupee size={24} color="#DB2777" />
-                        </View>
-                        <Text style={styles.actionLabel}>Orders List</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Main Stats Card */}
-                <View style={styles.mainCard}>
-                    <View style={styles.mainCardContent}>
-                        <View>
-                            <Text style={styles.mainCardLabel}>Total Collection</Text>
-                            <Text style={styles.mainCardValue}>₹{totalCollected.toLocaleString()}</Text>
-                        </View>
-                        {growth !== 0 && (
-                            <View style={styles.trendBadge}>
-                                <TrendIcon size={16} color={trendColor} />
-                                <Text style={styles.trendText}>{growthText}</Text>
-                            </View>
-                        )}
+                {/* 4. Quick Actions */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Quick Actions</Text>
                     </View>
-                    <View style={styles.mainCardFooter}>
-                        <Text style={styles.mainCardFooterText}>Monthly growth vs last month</Text>
-                    </View>
-                </View>
-
-                {/* KPI Grid */}
-                <View style={styles.kpiGrid}>
-                    {stats.map((stat, index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={styles.kpiCard}
-                            onPress={stat.onPress}
-                        >
-                            <View style={[styles.kpiIconContainer, { backgroundColor: stat.color + '15' }]}>
-                                <stat.icon size={22} color={stat.color} />
+                    <View style={[styles.quickActionsRow, { paddingHorizontal: Spacing.lg }]}>
+                        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('CreateOrderFlow')}>
+                            <View style={[styles.qaIcon, { backgroundColor: Colors.primary }]}>
+                                <Plus size={24} color={Colors.white} />
                             </View>
-                            <Text style={styles.kpiLabel}>{stat.title}</Text>
-                            <Text style={styles.kpiValue}>{stat.value}</Text>
+                            <Text style={styles.qaLabel}>New Order</Text>
                         </TouchableOpacity>
-                    ))}
+                        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('Customers', { screen: 'AddCustomer' })}>
+                            <View style={[styles.qaIcon, { backgroundColor: '#E0E7FF' }]}>
+                                <Users size={24} color="#4F46E5" />
+                            </View>
+                            <Text style={styles.qaLabel}>Add Client</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('Payments')}>
+                            <View style={[styles.qaIcon, { backgroundColor: '#FEF3C7' }]}>
+                                <CreditCard size={24} color="#D97706" />
+                            </View>
+                            <Text style={styles.qaLabel}>Collect</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('Orders', { screen: 'OrderList', params: { filterDueToday: true } })}>
+                            <View style={[styles.qaIcon, { backgroundColor: '#FCE7F3' }]}>
+                                <Calendar size={24} color="#DB2777" />
+                            </View>
+                            <Text style={styles.qaLabel}>Deliveries</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
-
-                {/* Recent Items */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Recent Orders</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Orders', { screen: 'OrderList' })}>
-                        <Text style={styles.seeAll}>See All</Text>
+                {/* 5. Business Snapshot (Analytics) */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Business Snapshot (This Month)</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[styles.analyticsCard, { marginHorizontal: Spacing.lg }]}
+                        onPress={() => navigation.navigate('Analytics')}
+                    >
+                        <View style={styles.acRow}>
+                            <View style={styles.acItem}>
+                                <Text style={styles.acLabel}>Revenue</Text>
+                                <Text style={styles.acValue}>₹{currentMonthTotal.toLocaleString()}</Text>
+                            </View>
+                            <View style={styles.moneyDivider} />
+                            <View style={styles.acItem}>
+                                <Text style={styles.acLabel}>Orders</Text>
+                                <Text style={styles.acValue}>{currentMonthOrders.length}</Text>
+                            </View>
+                            <View style={styles.moneyDivider} />
+                            <View style={styles.acItem}>
+                                <Text style={styles.acLabel}>Completion</Text>
+                                <Text style={[styles.acValue, { color: Colors.success }]}>{completionRate}%</Text>
+                            </View>
+                        </View>
+                        <View style={styles.acFooter}>
+                            <Text style={styles.acFooterText}>Tap for deep insights</Text>
+                            <ChevronRight size={14} color={Colors.textSecondary} />
+                        </View>
                     </TouchableOpacity>
                 </View>
 
-                {recentOrders.length === 0 ? (
-                    <View style={styles.emptyRecent}>
-                        <Text style={styles.emptyText}>No recent orders found</Text>
-                    </View>
-                ) : (
-                    recentOrders.map((item) => {
-                        // Logic to find earliest delivery date from items or fallback to order date
-                        let targetDateVal = item.deliveryDate;
-                        let daysLeft = 999;
-                        let isUrgent = false;
-
-                        if (item.items && item.items.length > 0) {
-                            const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
-
-                            // Check urgency
-                            const hasUrgentItem = activeItems.some((i: any) => i.urgency === 'Urgent' || i.urgency === 'High');
-                            // Determine if the order itself is urgent (top level or via any item)
-                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
-
-                            // Valid dates from active items
-                            const validDates = activeItems
-                                .map((i: any) => i.deliveryDate)
-                                .filter((d: any) => d)
-                                .map((d: string) => parseDate(d).getTime());
-
-                            if (validDates.length > 0) {
-                                const minDate = Math.min(...validDates);
-                                targetDateVal = new Date(minDate).toISOString();
-
-                                const today = new Date();
-                                today.setHours(0, 0, 0, 0);
-                                const tDate = new Date(minDate);
-                                tDate.setHours(0, 0, 0, 0);
-                                const diff = tDate.getTime() - today.getTime();
-                                daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                            } else {
-                                // Fallback to order delivery date if exists
-                                daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
-                            }
-                        } else {
-                            // Fallback if no items
-                            daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
-                            isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High') && item.status !== 'Cancelled';
-                        }
-
-                        // Re-verify isNearing based on calculated daysLeft
-                        const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
-
-                        return (
+                {/* Recent Items Tabs */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeader}>
+                        <View style={styles.tabContainer}>
                             <TouchableOpacity
-                                key={item.id}
-                                style={[
-                                    styles.orderCard,
-                                    isNearingDeadline && { borderColor: '#FECACA', backgroundColor: '#FEF2F2', borderWidth: 1.5 }
-                                ]}
-                                onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+                                style={[styles.tab, activeRecentTab === 'orders' && styles.activeTab]}
+                                onPress={() => setActiveRecentTab('orders')}
                             >
-                                <View style={styles.orderHeader}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text style={styles.billNo}>Order No: #{item.billNo}</Text>
-                                        {isUrgent && (
-                                            <View style={{ backgroundColor: '#FEE2E2', padding: 4, borderRadius: 12 }}>
-                                                <Flame size={14} color={Colors.danger} fill={Colors.danger} />
-                                            </View>
-                                        )}
-                                    </View>
-                                    {item.items && item.items.length > 1 ? (
-                                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                                            {Object.entries(item.items.reduce((acc: any, i: any) => {
-                                                const s = i.status || 'Pending';
-                                                acc[s] = (acc[s] || 0) + 1;
-                                                return acc;
-                                            }, {})).map(([status, count]: any) => (
-                                                <View key={status} style={{
-                                                    backgroundColor: getStatusColor(status),
-                                                    width: 22, height: 22, borderRadius: 11,
-                                                    justifyContent: 'center', alignItems: 'center',
-                                                    borderWidth: 1, borderColor: 'white',
-                                                    ...Shadow.subtle
-                                                }}>
-                                                    <Text style={{ color: 'white', fontSize: 11, fontFamily: 'Inter-Bold' }}>{count}</Text>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    ) : (
-                                        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-                                            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
-                                        </View>
-                                    )}
-                                </View>
+                                <Text style={[styles.tabText, activeRecentTab === 'orders' && styles.activeTabText]}>Recent Orders</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.tab, activeRecentTab === 'payments' && styles.activeTab]}
+                                onPress={() => setActiveRecentTab('payments')}
+                            >
+                                <Text style={[styles.tabText, activeRecentTab === 'payments' && styles.activeTabText]}>Recent Payments</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity onPress={() => navigation.navigate(activeRecentTab === 'orders' ? 'Orders' : 'Payments')}>
+                            <Text style={styles.seeAll}>See All</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                                <View style={styles.orderContent}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.customerName}>{item.customerName}</Text>
-                                        <View style={styles.dateRow}>
-                                            <Calendar size={12} color={isNearingDeadline ? Colors.danger : Colors.textSecondary} />
-                                            <Text style={[styles.dateText, isNearingDeadline && { color: Colors.danger, fontFamily: 'Inter-SemiBold' }]}>
+                    {activeRecentTab === 'orders' ? (
+                        recentOrders.length === 0 ? (
+                            <View style={styles.emptyRecent}>
+                                <Text style={styles.emptyText}>No recent orders</Text>
+                            </View>
+                        ) : (
+                            recentOrders.map((item) => {
+                                // Logic to find earliest delivery date from items or fallback to order date
+                                let targetDateVal = item.deliveryDate;
+                                let daysLeft = 999;
+                                let isUrgent = false;
+
+                                if (item.items && item.items.length > 0) {
+                                    const activeItems = item.items.filter((i: any) => i.status !== 'Cancelled');
+                                    const hasUrgentItem = activeItems.some((i: any) => i.urgency === 'Urgent' || i.urgency === 'High');
+                                    isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High' || hasUrgentItem) && item.status !== 'Cancelled';
+
+                                    const validDates = activeItems
+                                        .map((i: any) => i.deliveryDate)
+                                        .filter((d: any) => d)
+                                        .map((d: any) => parseDate(d).getTime());
+
+                                    if (validDates.length > 0) {
+                                        const minDate = Math.min(...validDates);
+                                        targetDateVal = new Date(minDate).toISOString();
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const tDate = new Date(minDate);
+                                        tDate.setHours(0, 0, 0, 0);
+                                        const diff = tDate.getTime() - today.getTime();
+                                        daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                    } else {
+                                        daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                                    }
+                                } else {
+                                    daysLeft = item.deliveryDate ? getDaysRemaining(item.deliveryDate) : 999;
+                                    isUrgent = (item.urgency === 'Urgent' || item.urgency === 'High') && item.status !== 'Cancelled';
+                                }
+
+                                const isNearingDeadline = daysLeft >= 0 && daysLeft <= 3 && item.status !== 'Completed' && item.status !== 'Cancelled';
+
+                                return (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={styles.orderListItem}
+                                        onPress={() => navigation.navigate('OrderDetail', { orderId: item.id })}
+                                    >
+                                        <View style={styles.orderListIcon}>
+                                            <Text style={styles.orderListId}>{item.billNo}</Text>
+                                        </View>
+                                        <View style={styles.orderListContent}>
+                                            <Text style={styles.orderListName}>{item.customerName}</Text>
+                                            <Text style={[styles.orderListDate, isNearingDeadline && { color: Colors.danger }]}>
                                                 {isNearingDeadline && daysLeft < 500
                                                     ? `Due: ${daysLeft === 0 ? 'Today' : (daysLeft === 1 ? 'Tomorrow' : formatDate(targetDateVal))}`
                                                     : (targetDateVal ? `Delivery: ${formatDate(targetDateVal)}` : formatDate(item.date))
                                                 }
                                             </Text>
                                         </View>
-                                    </View>
-                                    <View style={styles.amountArea}>
-                                        <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
-                                            <Text style={[
-                                                styles.amount,
-                                                item.status === 'Cancelled' && { textDecorationLine: 'line-through', color: Colors.textSecondary }
-                                            ]}>
-                                                ₹{item.total}
-                                            </Text>
-                                            {item.status !== 'Cancelled' && (
-                                                item.balance > 0 ? (
-                                                    <Text style={[styles.balanceTag, { fontSize: 13 }]}>Due: ₹{item.balance}</Text>
-                                                ) : (
-                                                    <Text style={[styles.balanceTag, { color: Colors.success, fontSize: 13 }]}>Paid</Text>
-                                                )
-                                            )}
+                                        <View style={styles.orderListRight}>
+                                            <Text style={styles.orderListAmount}>₹{item.total}</Text>
+                                            <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
                                         </View>
-                                        <ChevronRight size={18} color={Colors.textSecondary} />
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })
-                )}
-                <View style={{ height: 100 }} />
-            </ScrollView>
+                                    </TouchableOpacity>
+                                );
+                            })
+                        )
+                    ) : (
+                        recentPayments.length === 0 ? (
+                            <View style={styles.emptyRecent}>
+                                <Text style={styles.emptyText}>No recent payments</Text>
+                            </View>
+                        ) : (
+                            recentPayments.map((item) => {
+                                const order = orders.find(o => o.id === item.orderId);
+                                return (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        style={styles.orderListItem}
+                                        onPress={() => navigation.navigate('OrderDetail', { orderId: item.orderId })}
+                                    >
+                                        <View style={[styles.orderListIcon, { backgroundColor: '#F0FDF4' }]}>
+                                            <IndianRupee size={16} color={Colors.success} />
+                                        </View>
+                                        <View style={styles.orderListContent}>
+                                            <Text style={styles.orderListName}>{order?.customerName || 'Unknown Customer'}</Text>
+                                            <Text style={styles.orderListDate}>
+                                                {item.mode} • Bill #{order?.billNo || 'N/A'} • {formatDate(item.date)}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.orderListRight}>
+                                            <Text style={[styles.orderListAmount, { color: Colors.success }]}>₹{item.amount}</Text>
+                                            <ChevronRight size={16} color={Colors.textSecondary} />
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })
+                        )
+                    )}
+                </View>
 
-            {/* Float Action Button */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => navigation.navigate('CreateOrderFlow')}
-            >
-                <Plus size={28} color={Colors.white} />
-            </TouchableOpacity>
+                <View style={{ height: 40 }} />
+            </ScrollView>
 
             {/* Search Modal */}
             <Modal
@@ -614,7 +697,7 @@ const DashboardScreen = ({ navigation }: any) => {
                                 </>
                             )}
                             {searchQuery.length <= 1 && (
-                                <View style={styles.searchPlaceholder}>
+                                <View style={styles.emptySearchState}>
                                     <View style={styles.searchPlaceholderIcon}>
                                         <Search size={40} color={Colors.border} />
                                     </View>
@@ -684,86 +767,95 @@ const DashboardScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
+        backgroundColor: '#F8FAFC', // Slightly cooler white for premium feel
     },
     header: {
         backgroundColor: Colors.white,
         paddingHorizontal: Spacing.lg,
         paddingBottom: Spacing.lg,
-        borderBottomLeftRadius: 30,
-        borderBottomRightRadius: 30,
-        ...Shadow.medium,
-        zIndex: 10,
+        // No shadow for cleaner look, or very subtle
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
     },
     headerTop: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+    dateText: {
+        fontSize: 13,
+        fontFamily: 'Inter-Medium',
+        color: Colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 4,
+    },
     userInfo: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: Colors.primaryLight,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: Colors.white,
-    },
-    avatarText: {
-        fontSize: 20,
-        fontFamily: 'Inter-Bold',
-        color: Colors.primary,
+        alignItems: 'baseline',
+        gap: 4,
     },
     greeting: {
-        fontSize: 15,
+        fontSize: 24,
         fontFamily: 'Inter-Regular',
-        color: Colors.textSecondary,
+        color: Colors.textPrimary,
+        letterSpacing: -0.5,
     },
     companyName: {
-        fontSize: 20,
+        fontSize: 24,
         fontFamily: 'Inter-Bold',
         color: Colors.textPrimary,
+        letterSpacing: -0.5,
     },
-    headerActions: {
-        flexDirection: 'row',
-        gap: 8,
+    profileBtn: {
+        ...Shadow.subtle,
     },
-    headerIconBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#F3F4F6',
+    avatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 14, // Squircle-ish
+        backgroundColor: Colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
     },
+    avatarText: {
+        fontSize: 18,
+        fontFamily: 'Inter-Bold',
+        color: Colors.white,
+    },
     scrollContent: {
-        paddingTop: Spacing.lg,
+        paddingTop: 0,
         paddingBottom: 40,
     },
-    mainCard: {
-        backgroundColor: Colors.primary,
-        marginHorizontal: Spacing.lg,
-        borderRadius: 24,
-        padding: Spacing.xl,
-        marginBottom: Spacing.xl,
-        ...Shadow.medium,
-    },
-    mainCardContent: {
+    toolBar: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.md,
+        gap: 12,
     },
-    mainCardLabel: {
-        color: 'rgba(255,255,255,0.8)',
-        fontFamily: 'Inter-Medium',
-        fontSize: 18,
-        marginBottom: 8,
+    searchBarButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+        height: 46,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        gap: 10,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+
+    iconBtn: {
+        width: 46,
+        height: 46,
+        borderRadius: 12,
+        backgroundColor: Colors.white,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
     },
     // Update Banner Styles
     updateBanner: {
@@ -781,7 +873,7 @@ const styles = StyleSheet.create({
         padding: 16,
         gap: 12
     },
-    updateIconContainer: {
+    iconContainer: {
         width: 40,
         height: 40,
         borderRadius: 20,
@@ -810,214 +902,246 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-SemiBold',
         fontSize: 14
     },
-    mainCardValue: {
-        color: Colors.white,
-        fontFamily: 'Inter-Bold',
-        fontSize: 36,
-    },
-    trendBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
-    trendText: {
-        color: Colors.white,
-        fontFamily: 'Inter-Bold',
-        fontSize: 12,
-    },
-    mainCardFooter: {
-        marginTop: 20,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.1)',
-    },
-    mainCardFooterText: {
-        color: 'rgba(255,255,255,0.7)',
-        fontFamily: 'Inter-Regular',
-        fontSize: 16,
+    sectionContainer: {
+        marginBottom: 24,
     },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: Spacing.lg,
-        marginBottom: Spacing.md,
+        marginBottom: 12,
     },
     sectionTitle: {
         fontFamily: 'Inter-Bold',
         fontSize: 18,
-        color: Colors.textPrimary,
-        marginTop: 18,
+        color: '#0F172A',
+        // marginLeft: Spacing.lg, // Removed to fix alignment
+        marginBottom: 12,
     },
     seeAll: {
         fontFamily: 'Inter-SemiBold',
         fontSize: 13,
         color: Colors.primary,
-        marginTop: 18,
     },
-    kpiGrid: {
+    statsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         paddingHorizontal: Spacing.lg,
         gap: 12,
-        marginBottom: Spacing.xl,
+        marginBottom: 24,
     },
-    kpiCard: {
+    statCard: {
+        width: (width - (Spacing.lg * 2) - 12) / 2, // 2 columns
         backgroundColor: Colors.white,
-        width: (width - (Spacing.lg * 2) - 12) / 2,
         borderRadius: 20,
-        padding: Spacing.md,
-        borderWidth: 1,
-        borderColor: Colors.border,
+        padding: 16,
         ...Shadow.subtle,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
-    kpiIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
+    cardDue: {
+        backgroundColor: '#FEF2F2',
+        borderColor: '#FECACA',
     },
-    kpiLabel: {
-        fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textSecondary,
+    cardOverdue: { // New style for Overdue
+        backgroundColor: '#FFF1F2',
+        borderColor: '#FDA4AF',
+    },
+    cardProgress: {
+        backgroundColor: '#FFFBEB',
+        borderColor: '#FDE68A',
+    },
+    cardCompleted: {
+        backgroundColor: '#F0FDF4',
+        borderColor: '#BBF7D0',
+    },
+    cardMoney: {
+        backgroundColor: '#EFF6FF',
+        borderColor: '#BFDBFE',
+    },
+    statIconWrapper: {
+        marginBottom: 12,
+        alignSelf: 'flex-start',
+    },
+    statValue: {
+        fontSize: 24,
+        fontFamily: 'Inter-Bold',
+        color: '#0F172A',
         marginBottom: 4,
     },
-    kpiValue: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 18,
-        color: Colors.textPrimary,
-    },
-    actionsGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: Spacing.lg,
-        paddingTop: 4, // Prevent shadow crop
-        paddingBottom: Spacing.md,
-        marginBottom: Spacing.md,
-    },
-    actionItem: {
-        alignItems: 'center',
-        gap: 8,
-    },
-    actionIcon: {
-        width: 64,
-        height: 64,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...Shadow.subtle,
-    },
-    actionLabel: {
+    statLabel: {
+        fontSize: 13,
         fontFamily: 'Inter-Medium',
-        fontSize: 14,
-        color: Colors.textPrimary,
+        color: '#64748B',
     },
-    primaryAction: {
-        transform: [{ scale: 1.05 }],
-    },
-    orderCard: {
-        backgroundColor: Colors.white,
-        borderRadius: 12,
-        padding: Spacing.md,
-        marginBottom: Spacing.sm,
+    // Pending Banner
+    pendingBanner: {
         marginHorizontal: Spacing.lg,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        ...Shadow.subtle,
-    },
-    orderHeader: {
+        backgroundColor: '#0F172A', // Dark theme
+        borderRadius: 20,
+        padding: 20,
+        marginBottom: 24,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-        paddingBottom: 8,
-    },
-    billNo: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 15,
-        color: Colors.textSecondary,
-    },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    statusText: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 12,
-    },
-    orderContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    customerName: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 16,
-        color: Colors.textPrimary,
-    },
-    dateRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
-    },
-    dateText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 15,
-        color: Colors.textSecondary,
-    },
-    amountArea: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    amount: {
-        fontFamily: 'Inter-Bold',
-        fontSize: 17,
-        color: Colors.primary,
-    },
-    balanceTag: {
-        fontFamily: 'Inter-SemiBold',
-        fontSize: 14,
-        color: Colors.danger,
-    },
-    emptyRecent: {
-        padding: 40,
-        alignItems: 'center',
-        backgroundColor: Colors.white,
-        marginHorizontal: Spacing.lg,
-        borderRadius: 16,
-        borderStyle: 'dashed',
-        borderWidth: 1,
-        borderColor: Colors.border,
-    },
-    emptyText: {
-        fontFamily: 'Inter-Regular',
-        fontSize: 14,
-        color: Colors.textSecondary,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 20,
-        right: 20,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: Colors.primary,
-        justifyContent: 'center',
         alignItems: 'center',
         ...Shadow.medium,
-        elevation: 5,
     },
+    pendingLabel: {
+        color: '#94A3B8',
+        fontSize: 13,
+        fontFamily: 'Inter-Medium',
+        marginBottom: 4,
+    },
+    pendingValue: {
+        color: Colors.white,
+        fontSize: 24,
+        fontFamily: 'Inter-Bold',
+    },
+    pendingAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        gap: 4,
+    },
+    pendingActionText: {
+        color: Colors.white,
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 13,
+    },
+    // Attention Section
+    horizontalScroll: {
+        paddingLeft: Spacing.lg,
+        paddingRight: Spacing.lg,
+    },
+    badge: {
+        backgroundColor: '#FEF2F2',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#FECACA',
+    },
+    badgeText: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 12,
+        color: Colors.danger,
+    },
+    overdueCard: {
+        width: 160,
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 16,
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        ...Shadow.subtle,
+    },
+    overdueHeader: {
+        backgroundColor: '#FEF2F2',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+
+    overdueName: {
+        fontSize: 15,
+        fontFamily: 'Inter-SemiBold',
+        color: Colors.textPrimary,
+        marginBottom: 4,
+    },
+    overdueAmount: {
+        fontSize: 18,
+        fontFamily: 'Inter-Bold',
+        color: Colors.textPrimary,
+        marginBottom: 12,
+    },
+    collectBtn: {
+        backgroundColor: Colors.textPrimary,
+        borderRadius: 10, // Pill shape
+        paddingVertical: 8,
+        alignItems: 'center',
+    },
+    collectBtnText: {
+        color: Colors.white,
+        fontSize: 13,
+        fontFamily: 'Inter-SemiBold',
+    },
+    // Recent Orders List Styling
+    orderListItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+        marginHorizontal: Spacing.lg,
+        marginBottom: 10,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#F1F5F9', // Very subtle border
+        ...Shadow.subtle, // Very subtle shadow
+    },
+    orderListIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 14,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    orderListId: {
+        fontSize: 13,
+        fontFamily: 'Inter-Bold',
+        color: '#64748B',
+    },
+    orderListContent: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    orderListName: {
+        fontSize: 16,
+        fontFamily: 'Inter-SemiBold',
+        color: '#0F172A',
+        marginBottom: 2,
+    },
+    orderListDate: {
+        fontSize: 13,
+        fontFamily: 'Inter-Regular',
+        color: '#64748B',
+    },
+    orderListRight: {
+        alignItems: 'flex-end',
+        gap: 6,
+    },
+    orderListAmount: {
+        fontSize: 16,
+        fontFamily: 'Inter-Bold',
+        color: '#0F172A',
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    emptyRecent: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        height: 100,
+    },
+    emptyText: {
+        color: Colors.textSecondary,
+        fontFamily: 'Inter-Medium',
+    },
+    // Search & Modals (Keep roughly same structure but updated padding)
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1110,10 +1234,176 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
     },
     searchPlaceholder: {
+        fontSize: 14,
+        color: '#94A3B8',
+        fontFamily: 'Inter-Regular',
+    },
+    emptySearchState: {
         alignItems: 'center',
         paddingVertical: 60,
         gap: 16,
     },
+    // New Styles for Daily-First Layout
+    moneySnapshot: {
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 24,
+        marginHorizontal: Spacing.lg, // Align with other cards
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        ...Shadow.subtle,
+    },
+    moneyRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    moneyItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    moneyLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 13,
+        color: Colors.textSecondary,
+        marginBottom: 4,
+    },
+    moneyValue: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 20,
+        color: Colors.textPrimary,
+    },
+    moneyDivider: {
+        width: 1,
+        height: 30,
+        backgroundColor: '#E2E8F0',
+    },
+    // Overdue Actionable
+    overdueCardActionable: {
+        width: width * 0.75,
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 16,
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: '#FEE2E2',
+        ...Shadow.subtle,
+    },
+    overdueHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    overdueDays: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.danger,
+        backgroundColor: '#FEF2F2',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        overflow: 'hidden',
+    },
+    overdueAmountLarge: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 22,
+        color: Colors.textPrimary,
+        marginBottom: 16,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    actionBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 10, // Squircle
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    markPaidBtn: {
+        flex: 1,
+        backgroundColor: Colors.primary,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: 40,
+    },
+    markPaidText: {
+        fontFamily: 'Inter-SemiBold',
+        color: Colors.white,
+        fontSize: 14,
+    },
+    // Quick Actions
+    quickActionsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    quickActionBtn: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 8,
+    },
+    qaIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Shadow.subtle,
+    },
+    qaLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textPrimary,
+        marginTop: 4,
+    },
+    // Analytics Card
+    analyticsCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        ...Shadow.subtle,
+    },
+    acRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+    },
+    acItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    acLabel: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textSecondary,
+        marginBottom: 4,
+    },
+    acValue: {
+        fontFamily: 'Inter-Bold',
+        fontSize: 18,
+        color: Colors.textPrimary,
+    },
+    acFooter: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#F1F5F9',
+        paddingTop: 12,
+        gap: 4,
+    },
+    acFooterText: {
+        fontFamily: 'Inter-Medium',
+        fontSize: 12,
+        color: Colors.textSecondary,
+    },
+    // Helper Text for search
     searchPlaceholderIcon: {
         width: 80,
         height: 80,
@@ -1208,7 +1498,28 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter-Medium',
         fontSize: 16,
         color: Colors.textSecondary,
-    }
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+    },
+    tab: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: '#F1F5F9',
+    },
+    activeTab: {
+        backgroundColor: Colors.primary,
+    },
+    tabText: {
+        fontFamily: 'Inter-SemiBold',
+        fontSize: 13,
+        color: Colors.textSecondary,
+    },
+    activeTabText: {
+        color: Colors.white,
+    },
 });
 
 export default DashboardScreen;

@@ -1,7 +1,7 @@
 export const Colors = {
-  primary: "#0E9F8A",     // Sewvee Green
-  primaryDark: "#0B7F6E",
-  primaryLight: "#D1FAE5",
+  primary: "#0D9F8A",     // Teal primary color
+  primaryDark: "#0A7968",
+  primaryLight: "#C7F5ED",
   textPrimary: "#111827", // Rich Darker Charcoal
   textSecondary: "#4B5563", // More readable secondary text
   background: "#F9FAFB", // Off-white

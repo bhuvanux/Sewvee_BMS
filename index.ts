@@ -1,4 +1,9 @@
 import { registerRootComponent } from 'expo';
+import '@react-native-firebase/app';
+import '@react-native-firebase/auth';
+import '@react-native-firebase/firestore';
+import '@react-native-firebase/analytics';
+import '@react-native-firebase/storage';
 
 import App from './App';
 
